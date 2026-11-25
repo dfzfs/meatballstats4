@@ -36,39 +36,59 @@ export default {
         st.log = Array.isArray(st.log) ? st.log : [];
         st.own = Array.isArray(st.own) ? st.own : [];   // names typed in by hand (not from the story's list)
         st.in = (Array.isArray(st.in) ? st.in : all.slice(0, 4)).filter((n) => all.includes(n) || st.own.includes(n));
-        let crowd = String(st.crowd ?? '').trim(); const open = !!st.open, ready = open || st.in.length >= 1;
+        let crowd = String(st.crowd ?? '').trim();
+        const open = !!st.open, ready = open || st.in.length >= 1;
         const mood = MOODS.some((m) => m[0] === st.mood) ? st.mood : '';
-        el.innerHTML = `${card('누가 떠드나요', `<div class="mb4-seg"><button class="${open ? '' : 'on'}" data-act="open" data-v="">🔒 고른 사람만</button><button class="${open ? 'on' : ''}" data-act="open" data-v="1">🌐 오픈</button></div>
-            ${open ? `<input class="mb4-input" data-act="crowd" maxlength="80" style="margin-top:8px" placeholder="어떤 무리인가요 (예: 기사단, 우리 반) · 비워도 돼요" value="${esc(crowd)}">${hint('고른 사람에 더해, 이 무리의 다른 사람들도 이름을 달고 끼어들어요. 아무도 안 골라도 돼요.')}` : hint('아래에서 고른 사람만 떠들어요.')}
-            <div class="mb4-chips" style="margin-top:10px">${[...all, ...st.own.filter((n) => !all.includes(n))].map((n) => `<button class="mb4-opt${st.in.includes(n) ? ' on' : ''}" data-act="who" data-v="${esc(n)}">${face(n)} ${esc(n)}</button>`).join('')}</div>
-            <input class="mb4-input" data-f="own" maxlength="120" placeholder="＋ 이름 적고 Enter (쉼표로 여럿)">`)}
-        ${card('', `<div class="mbx-room">${st.log.slice(-30).map((m) => `<div class="mbx-gl${m.me ? ' me' : ''}"><b>${m.me ? '나' : `${face(m.who)} ${esc(m.who)}`}</b><span>${esc(m.t)}</span></div>`).join('') || '<p class="mb4-hint">아직 조용해요.</p>'}</div>
-            <div class="mb4-chips" style="margin:8px 0">${MOODS.map(([id, n]) => `<button class="mb4-opt${mood === id ? ' on' : ''}" data-act="mood" data-v="${id}">${n}</button>`).join('')}</div>
-            <div class="mb4-btnrow"><input class="mb4-input" data-f="msg" maxlength="200" placeholder="내가 한마디 (비워도 돼요)"><button class="mb4-btn" data-act="go" ${ready ? '' : 'disabled'}>💬 떠들게 하기</button></div>`)}
-        <label class="mb4-sw"><span><b>이야기에 알리기</b><small>방금 나눈 말을 다음 답에서 본편 AI가 한 번 알아요</small></span><input type="checkbox" data-act="tell" ${st.tell ? 'checked' : ''}><i></i></label>
-        <div class="mb4-btnrow"><button class="mb4-btn ghost sm" data-act="clear" ${st.log.length ? '' : 'disabled'}>🧹 방 비우기</button></div>
-        ${api.kit.optCard(api.cfg, 'moods', D_MOODS, { title: '분위기', fields: ['name', 'ai'], aiLabel: '어떤 분위기로 떠드는지 (예: They are planning a surprise party.)' })}
-        ${hint('「떠들게 하기」를 누를 때만 AI를 1번 불러요. 본편에는 「이야기에 알리기」를 켰을 때만 가요.')}`;
-        el.querySelector('[data-f="own"]')?.addEventListener('keydown', (e) => { if (e.key === 'Enter' && !e.isComposing) { e.preventDefault(); e.stopPropagation(); acts2.own(); } });
-        const room = el.querySelector('.mbx-room'); if (room) room.scrollTop = room.scrollHeight;
+        const who = st.in.length ? `${st.in.slice(0, 3).join(', ')}${st.in.length > 3 ? ` 외 ${st.in.length - 3}명` : ''}` : '';
+        api.title(`💬 ${crowd || '단체방'}`);
+        // ── panels from ⋯ (members · mood), shown above the room ──
+        const panel = st._panel === 'who' ? card('👥 누가 떠드나요', `<div class="mb4-seg"><button class="${open ? '' : 'on'}" data-act="open" data-v="">🔒 고른 사람만</button><button class="${open ? 'on' : ''}" data-act="open" data-v="1">🌐 오픈</button></div>
+                <input class="mb4-input" data-act="crowd" maxlength="80" style="margin-top:8px" placeholder="방 이름 · 어떤 무리인가요 (예: 기사단, 우리 반)" value="${esc(crowd)}">
+                ${hint(open ? '고른 사람에 더해, 이 무리의 다른 사람들도 이름을 달고 끼어들어요. 아무도 안 골라도 돼요.' : '아래에서 고른 사람만 떠들어요.')}
+                <div class="mb4-chips" style="margin-top:10px">${[...all, ...st.own.filter((n) => !all.includes(n))].map((n) => `<button class="mb4-opt${st.in.includes(n) ? ' on' : ''}" data-act="who" data-v="${esc(n)}">${face(n)} ${esc(n)}</button>`).join('')}</div>
+                <input class="mb4-input" data-f="own" maxlength="120" placeholder="＋ 이름 적고 Enter (쉼표로 여럿)">
+                <div class="mb4-btnrow"><button class="mb4-btn ghost sm" data-act="panel" data-v="">닫기</button></div>`)
+            : st._panel === 'mood' ? card('🎭 분위기', `<div class="mb4-chips">${MOODS.map(([id, n]) => `<button class="mb4-opt${mood === id ? ' on' : ''}" data-act="mood" data-v="${id}">${n}</button>`).join('')}</div>
+                ${api.kit.optCard(api.cfg, 'moods', D_MOODS, { title: '분위기 고치기 · 더하기', fields: ['name', 'ai'], aiLabel: '어떤 분위기로 떠드는지 (예: They are planning a surprise party.)' })}
+                <div class="mb4-btnrow"><button class="mb4-btn ghost sm" data-act="panel" data-v="">닫기</button></div>`)
+            : '';
+        const head = `<button class="mbg-head" data-act="panel" data-v="who"><span>${open ? '🌐' : '🔒'}</span><b>${who ? esc(who) : open ? '아무나' : '아직 아무도 없어요'}${open && who ? ' + 그 밖의 사람들' : ''}</b><small>${MOODS.find((m) => m[0] === mood)?.[1] ?? ''} ›</small></button>`;
+        el.innerHTML = `${panel}${head}
+            <div class="mbx-thread">${st.log.slice(-40).map((m) => (m.me
+                ? `<div class="mbx-b me"><div class="mbx-bubble mbg-me">${esc(m.t)}</div></div>`
+                : `<div class="mbx-b them"><span class="mb4-face mbx-av">${face(m.who)}</span><div class="mbg-col"><small class="mbg-n">${esc(m.who)}</small><div class="mbx-bubble">${esc(m.t)}</div></div></div>`)).join('') || `<p class="mb4-hint mb4-center">${ready ? '보내기를 누르면 떠들기 시작해요. 비워 두고 눌러도 돼요.' : '⋯에서 누가 떠들지 골라 주세요.'}</p>`}</div>
+            <div class="mbx-dock"><textarea class="mb4-input mbx-in" data-f="msg" rows="1" maxlength="200" placeholder="한마디 끼어들기 (비우면 그냥 떠들게)"></textarea><button class="mb4-btn mbx-go" data-act="go" ${ready ? '' : 'disabled'}>보내기</button></div>`;
         api.kit.editMore(el, api, [{ name: 'log', list: st.log, max: 30, label: (m) => (m.me ? '나' : m.who), get: (m) => m.t, set: (m, t) => { m.t = t.slice(0, 300); } }]);
-        api.kit.optWire(el, api.cfg, () => { api.save(); api.redraw(); });
+        if (st._panel === 'mood') api.kit.optWire(el, api.cfg, () => { api.save(); api.redraw(); });
+        api.menu([
+            { icon: '👥', label: '누가 떠드나요', sub: `${open ? '🌐 오픈' : '🔒 고른 사람만'}${who ? ` · ${who}` : ''}`, act: () => { st._panel = 'who'; api.redraw(); } },
+            { icon: '🎭', label: '분위기', sub: MOODS.find((m) => m[0] === mood)?.[1] ?? '', act: () => { st._panel = 'mood'; api.redraw(); } },
+            { icon: st.tell ? '📣' : '🔕', label: st.tell ? '이야기에 알리기 끄기' : '이야기에 알리기', sub: '방금 나눈 말을 다음 답에서 본편 AI가 한 번 알아요', act: () => { st.tell = !st.tell; api.save(); api.redraw(); } },
+            { icon: '🧹', label: '방 비우기', disabled: !st.log.length, act: () => { st.log = []; st.fresh = ''; api.save(); api.redraw(); } },
+        ]);
+        setTimeout(() => el.querySelector('.mbx-dock')?.scrollIntoView({ block: 'nearest' }), 0);
+        const inp = el.querySelector('[data-f="msg"]');
+        inp?.addEventListener('keydown', (e) => { if (e.key === 'Enter' && !e.shiftKey && !e.isComposing) { e.preventDefault(); el.querySelector('[data-act="go"]')?.click(); } });
+        el.querySelector('[data-f="own"]')?.addEventListener('keydown', (e) => { if (e.key === 'Enter' && !e.isComposing) { e.preventDefault(); e.stopPropagation(); acts2.own(); } });
         const acts2 = {
+            panel: (v) => { st._panel = st._panel === v ? '' : v; api.redraw(); },
             who: (n) => { st.in = st.in.includes(n) ? st.in.filter((x) => x !== n) : [...st.in, n].slice(0, 8); api.save(); api.redraw(); },
             mood: (v) => { st.mood = v; api.save(); api.redraw(); },
+            open: (v) => { st.open = !!v; api.save(); api.redraw(); },
             // no redraw here: the box may still have focus (redrawing under it fires a second change)
             crowd: (v) => { st.crowd = clip(String(v ?? '').trim(), 80); api.save(); const g = el.querySelector('[data-act="go"]'); if (g) g.disabled = !(st.open || st.in.length >= 1); },
-            open: (v) => { st.open = !!v; api.save(); api.redraw(); },
             own: () => { const box = el.querySelector('[data-f="own"]'), L = String(box?.value ?? '').split(/[,，、]/).map((x) => x.trim().slice(0, 40)).filter((n) => n && n !== env.user); if (!L.length) return; for (const n of L) { if (!st.own.includes(n) && !all.includes(n)) st.own.push(n); if (!st.in.includes(n)) st.in = [...st.in, n].slice(0, 8); } box.value = ''; api.save(); api.redraw(); },
-            tell: (_v, b) => { st.tell = b.checked; api.save(); },
-            clear: () => { st.log = []; st.fresh = ''; api.save(); api.redraw(); },
             go: async (_v, b) => {
+                if (!(st.open || st.in.length)) return;
                 const mine = val(el, '[data-f="msg"]');
                 if (mine) st.log.push({ me: true, who: env.user || 'me', t: clip(mine, 200) });
-                b.disabled = true; b.textContent = '떠드는 중…';
+                b.disabled = true; b.textContent = '…';
                 const P = env.peek('people')?.list ?? {};
-                const raw = await api.ask(`[TASK] Do NOT continue the story and do not narrate. Write the next lines of a phone group chat${st.open && (crowd = String(st.crowd ?? '').trim()) ? ` — the group chat of ${crowd}` : ''}. ${st.in.length ? `Named members: ${st.in.map((n) => `${n}${P[n]?.about ? ` (${P[n].about})` : ''}`).join('; ')}.` : ''}${st.open ? ` Other members${crowd ? ` of ${crowd}` : ' of their circle'} chime in too: give them fitting names or chat handles, keep them minor and consistent with earlier lines.` : ' Only these members speak; nobody else is in the room.'}${mine ? ` ${env.user} is in the room too and just wrote the last line; they react to it.` : ` ${env.user} is not reading right now.`} ${MOOD_EN[mood] ?? 'They talk as they normally would, about what is on their minds.'}\n\n[What is known]\n${api.facts() || '(nothing recorded)'}\n\n[Latest part of the story]\n${clip(env.recent(1)[0] ?? '', 1500)}\n\n[Group chat so far]\n${st.log.slice(-12).map((m) => `${m.who}: ${m.t}`).join('\n') || '(empty)'}\n\nWrite 4 to 7 short chat lines, each exactly "Name: message", every voice distinct, in the language of the story. Nobody says what they could not know. Output only those lines.`, 500);
-                const L = parse(raw, st.in);
+                const raw = await api.ask(`[TASK] Do NOT continue the story and do not narrate. Write the next lines of a phone group chat${st.open && (crowd = String(st.crowd ?? '').trim()) ? ` — the group chat of ${crowd}` : ''}. ${st.in.length ? `Named members: ${st.in.map((n) => `${n}${P[n]?.about ? ` (${P[n].about})` : ''}`).join('; ')}.` : ''}${st.open ? ` Other members${crowd ? ` of ${crowd}` : ' of their circle'} chime in too: give them fitting names or chat handles, keep them minor and consistent with earlier lines.` : ' Only these members speak; nobody else is in the room.'}${mine ? ` ${env.user} is in the room too and just wrote the last line; they react to it.` : ` ${env.user} is not reading right now.`} ${MOOD_EN[mood] ?? 'They talk as they normally would, about what is on their minds.'}\n\n[What is known]\n${api.facts() || '(nothing recorded)'}\n\n[Latest part of the story]\n${clip(env.recent(1)[0] ?? '', 1500)}\n\n[Group chat so far]\n${st.log.slice(-12).map((m) => `${m.who}: ${m.t}`).join('\n') || '(empty)'}\n\nWrite 4 to 7 short chat lines, each exactly "Name: message", every voice distinct, in the language of the story. Nobody says what they could not know. Output only those lines.`, 1500);
+                // a reply cut off by the length limit ends mid-sentence: its last line is dropped rather than shown broken
+                let L = parse(raw, st.in);
+                const tail = String(raw ?? '').trimEnd();
+                if (L.length > 1 && tail.length > 600 && !/[.!?…~)\]"'”’」』。！？ㅋㅎ♡♥💕😂🤣👍]$|[\u{1F300}-\u{1FAFF}]$/u.test(tail)) L = L.slice(0, -1);
                 if (L.length) { st.log.push(...L); if (st.log.length > 120) st.log.splice(0, st.log.length - 120); st.fresh = L.slice(-4).map((m) => `${m.who}: "${m.t}"`).join(' / '); }
                 else api.toast('받지 못했어요. 잠시 뒤 다시 해 보세요.');
                 api.save(); api.redraw();
@@ -76,5 +96,5 @@ export default {
         };
         acts(el, acts2);
     },
-    css: '.mbx-room{display:flex;flex-direction:column;gap:6px;max-height:320px;overflow-y:auto}.mbx-gl{align-self:flex-start;max-width:86%;padding:6px 10px;border-radius:14px 14px 14px 4px;background:rgba(70,45,35,.07);overflow-wrap:anywhere}.mbx-gl b{display:block;font-size:11.5px;color:var(--sub)}.mbx-gl.me{align-self:flex-end;border-radius:14px 14px 4px 14px;background:#00b4d8;color:#fff}.mbx-gl.me b{color:rgba(255,255,255,.8)}',
+    css: '.mbg-head{display:flex;align-items:center;gap:8px;width:100%;margin:0 0 8px;padding:9px 12px;border:0;border-radius:12px;background:var(--fill);color:inherit;font:inherit;text-align:left;cursor:pointer}.mbg-head b{flex:1;min-width:0;font-size:13.5px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}.mbg-head small{color:var(--sub);font-size:12px;white-space:nowrap}.mbg-col{display:flex;flex-direction:column;align-items:flex-start;max-width:78%;min-width:0}.mbg-col .mbx-bubble{max-width:100%}.mbg-n{margin:0 0 2px 4px;font-size:11.5px;color:var(--sub)}.mbx-bubble.mbg-me{background:#00b4d8!important;color:#fff;border-bottom-right-radius:6px;box-shadow:none}' + '.mbx-thread{display:flex;flex-direction:column;gap:6px;padding:4px 0 10px;min-height:120px}.mbx-b{display:flex;align-items:flex-end;gap:6px}.mbx-b.me{justify-content:flex-end}.mbx-av{width:28px!important;height:28px!important;font-size:15px!important}.mbx-bubble{max-width:76%;padding:8px 12px;border-radius:18px;background:var(--card);box-shadow:0 .5px 0 var(--line);overflow-wrap:anywhere;white-space:pre-wrap;line-height:1.45}.mbx-b.them .mbx-bubble{border-bottom-left-radius:6px}.mbx-dock{position:sticky;bottom:-26px;display:flex;align-items:flex-end;gap:8px;margin:0 -16px;padding:8px 16px 12px;background:var(--glass);-webkit-backdrop-filter:blur(22px) saturate(1.6);backdrop-filter:blur(22px) saturate(1.6);border-top:.5px solid var(--line);z-index:2}.mbx-dock .mbx-in{flex:1;resize:none;min-height:40px}',
 };
