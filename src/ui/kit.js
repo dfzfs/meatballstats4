@@ -113,3 +113,16 @@ export function editMore(el, api, groups, title = '') {
 }
 // "앞 | 뒤" split for items with two parts
 export const two = (t) => { const i = String(t).indexOf('|'); return i < 0 ? [String(t).trim(), ''] : [t.slice(0, i).trim(), t.slice(i + 1).trim()]; };
+
+// 💞 How close someone is to the person's own character, from what 💞 관계 · 💗 호감 already keep (0 when both are off).
+// Used to put the closest people first and fold away the rest.
+export function closeness(bonds, heart, me) {
+    const pairs = Object.values(bonds?.pairs ?? {});
+    return (n) => {
+        const p = pairs.find((x) => (x.a === n && x.b === me) || (x.b === n && x.a === me));
+        const h = heart?.d?.[`${n}>${me}`];
+        return (Number(h?.a) || 0) + (Number(p?.lvl) || 0) * 20 + (p?.moves?.length ?? 0) * 2 + (p?.tie ? 5 : 0);
+    };
+}
+// The first `keep` rows as they are, the rest folded under «나머지 n명».
+export const foldRest = (rows, keep = 8) => (rows.length <= keep ? rows.join('') : `${rows.slice(0, keep).join('')}<details class="mb4-more"><summary>나머지 ${rows.length - keep}명</summary>${rows.slice(keep).join('')}</details>`);

@@ -71,7 +71,10 @@ export default {
     render(el, api) {
         const st = api.store, cfg = api.cfg, k = api.kit, T = threads(st), env = api.env, user = env.user || 'me';
         const day = env.peek('scene')?.day;
-        const known = [...new Set([...(st.recent ?? []), ...(env.peek('scene')?.with ?? []), ...Object.keys(env.peek('people')?.list ?? {}), ...Object.keys(T)])].filter((n) => n && n !== env.user);
+        const near = k.closeness(env.peek('bonds'), env.peek('heart'), env.user);
+        const known0 = [...new Set([...(st.recent ?? []), ...(env.peek('scene')?.with ?? []), ...Object.keys(env.peek('people')?.list ?? {}), ...Object.keys(T)])].filter((n) => n && n !== env.user);
+        // the closest people first (💞 관계 · 💗 호감); equally close ones keep the most recent first
+        const known = known0.map((n, j) => [n, j]).sort((a, b) => (near(b[0]) - near(a[0])) || a[1] - b[1]).map(([n]) => n);
         if (st.who && !known.includes(st.who)) st.who = '';
         const nick = (n) => env.peekStore?.('touch')?.names?.[n] ?? '';
         const nameOf = (n) => (nick(n) ? `${esc(nick(n))} <small>${esc(n)}</small>` : esc(n));
@@ -89,7 +92,7 @@ export default {
             };
             el.innerHTML = `<div class="mb4-list mbx-list">
                 <button class="mbx-row" data-act="group"><span class="mb4-face mbx-gface">💬</span><span class="mbx-row-t"><b>단체방</b><small>${groupOn ? (gl ? `${esc(gl.me ? '나' : gl.who)}: ${esc(clip(gl.t, 50))}` : '인물들끼리 떠드는 방') : '꺼져 있어요 · 눌러서 켜기'}</small></span></button>
-                ${known.map(row).join('')}</div>
+                ${k.foldRest(known.map(row))}</div>
                 ${known.length ? '' : k.hint('이야기에 인물이 나오면 여기 떠요. 이름을 직접 적어 추가할 수도 있어요.')}
                 <div class="mb4-btnrow"><input class="mb4-input" data-f="new" maxlength="40" placeholder="＋ 이름 직접 적어 추가"><button class="mb4-btn ghost" data-act="add">추가</button></div>
                 ${st._panel === 'cfg' ? settings() : ''}`;

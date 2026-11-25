@@ -511,7 +511,8 @@ function castOverview(box, e) {
     const isMe = (n) => !n || n === me || /^(?:\{\{user\}\}|user|you|me|나|너|주인공)$/i.test(String(n).trim()) || (me && String(n).trim().toLowerCase() === String(me).trim().toLowerCase());
     for (const n of [...all]) if (isMe(n)) all.delete(n);
     const gone = (n) => !!P?.list?.[n]?.gone;
-    const order = [...all].sort((a, b) => (here.has(b) - here.has(a)) || (gone(a) - gone(b)) || ((P?.list?.[b]?.i ?? 0) - (P?.list?.[a]?.i ?? 0)));
+    const near = kit.closeness(B, HT, me);
+    const order = [...all].sort((a, b) => (here.has(b) - here.has(a)) || (gone(a) - gone(b)) || (near(b) - near(a)) || ((P?.list?.[b]?.i ?? 0) - (P?.list?.[a]?.i ?? 0)));
     const off = e.apps.filter((id) => !E.reg.has(id));
     const row = (ic, label, html, tab) => (html ? `<div class="mb4-pf-row" data-go="page:cast:${tab}"><span class="mb4-pf-k">${ic} ${label}</span><span class="mb4-pf-v">${html}</span></div>` : '');
     const seedsOf = (n) => { const x = P?.seeds?.[n]; return (Array.isArray(x) ? x : x ? [x] : []).map((y) => (typeof y === 'string' ? y : y?.v)).filter(Boolean); };
@@ -543,7 +544,7 @@ function castOverview(box, e) {
     box.innerHTML = `${offRow(off)}
         ${me && L?.who?.[me] ? one(me, true) : ''}
         ${inScene.length ? `<h5 class="mb4-sec">지금 같이 있는 사람 <small>${inScene.length}명</small></h5>${inScene.map((n) => one(n)).join('')}` : ''}
-        ${rest.length ? `<h5 class="mb4-sec">그 밖의 사람 <small>${rest.length}명</small></h5>${rest.map((n) => one(n)).join('')}` : ''}
+        ${rest.length ? `<h5 class="mb4-sec">그 밖의 사람 <small>${rest.length}명 · 가까운 순</small></h5>${kit.foldRest(rest.map((n) => one(n)))}` : ''}
         ${order.length ? kit.hint('줄을 누르면 그 탭으로 가요. 꺼 둔 기능의 줄은 나오지 않아요.') : kit.empty('👥', '아직 만난 사람이 없어요', '이야기가 진행되면 사람마다 한 장씩 생겨요')}`;
     box.querySelectorAll('[data-mind]').forEach((b) => b.addEventListener('click', (ev) => { ev.stopPropagation(); const ms = E.envOf('mind').store; ms.mode = 'cast'; ms.who = b.dataset.mind; saveChat(); go('page:cast:mind'); }));
 }

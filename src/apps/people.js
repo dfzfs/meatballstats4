@@ -5,7 +5,7 @@
 import { clip } from '../core/text.js';
 import { resolve, lookalikes } from '../core/names.js';
 import { cueOr, slow } from '../core/cadence.js';
-import { esc, card, person, empty, hint, acts, pill } from '../ui/kit.js';
+import { esc, card, person, empty, hint, acts, pill, closeness, foldRest } from '../ui/kit.js';
 
 const split = (v) => { const i = v.indexOf('='); return i < 0 ? [v.trim(), ''] : [v.slice(0, i).trim(), v.slice(i + 1).trim()]; };
 
@@ -35,11 +35,26 @@ export default {
             rules: ['seed is for small personal things said in passing, not for secrets, plans or plot facts.'] },
     ],
     rules: ['"npc" is for people only, never places or groups. "gone" is not for someone who merely leaves the scene.'],
+    // everyone another app names (in the scene, what they wear, how close they are) also gets a place in the list,
+    // so the list keeps up with the story even when no new «npc» line is written. Reading only: nothing new is asked.
+    watch: ['with', 'wear', 'body', 'mark', 'carry', 'pos', 'touch', 'move', 'feel', 'tie', 'refuse', 'yield', 'press', 'aside', 'lead'],
     start: () => ({ list: {}, calls: {}, knows: {}, lies: {}, owes: {}, roles: {}, seeds: {} }),
     // the reader sometimes names the person's own character «User» / «you»: never a separate person in the list
     check: ({ k, v }, env = {}) => { const [n, rest] = split(v); if ((k === 'npc' || k === 'gone') && (/^(?:\{\{user\}\}|user|you|the user|player|protagonist)$/i.test(n.trim()) || (env.user && n.trim().toLowerCase() === String(env.user).toLowerCase()))) return false; if (k === 'call') return n.includes('>') && !!rest && rest.length <= 40; return n.length > 0 && n.length <= 40; },
-    reduce(S, { k, v, i, q }, env) {
+    reduce(S, { k, v, i, q, watched }, env) {
         const alias = env?.store?.alias ?? {}, canon = (n) => resolve(Object.keys(S.list), n, alias) ?? n.trim();
+        if (watched) {
+            const me = String(env?.user ?? '').trim().toLowerCase();
+            const ok = (n) => n && n.length <= 40 && !/^(?:\(?(?:none|nobody|no one|alone|empty)\)?|\{\{user\}\}|user|you|the user|me|나|너)$/i.test(n) && n.toLowerCase() !== me;
+            const lhs = String(v).split('=')[0];
+            const who = k === 'with' ? (String(v).trim().startsWith('-') ? [] : String(v).replace(/^\s*=/, '').split(/\s*[,，;/]\s*|\s+(?=[+-])/).filter((x) => !x.trim().startsWith('-')).map((x) => x.replace(/^\s*\+/, '').trim()))
+                : k === 'tie' ? lhs.split(/\s*-\s*/) : lhs.split('>');
+            for (const raw of who.map((x) => String(x).trim()).filter(ok)) {
+                const name = canon(raw), P = (S.list[name] ??= { name, about: '', first: i, i, gone: '', seen: [] });
+                P.i = Math.max(P.i ?? 0, i);
+            }
+            return;
+        }
         S.calls ??= {};
         if (k === 'call') {
             const [lhs, rest] = split(v), [a, b] = lhs.split('>').map((x) => canon(x));
@@ -104,11 +119,12 @@ export default {
         const S = api.state(), st = api.store, here = api.env.peek('scene')?.with ?? [];
         st.notes ??= {};
         st.alias = st.alias && typeof st.alias === 'object' ? st.alias : {};
-        const L = Object.values(S.list).sort((a, b) => (here.includes(b.name) - here.includes(a.name)) || b.i - a.i);
+        const near = closeness(api.env.peek('bonds'), api.env.peek('heart'), api.env.user);
+        const L = Object.values(S.list).sort((a, b) => (here.includes(b.name) - here.includes(a.name)) || (near(b.name) - near(a.name)) || b.i - a.i);
         const calls = (n) => Object.entries(S.calls ?? {}).filter(([d]) => d.startsWith(`${n}>`) || d.endsWith(`>${n}`)).map(([d, c]) => `<span class="mb4-chip">${esc(d.replace('>', ' → '))} 「${esc(c.v)}」</span>`).join('');
         const merge = lookalikes(L.map((p) => p.name)).filter(([a, b]) => !st.alias[b.toLowerCase()] && !st.alias[a.toLowerCase()]);
         el.innerHTML = (merge.length ? card('🔀 같은 사람인가요?', merge.slice(0, 4).map(([a, b]) => `<div class="mb4-row"><span class="mb4-row-v">${esc(a)} · ${esc(b)}</span><button class="mb4-btn ghost sm" data-act="merge" data-v="${esc(`${b}|${a}`)}">하나로</button></div>`).join(''), 'warn') : '')
-            + (L.length ? L.map((p) => card('', `
+            + (L.length ? foldRest(L.map((p) => card('', `
             ${person(p.name, p.about || '아직 소개가 없어요', `${here.includes(p.name) ? pill('지금 여기', 'good') : ''}${p.gone ? pill('떠남', 'bad') : ''}`)}
             ${p.seen?.length ? `<p class="mb4-hint">다르게 적힌 이름: ${esc(p.seen.join(', '))}</p>` : ''}
             ${(p.facts ?? []).length > 1 ? `<div class="mb4-row"><span class="mb4-row-k">📜 전에 적힌 것</span><span class="mb4-row-v">${esc(p.facts.slice(0, -1).reverse().join(' · '))}</span></div>` : ''}
@@ -127,7 +143,7 @@ export default {
                 <label class="mb4-label">다른 이름 더하기<input class="mb4-input" data-pf="alias" data-n="${esc(p.name)}" maxlength="40" placeholder="별명 · 본명"></label>
                 <div class="mb4-btnrow"><input class="mb4-input" data-pf="callto" data-n="${esc(p.name)}" maxlength="40" placeholder="누구를"><input class="mb4-input" data-pf="callas" data-n="${esc(p.name)}" maxlength="40" placeholder="뭐라고 부르나"></div>
                 <div class="mb4-btnrow"><button class="mb4-btn" data-act="pfix" data-v="${esc(p.name)}">고치기</button><button class="mb4-btn ghost" data-act="gone" data-v="${esc(p.name)}">${p.gone ? '↩ 돌아왔어요' : '👋 이야기에서 떠남'}</button></div>
-            </details>`)).join('') : empty('👥', '아직 만난 사람이 없어요', '새 인물이 나오면 여기 생겨요'))
+            </details>`))) : empty('👥', '아직 만난 사람이 없어요', '새 인물이 나오면 여기 생겨요'))
             + card('＋ 사람 더하기', `<div class="mb4-btnrow"><input class="mb4-input" data-f="nname" maxlength="40" placeholder="이름"><input class="mb4-input" data-f="nabout" maxlength="100" placeholder="어떤 사람"><button class="mb4-btn ghost" data-act="padd">넣기</button></div>`)
             + card('🔀 이름 합치기', `${Object.keys(st.alias).length ? Object.entries(st.alias).map(([k, v]) => `<div class="mb4-row"><span class="mb4-row-v">${esc(k)} → ${esc(v)}</span><button class="mb4-x" data-act="unalias" data-v="${esc(k)}" aria-label="풀기">✕</button></div>`).join('') : ''}
                 <div class="mb4-btnrow"><input class="mb4-input" data-f="from" maxlength="40" placeholder="다른 이름 (예: 별명)"><input class="mb4-input" data-f="to" maxlength="40" placeholder="원래 이름"><button class="mb4-btn ghost" data-act="alias">합치기</button></div>`)

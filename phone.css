@@ -418,3 +418,7 @@ textarea.mb4-input { resize: vertical; min-height: 44px; }
 .mb4-editing .mb4-edcard { box-shadow: inset 0 0 0 1.5px color-mix(in srgb, var(--a) 35%, transparent); }
 .mb4-edrow { border-top: .5px solid var(--line); }
 @media (max-width: 700px) { .mb4-menu-box { top: calc(52px + env(safe-area-inset-top)); } }
+/* folded «나머지 n명» under a list of people */
+.mb4-more { margin: 4px 0 10px; }
+.mb4-more > summary { cursor: pointer; list-style: none; padding: 8px 4px; font-size: 13px; color: var(--sub, #888); text-align: center; }
+.mb4-more > summary::-webkit-details-marker { display: none; }
