@@ -257,12 +257,13 @@ function hero() {
     const S = chat && E.reg.has('scene') ? E.state('scene') : null;
     const W = chat && E.reg.has('wallet') ? E.state('wallet') : null;
     const calOn = E.reg.has('calendar'), env = calOn ? E.envOf('calendar') : null;
+    // the date the story itself named wins; the calendar's own count is only a fallback (they can disagree)
     let date = '';
     if (S && env?.store.start) { const t = Date.parse(`${env.store.start}T00:00:00Z`); if (!Number.isNaN(t)) { const d = new Date(t + (S.day - 1) * 86400000); date = `${d.getUTCMonth() + 1}월 ${d.getUTCDate()}일 ${'일월화수목금토'[d.getUTCDay()]}요일`; } }
     if (!S) return `<div class="mb4-hero mb4-home-hero"><div class="mb4-hero-n">😼 미트볼</div><div class="mb4-hero-s">${chat ? `켠 앱 ${E.reg.size}개` : '채팅을 열면 기록이 시작돼요'}</div></div>`;
     return `<div class="mb4-hero mb4-home-hero" data-go="app:scene">
         <div class="mb4-hero-n">${S.tod ? TOD_KO[S.tod] : `${S.day}일째`}</div>
-        <div class="mb4-hero-s">${[date || `이야기 ${S.day}일째`, S.date, S.weather].filter(Boolean).map(esc).join(' · ')}</div>
+        <div class="mb4-hero-s">${[S.date || date || `이야기 ${S.day}일째`, String(S.weather ?? '').split(/[,，]/)[0].trim().slice(0, 16)].filter(Boolean).map(esc).join(' · ')}</div>
         <div class="mb4-hero-m">${[S.loc ? `📍 ${esc(room(S.loc))}` : '📍 아직 몰라요', S.with.length ? `👥 ${S.with.length}명` : '', W ? `💰 ${Number(W.cash).toLocaleString('en-US')}` : ''].filter(Boolean).join('<i>·</i>')}</div>
     </div>`;
 }
