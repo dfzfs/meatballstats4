@@ -19,7 +19,7 @@ export default {
     desc: '이야기에 나온 사람들을 한 줄 소개와 함께 모아 두고, 지금 장면에 있는 사람만 AI에 알려 줘요.',
     keys: [
         { id: 'call', line: 'call: A>B=what A calls B (name, nickname, title)', quote: true },
-        { id: 'npc', line: 'npc: Name=who they are, a few words (new person or new fact)', quote: true },
+        { id: 'npc', line: 'npc: Name=who they are, a few words (a new person, or something new or changed about a known one)', quote: true },
         { id: 'gone', line: 'gone: Name=left the story for good | dead', quote: true },
         // NEXT-3: third-generation keys restored as their own items (v3 core/keys.js, surface rules 11 · 13 · 16)
         { id: 'know', line: 'know: Name=secret · news · identity just learned, with names (whose, about whom)', when: cueOr(/learn|found out|realiz|discover|knew|know|told|secret|truth|news|identity|reveal|알게|알아|비밀|정체|소식/i, (S) => Object.keys(S?.knows ?? {}).length > 0),
@@ -38,7 +38,7 @@ export default {
     start: () => ({ list: {}, calls: {}, knows: {}, lies: {}, owes: {}, roles: {}, seeds: {} }),
     // the reader sometimes names the person's own character «User» / «you»: never a separate person in the list
     check: ({ k, v }, env = {}) => { const [n, rest] = split(v); if ((k === 'npc' || k === 'gone') && (/^(?:\{\{user\}\}|user|you|the user|player|protagonist)$/i.test(n.trim()) || (env.user && n.trim().toLowerCase() === String(env.user).toLowerCase()))) return false; if (k === 'call') return n.includes('>') && !!rest && rest.length <= 40; return n.length > 0 && n.length <= 40; },
-    reduce(S, { k, v, i }, env) {
+    reduce(S, { k, v, i, q }, env) {
         const alias = env?.store?.alias ?? {}, canon = (n) => resolve(Object.keys(S.list), n, alias) ?? n.trim();
         S.calls ??= {};
         if (k === 'call') {
@@ -68,7 +68,10 @@ export default {
         const P = (S.list[name] ??= { name, about: '', first: i, i, gone: '', seen: [] });
         if (raw.trim() !== name && !P.seen.includes(raw.trim())) P.seen.push(raw.trim());   // other spellings, kept for the screen
         P.i = i;
-        if (k === 'npc') { if (rest) P.about = clip(rest, 100); P.gone = ''; }
+        if (k === 'npc') {
+            if (rest) { const a = clip(rest, 100); P.about = a; P.facts = [...(P.facts ?? []).filter((x) => x.toLowerCase() !== a.toLowerCase()), a].slice(-5); }
+            P.gone = '';
+        }
         else P.gone = clip(rest || 'gone', 40);
     },
     stateLines: (S) => { const L = Object.values(S.list).filter((p) => !p.gone); return [`known people: ${L.length ? L.map((p) => p.name).join(', ') : '(none recorded)'}`]; },
@@ -108,6 +111,8 @@ export default {
             + (L.length ? L.map((p) => card('', `
             ${person(p.name, p.about || '아직 소개가 없어요', `${here.includes(p.name) ? pill('지금 여기', 'good') : ''}${p.gone ? pill('떠남', 'bad') : ''}`)}
             ${p.seen?.length ? `<p class="mb4-hint">다르게 적힌 이름: ${esc(p.seen.join(', '))}</p>` : ''}
+            ${(p.facts ?? []).length > 1 ? `<div class="mb4-row"><span class="mb4-row-k">📜 전에 적힌 것</span><span class="mb4-row-v">${esc(p.facts.slice(0, -1).reverse().join(' · '))}</span></div>` : ''}
+            ${Number.isFinite(api.env.last) && Number.isFinite(p.i) ? `<p class="mb4-hint">마지막으로 적힌 때: ${api.env.last - p.i <= 0 ? '방금 답' : `${api.env.last - p.i}메시지 전`}</p>` : ''}
             ${S.roles?.[p.name] ? `<div class="mb4-row"><span class="mb4-row-k">🎖 직위</span><span class="mb4-row-v">${esc(S.roles[p.name].v)}</span></div>` : ''}
             ${S.seeds?.[p.name]?.length ? `<div class="mb4-row"><span class="mb4-row-k">🌱 취향 · 버릇</span><span class="mb4-row-v">${esc(S.seeds[p.name].map((x) => x.v).join(' · '))}</span></div>` : ''}
             ${S.knows?.[p.name]?.length ? `<div class="mb4-row"><span class="mb4-row-k">💡 알게 된 것</span><span class="mb4-row-v">${esc(S.knows[p.name].map((x) => x.v).join(' · '))}</span></div>` : ''}
