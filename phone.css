@@ -285,3 +285,30 @@ textarea.mb4-input { resize: vertical; min-height: 44px; }
 .mb4-sum small { color: var(--sub); }
 .mb4-sum-t { margin: 4px 0 10px; font-size: 16px; line-height: 1.5; font-weight: 600; }
 .mb4-tip { margin: 0 0 10px; padding: 9px 12px; border-radius: 12px; background: rgba(255, 236, 170, .45); font-size: 12.5px; line-height: 1.45; color: var(--fg); }
+
+/* sticky bars stay solid when the list scrolls under them */
+.mb4-shelves { background: var(--bg1); box-shadow: 0 4px 12px rgba(120, 70, 50, .10); backdrop-filter: none; }
+.mb4-tabs { background: var(--bg1); backdrop-filter: none; box-shadow: 0 4px 10px rgba(120, 70, 50, .08); }
+.mb4-docked { box-shadow: -4px 0 16px rgba(0, 0, 0, .12); }
+
+/* 🎨 looks */
+.mb4-walls { display: grid; grid-template-columns: repeat(4, 1fr); gap: 8px; }
+.mb4-wall { position: relative; aspect-ratio: 3 / 4; border: 2px solid transparent; border-radius: 12px; overflow: hidden; cursor: pointer; display: flex; align-items: flex-end; justify-content: center; padding: 0 0 6px; box-shadow: 0 1px 4px rgba(0, 0, 0, .12); }
+.mb4-wall.on { border-color: var(--a); }
+.mb4-wall span { font-size: 11.5px; padding: 2px 6px; border-radius: 999px; background: rgba(255, 255, 255, .85); color: #231d1b; }
+.mb4-wall.up { background: repeating-linear-gradient(45deg, rgba(70, 45, 35, .06) 0 8px, transparent 8px 16px); }
+.mb4-dot { display: inline-block; width: 11px; height: 11px; border-radius: 50%; vertical-align: -1px; }
+.mb4-photo .mb4-card, .mb4-photo .mb4-ents, .mb4-photo .mb4-hero, .mb4-photo .mb4-pf { backdrop-filter: blur(8px); }
+.mb4-photo .mb4-shelves, .mb4-photo .mb4-tabs { background: rgba(255, 255, 255, .92); }
+
+/* 🌗 night */
+.mb4-phone.mb4-dark { --bg1: #22212c; --bg2: #2c2a38; --card: rgba(40, 38, 52, .86); --line: rgba(255, 255, 255, .09); --fg: #eeeaf3; --sub: #a9a3b6; color: var(--fg); }
+.mb4-dark:not([style*="background"]) { background: linear-gradient(160deg, var(--bg1), var(--bg2)); }
+.mb4-dark .mb4-top, .mb4-dark:not(.mb4-at-home) .mb4-top { background: rgba(30, 29, 40, .8); }
+.mb4-dark .mb4-hero, .mb4-dark .mb4-load, .mb4-dark .mb4-shelf.on, .mb4-dark .mb4-opt, .mb4-dark .mb4-tab, .mb4-dark .mb4-input, .mb4-dark .mb4-offcard { background: rgba(52, 49, 66, .92); color: var(--fg); }
+.mb4-dark .mb4-shelves, .mb4-dark .mb4-tabs { background: #26252f; }
+.mb4-dark.mb4-photo .mb4-shelves, .mb4-dark.mb4-photo .mb4-tabs { background: rgba(34, 33, 44, .92); }
+.mb4-dark .mb4-tip { background: rgba(255, 214, 120, .12); }
+.mb4-dark .mb4-btn.ghost { background: rgba(255, 255, 255, .06); color: var(--fg); }
+.mb4-dark .mb4-sw i { background: rgba(255, 255, 255, .18); }
+.mb4-dark .mb4-batt, .mb4-dark .mb4-sig { filter: invert(1); }

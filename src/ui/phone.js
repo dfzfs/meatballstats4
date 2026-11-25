@@ -27,9 +27,116 @@ export async function open(runtime, to = '') {
     if (!root) build();
     root.classList.toggle('mb4-left', cfg().side === 'left');
     root.classList.add('mb4-open');
+    applyLook();
+    dock();
     go(!cfg().asked ? 'ask' : to || 'home');
 }
-export function close() { root?.classList.remove('mb4-open'); }
+export function close() { root?.classList.remove('mb4-open'); undock(); }
+
+
+// ── 🎨 looks: wallpaper, accent colour, light / night, font. Screen only: nothing is sent anywhere. ──
+// A photo wallpaper is kept in the browser's own storage (not in the settings file), shrunk to at most 900px.
+export const WALLS = [
+    ['', '기본', ''],
+    ['cream', '크림', 'linear-gradient(165deg,#fff6ea 0%,#fde4dc 55%,#eef0e4 100%)'],
+    ['peach', '복숭아', 'linear-gradient(170deg,#ffe0cc 0%,#ffbfa8 45%,#f2a6a6 100%)'],
+    ['lilac', '라벤더 노을', 'linear-gradient(180deg,#d8c4e6 0%,#f6c6d9 55%,#c9dcf5 100%)'],
+    ['sky', '하늘', 'linear-gradient(180deg,#b9dcff 0%,#d9eef7 50%,#fff8ec 100%)'],
+    ['mint', '민트', 'linear-gradient(160deg,#e3f5e6 0%,#c4e8cf 50%,#fbf8e8 100%)'],
+    ['night', '밤', 'linear-gradient(180deg,#25253f 0%,#4b4e6d 55%,#9a8c98 100%)'],
+];
+const ACCENTS = [['', '코랄', '#e2725b'], ['pink', '분홍', '#e0567f'], ['violet', '보라', '#7c5cff'], ['blue', '파랑', '#3a8ee6'], ['green', '초록', '#2f9e7a'], ['ink', '먹색', '#3d3a4b']];
+const FONTS = [['', '기본'], ['inherit', '실리태번 글꼴'], ["'Galmuri11', monospace", '갈무리 (도트)'], ['serif', '명조'], ['system-ui', '시스템']];
+const WALL_KEY = 'meatball4-wall';
+let wallUrl = null, wallLoading = null;
+const lf = () => globalThis.SillyTavern?.libs?.localforage ?? null;
+const looks = () => (cfg().look ??= {});
+function wallLoad() {
+    return (wallLoading ??= (async () => { try { wallUrl = (await lf()?.getItem(WALL_KEY)) ?? ''; } catch (e) { wallUrl = ''; } return wallUrl; })());
+}
+async function wallSave(data) {
+    const db = lf();
+    if (db) { try { await db.setItem(WALL_KEY, data); wallUrl = data; looks().wall = 'img'; saveCfg(); return true; } catch (e) { /* fall through */ } }
+    toast('이 브라우저는 사진을 저장할 곳이 없어요. 그라데이션 배경을 써 주세요.', 'warning'); return false;
+}
+function shrink(file, max = 900) {
+    return new Promise((ok, no) => {
+        const img = new Image(), url = URL.createObjectURL(file);
+        img.onload = () => { const k = Math.min(1, max / Math.max(img.width, img.height)), c = document.createElement('canvas'); c.width = Math.round(img.width * k); c.height = Math.round(img.height * k); c.getContext('2d').drawImage(img, 0, 0, c.width, c.height); URL.revokeObjectURL(url); ok(c.toDataURL('image/jpeg', 0.85)); };
+        img.onerror = () => { URL.revokeObjectURL(url); no(new Error('not an image')); };
+        img.src = url;
+    });
+}
+export function applyLook() {
+    if (!root) return;
+    const L = looks(), acc = ACCENTS.find((a) => a[0] === (L.accent ?? '')) ?? ACCENTS[0];
+    root.classList.toggle('mb4-dark', L.mode === 'dark' || (L.mode !== 'light' && L.wall === 'night'));
+    root.style.setProperty('--a', acc[2]);
+    root.style.setProperty('--a-soft', `${acc[2]}24`);
+    root.style.fontFamily = L.font || '';
+    let bg = WALLS.find((w) => w[0] === L.wall)?.[2] ?? '';
+    if (L.wall === 'img') { if (wallUrl == null) { wallLoad().then(() => applyLook()); bg = ''; } else bg = wallUrl ? `url("${wallUrl}") center/cover no-repeat` : ''; }
+    root.style.background = bg;
+    root.classList.toggle('mb4-photo', L.wall === 'img' && !!wallUrl);
+}
+function drawLook(body) {
+    const L = looks();
+    const thumb = (bg) => (bg ? `style="background:${bg}"` : '');
+    body.innerHTML = `${kit.card('🖼 배경화면', `<div class="mb4-walls">${WALLS.map(([id, n, bg]) => `<button class="mb4-wall${(L.wall ?? '') === id ? ' on' : ''}" data-wall="${id}" ${thumb(bg || 'linear-gradient(160deg,#fff8f1,#ffe9e1)')}><span>${n}</span></button>`).join('')}
+            <label class="mb4-wall up${L.wall === 'img' ? ' on' : ''}" ${wallUrl ? `style="background:url('${wallUrl}') center/cover"` : ''}><span>🖼 내 사진</span><input type="file" accept="image/*" data-photo hidden></label></div>
+            ${kit.hint('사진은 이 브라우저 안에만 저장돼요(설정 파일에 안 들어가요). 크면 저절로 줄여요.')}`)}
+        ${kit.card('🎨 테마 색', `<div class="mb4-chips">${ACCENTS.map(([id, n, c]) => `<button class="mb4-opt${(L.accent ?? '') === id ? ' on' : ''}" data-accent="${id}"><i class="mb4-dot" style="background:${c}"></i> ${n}</button>`).join('')}</div>`)}
+        ${kit.card('🌗 밝기', `<div class="mb4-chips">${[['', '배경 따라'], ['light', '밝게'], ['dark', '어둡게']].map(([id, n]) => `<button class="mb4-opt${(L.mode ?? '') === id ? ' on' : ''}" data-mode="${id}">${n}</button>`).join('')}</div>`)}
+        ${kit.card('🔤 글꼴', `<div class="mb4-chips">${FONTS.map(([id, n]) => `<button class="mb4-opt${(L.font ?? '') === id ? ' on' : ''}" data-font="${esc(id)}" style="font-family:${id || 'inherit'}">${n}</button>`).join('')}</div>`)}
+        <button class="mb4-btn ghost wide" data-lookreset>처음대로 되돌리기</button>
+        ${kit.hint('폰 모양만 바뀌어요. AI에 보내는 건 없어요.')}`;
+    const set = (k, v) => { looks()[k] = v; saveCfg(); applyLook(); draw(true); };
+    body.querySelectorAll('[data-wall]').forEach((b) => b.addEventListener('click', () => set('wall', b.dataset.wall)));
+    body.querySelectorAll('[data-accent]').forEach((b) => b.addEventListener('click', () => set('accent', b.dataset.accent)));
+    body.querySelectorAll('[data-mode]').forEach((b) => b.addEventListener('click', () => set('mode', b.dataset.mode)));
+    body.querySelectorAll('[data-font]').forEach((b) => b.addEventListener('click', () => set('font', b.dataset.font)));
+    body.querySelector('[data-lookreset]').addEventListener('click', () => { cfg().look = {}; saveCfg(); applyLook(); draw(true); });
+    body.querySelector('[data-photo]').addEventListener('change', async (e) => {
+        const f = e.target.files?.[0]; if (!f) return;
+        try { if (await wallSave(await shrink(f))) { applyLook(); draw(true); toast('배경화면을 바꿨어요.'); } } catch (x) { toast('그림을 읽지 못했어요.', 'warning'); }
+    });
+    if (L.wall === 'img' && wallUrl == null) wallLoad().then(() => { if (view === 'look') draw(true); });
+}
+
+// ── docking: on a wide screen the phone sits BESIDE the chat instead of over it ──
+// The chat column (#sheld) keeps its width when the free space beside it is enough for the phone; otherwise it moves
+// over (and narrows only if it must) so the two sit side by side. Narrow screens (phones) keep the phone on top.
+// Only our own inline styles are touched, and they are put back exactly when the phone closes.
+const PHONE_MIN = 340, PHONE_MAX = 440, NARROW = 760, GAP = 8;
+let saved = null, onResize = null;
+function undock() {
+    const sh = document.getElementById('sheld');
+    if (sh && saved) { sh.style.marginLeft = saved.ml; sh.style.marginRight = saved.mr; sh.style.width = saved.w; sh.style.maxWidth = saved.mw; }
+    saved = null;
+    if (root) { root.style.width = ''; root.classList.remove('mb4-docked'); }
+    if (onResize) { removeEventListener('resize', onResize); onResize = null; }
+}
+function dock() {
+    if (!onResize) { let t = 0; onResize = () => { clearTimeout(t); t = setTimeout(() => { if (root?.classList.contains('mb4-open')) dock(); }, 120); }; addEventListener('resize', onResize); }
+    const sh = document.getElementById('sheld');
+    if (sh && saved) { sh.style.marginLeft = saved.ml; sh.style.marginRight = saved.mr; sh.style.width = saved.w; sh.style.maxWidth = saved.mw; }
+    root.style.width = ''; root.classList.remove('mb4-docked');
+    if (!sh || cfg().dock === false || innerWidth < NARROW) return;
+    saved ??= { ml: sh.style.marginLeft, mr: sh.style.marginRight, w: sh.style.width, mw: sh.style.maxWidth };
+    const left = cfg().side === 'left', r = sh.getBoundingClientRect(), W = innerWidth;
+    const free = left ? r.left : W - r.right;
+    if (free >= PHONE_MIN + GAP) {   // room already: the phone fills the free strip, the chat does not move
+        root.style.width = `${Math.min(PHONE_MAX, free - GAP)}px`; root.classList.add('mb4-docked'); return;
+    }
+    const phone = Math.max(PHONE_MIN, Math.min(PHONE_MAX, Math.round(W * 0.34))), room = W - phone - GAP;
+    const w = Math.min(r.width, room);
+    if (w < 360) return;            // too tight to sit side by side: stay on top of the chat
+    root.style.width = `${phone}px`; root.classList.add('mb4-docked');
+    sh.style.width = `${w}px`; sh.style.maxWidth = `${w}px`;
+    const m = `${Math.max(0, Math.round((room - w) / 2))}px`;
+    if (left) { sh.style.marginLeft = `${phone + GAP + Math.max(0, Math.round((room - w) / 2))}px`; sh.style.marginRight = 'auto'; }
+    else { sh.style.marginLeft = m; sh.style.marginRight = 'auto'; }
+}
 
 function build() {
     root = document.createElement('div');
@@ -38,7 +145,7 @@ function build() {
     root.innerHTML = '<div class="mb4-top"><button class="mb4-ico" data-back aria-label="뒤로">‹</button><span class="mb4-title"></span><span class="mb4-status" aria-hidden="true"><i class="mb4-sig"></i><i class="mb4-batt"></i></span><button class="mb4-ico" data-close aria-label="닫기">✕</button></div><div class="mb4-body"></div>';
     document.body.append(root);
     $('[data-close]').addEventListener('click', close);
-    $('[data-back]').addEventListener('click', () => go(view === 'tr' ? 'set' : 'home'));
+    $('[data-back]').addEventListener('click', () => go(view === 'tr' || view === 'look' ? 'set' : 'home'));
     $('.mb4-body').addEventListener('click', (e) => {
         const c = e.target.closest('[data-catch]');
         if (c && root.contains(c)) { e.stopPropagation(); onCatch(c.dataset.catch); return; }
@@ -55,7 +162,7 @@ function build() {
 const route = (v) => { if (!String(v).startsWith('app:')) return v; const id = v.slice(4), h = homeOf(id); return h ? `page:${h.entry.id}${h.entry.apps.length > 1 ? `:${id}` : ''}` : v; };
 function go(v) { const to = route(v), same = to === view; view = to; draw(same); if (!same) $('.mb4-body').scrollTop = 0; }
 
-const VIEWS = { ask: ['', drawAsk], home: ['', drawHome], market: ['🛍 마켓', drawMarket], set: ['⚙️ 설정', drawSet], tr: ['🌐 번역 · 용어집', drawTr] };
+const VIEWS = { ask: ['', drawAsk], home: ['', drawHome], market: ['🛍 마켓', drawMarket], set: ['⚙️ 설정', drawSet], tr: ['🌐 번역 · 용어집', drawTr], look: ['🎨 꾸미기', drawLook] };
 function draw(keepScroll = false) {
     const body = $('.mb4-body'), top = body.scrollTop;
     const isApp = view.startsWith('app:'), isPage = view.startsWith('page:');
@@ -358,7 +465,7 @@ function drawSet(body) {
     const sw = (attr, on, label, sub = '', dis = false) => `<label class="mb4-sw"><span><b>${label}</b>${sub ? `<small>${sub}</small>` : ''}</span><input type="checkbox" ${attr} ${on ? 'checked' : ''} ${dis ? 'disabled' : ''}><i></i></label>`;
     body.innerHTML = `
         ${kit.card('쉬기', `${sw('data-c="paused"', c.paused, '⏸ 전체 멈춤', '모든 채팅에서 읽기 · 쪽지를 쉬어요')}${sw('data-s="off"', st?.off, '🔌 이 채팅에서만 끄기', '', !hasChat())}`)}
-        ${kit.card('채팅 화면', `${sw('data-c="hud"', c.hud !== false, '입력창 위 상태 줄')}${sw('data-c="chips"', c.chips !== false, '답 밑 변화 딱지')}${sw('data-side', c.side === 'left', '폰을 왼쪽에 두기')}`)}
+        ${kit.card('채팅 화면', `${sw('data-c="hud"', c.hud !== false, '입력창 위 상태 줄')}${sw('data-c="chips"', c.chips !== false, '답 밑 변화 딱지')}${sw('data-side', c.side === 'left', '폰을 왼쪽에 두기')}${sw('data-c="dock"', c.dock !== false, '채팅 옆에 붙이기', '넓은 화면에서 채팅을 가리지 않게 옆으로 비켜 줘요')}`)}
         ${kit.card('답을 읽는 AI', `<select class="mb4-input" data-profile><option value="">본편과 같은 연결</option>${profiles().map((p) => `<option value="${esc(p.id)}" ${p.id === c.profile ? 'selected' : ''}>${esc(p.name)}</option>`).join('')}</select>
             ${kit.hint(`빠르고 싼 모델의 연결 프로필을 고르면 좋아요. ${keys.length ? `지금은 답마다 1번 읽어요 (읽는 항목 ${keys.length}개).` : '지금 켠 앱은 답을 읽을 필요가 없어서 AI를 부르지 않아요.'}`)}
             <label class="mb4-label">🍃 읽는 간격</label><div class="mb4-btnrow tight">${[[1, '답마다'], [2, '2답마다'], [3, '3답마다']].map(([v, n]) => `<button class="mb4-btn ${(Math.max(1, Number(c.every) || 1)) === v ? '' : 'ghost '}sm" data-every="${v}">${n}</button>`).join('')}</div>
@@ -376,6 +483,7 @@ function drawSet(body) {
         <details class="mb4-card"><summary>🔍 마지막으로 답을 읽은 내용</summary>
             <pre class="mb4-pre">${esc(s.lastAnswer || '(아직 없어요)')}</pre>
             ${s.lastDropped.length ? kit.hint(`버린 줄: ${s.lastDropped.map((d) => `${d.raw} (${d.why})`).join(' · ')}`) : ''}</details>
+        ${kit.card('', '<button class="mb4-btn ghost wide" data-go="look">🎨 꾸미기 — 배경화면 · 테마 색 · 글꼴</button>')}
         ${trCard()}
         ${doctorCard()}
         ${kit.card('💾 백업', `<div class="mb4-btnrow"><button class="mb4-btn ghost" data-bak="chat" ${st ? '' : 'disabled'}>이 채팅 기록 받기</button><button class="mb4-btn ghost" data-bak="all">설정 전부 받기</button></div>
@@ -387,9 +495,9 @@ function drawSet(body) {
             ${kit.hint(`대화 글은 건드리지 않아요. 미트볼 ${VERSION}`)}`)}`;
     // switched back on: replies written while paused are read the usual way (one at a time, newest first)
     const refresh = () => { E.touch(); E.refresh(); R.redrawFrame(); R.kick?.(); draw(true); };
-    body.querySelectorAll('[data-c]').forEach((el) => el.addEventListener('change', () => { c[el.dataset.c] = el.checked; saveCfg(); refresh(); }));
+    body.querySelectorAll('[data-c]').forEach((el) => el.addEventListener('change', () => { c[el.dataset.c] = el.checked; saveCfg(); if (el.dataset.c === 'dock') { if (el.checked) dock(); else undock(); } refresh(); }));
     body.querySelector('[data-s]').addEventListener('change', (e) => { store(true).off = e.target.checked; saveChat(); refresh(); });
-    body.querySelector('[data-side]').addEventListener('change', (e) => { c.side = e.target.checked ? 'left' : 'right'; saveCfg(); root.classList.toggle('mb4-left', c.side === 'left'); });
+    body.querySelector('[data-side]').addEventListener('change', (e) => { c.side = e.target.checked ? 'left' : 'right'; saveCfg(); root.classList.toggle('mb4-left', c.side === 'left'); dock(); });
     body.querySelector('[data-profile]').addEventListener('change', (e) => { c.profile = e.target.value; saveCfg(); });
     body.querySelectorAll('[data-every]').forEach((b) => b.addEventListener('click', () => { c.every = +b.dataset.every; saveCfg(); R.kick?.(); draw(true); }));
     wireTrCard(body);
