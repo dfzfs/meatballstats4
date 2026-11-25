@@ -389,6 +389,7 @@ function mountApp(body, id) {
 const FEEL_KO = { attraction: '끌림', desire: '욕망', lingering: '미련', 'love-hate': '애증', 'forbidden pull': '금지된 끌림', resentment: '원망', bond: '정' };
 const COST_WORD = { zero: '켜도 AI를 더 부르지 않아요.', tap: '켜 두기만 하면 0이에요. 단추를 누를 때만 AI를 한 번 불러요.', low: '켜면 답을 읽을 때 물어보는 항목이 조금 늘어요. 따로 더 부르지는 않아요.' };
 let bondsMod = null;
+const EDITING = new Set();   // apps whose 「✏️ 고치기」 is pressed (until the phone is reloaded)
 function drawPage(body) {
     const [, eid, tabRaw] = view.split(':'), e = entryOf(eid);
     if (!e) { go('home'); return; }
@@ -407,8 +408,14 @@ function appTab(box, id, multi) {
         box.querySelector('[data-turn]').addEventListener('click', async (ev) => { ev.target.disabled = true; const why = await R.setApp(id, true); if (why) toast('켜지 못했어요. 새로 고친 뒤 다시 해 보세요.', 'warning'); draw(true); });
         return;
     }
-    box.innerHTML = `<div></div><div class="mb4-tabfoot">${badge(a?.cost)}<button class="mb4-link" data-turnoff>${multi ? `「${esc(a?.name ?? id)}」 끄기` : '끄기'}</button></div>`;
+    const editing = EDITING.has(id);
+    box.innerHTML = `<div></div><div class="mb4-tabfoot">${badge(a?.cost)}<button class="mb4-btn ${editing ? '' : 'ghost '}sm" data-editmode>${editing ? '✔ 다 고쳤어요' : '✏️ 고치기'}</button><button class="mb4-link" data-turnoff>${multi ? `「${esc(a?.name ?? id)}」 끄기` : '끄기'}</button></div>`;
     mountApp(box.firstElementChild, id);
+    // one 「✏️ 고치기」 for the whole app: every edit box of this app shows, already open; pressed again, they all go away
+    const app = box.firstElementChild;
+    app.classList.toggle('mb4-editing', editing);
+    if (editing) { app.querySelectorAll('details.mb4-edcard').forEach((d) => { d.open = true; }); if (!app.querySelector('.mb4-edcard')) app.insertAdjacentHTML('beforeend', kit.hint('이 앱은 위 화면에서 바로 고쳐요.')); }
+    box.querySelector('[data-editmode]').addEventListener('click', () => { if (EDITING.has(id)) EDITING.delete(id); else EDITING.add(id); draw(true); if (EDITING.has(id)) setTimeout(() => $('.mb4-body .mb4-edcard')?.scrollIntoView({ block: 'start', behavior: 'smooth' }), 60); });
     box.querySelector('[data-turnoff]')?.addEventListener('click', async () => { await R.setApp(id, false); draw(true); });
 }
 const offRow = (off) => (off.length ? `<div class="mb4-offrow"><small>꺼져 있어요 · 누르면 켜요</small>${off.map((id) => `<label class="mb4-offchip"><input type="checkbox" data-app="${id}"><span>${meta(id)?.icon ?? ''} ${esc(meta(id)?.name ?? id)}</span></label>`).join('')}</div>` : '');

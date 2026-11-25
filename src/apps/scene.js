@@ -104,7 +104,7 @@ export default {
         ${Object.keys(S.near ?? {}).length ? card('장소끼리 위치', Object.entries(S.near).map(([a, b]) => row('🧭', a, esc(b))).join('')) : ''}
         ${card('같이 있는 사람', S.with.length ? `<div class="mb4-people">${S.with.map((n) => person(n, '', `<button class="mb4-x" data-act="out" data-v="${esc(n)}" aria-label="빼기">✕</button>`)).join('')}</div>` : hint('지금은 혼자예요.'))}
         ${card('지나온 곳', S.trail.length ? `<ol class="mb4-trail">${S.trail.slice(-8).reverse().map((t) => `<li><b>${esc(room(t.loc))}</b><small>${t.day}일째 · ${esc(t.loc)}</small></li>`).join('')}</ol>` : hint('장소가 바뀌면 여기 쌓여요.'))}
-        <details class="mb4-card"><summary>✏️ 틀린 곳 직접 고치기</summary>
+        <details class="mb4-card mb4-edcard"><summary>✏️ 틀린 곳 직접 고치기</summary>
             <label class="mb4-label">장소<input class="mb4-input" data-f="loc" maxlength="120" placeholder="큰 곳 > 작은 곳 > 방" value="${esc(S.loc)}"></label>
             <label class="mb4-label">때<select class="mb4-input" data-f="tod"><option value="">그대로</option>${TOD.map((t) => `<option value="${t}" ${t === S.tod ? 'selected' : ''}>${TOD_KO[t]}</option>`).join('')}</select></label>
             <label class="mb4-label">같이 있는 사람 (쉼표로)<input class="mb4-input" data-f="with" value="${esc(S.with.join(', '))}"></label>

@@ -323,7 +323,7 @@ export default {
                 ${P.refuse.filter((x) => !st.shut?.[`${x.who}>${x.to}|${x.what}`]).map((x) => `<div class="mb4-row"><span class="mb4-row-k">🙅 ${esc(x.who)} → ${esc(x.to)}</span><span class="mb4-row-v">${esc(x.what)} <button class="mb4-btn ghost sm" data-act="shut" data-v="${esc(`${x.who}>${x.to}|${x.what}`)}">끝내기</button></span></div>`).join('')}
                 ${ev ? `<div class="mb4-bd-tl">${ev}</div>` : ''}
                 ${fallRow}
-                <details class="mb4-card" style="margin-top:10px"><summary>✏️ 직접 고치기</summary>
+                <details class="mb4-card mb4-edcard" style="margin-top:10px"><summary>✏️ 직접 고치기</summary>
                     <div class="mb4-btnrow"><input class="mb4-input" data-bf="tie" data-n="${esc(`${P.a}-${P.b}`)}" maxlength="40" placeholder="공식 관계 (예: 연인, 친구, 약혼)" value="${esc(P.tie ?? '')}"><button class="mb4-btn ghost sm" data-act="btie" data-v="${esc(`${P.a}-${P.b}`)}">바꾸기</button></div>
                     ${[[P.a, P.b], [P.b, P.a]].map(([a, b]) => `<div class="mb4-quote"><b>${esc(a)} → ${esc(b)}</b>
                         <div class="mb4-btnrow tight">${[['closer', '🫶 다가감'], ['back', '↩ 물러남'], ['clash', '⚡ 부딪힘'], ['same', '그대로']].map(([m, n]) => `<button class="mb4-btn ghost sm" data-act="bfix" data-v="${esc(`move|${a}>${b}=${m} / -`)}">${n}</button>`).join('')}</div>

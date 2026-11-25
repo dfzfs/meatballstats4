@@ -58,7 +58,7 @@ export default {
     render(el, api) {
         const L = Object.values(api.state().who).sort((a, b) => b.i - a.i);
         const f = (n, k) => `[data-f="${k}"][data-n="${CSS.escape(n)}"]`;
-        const drawer = (p) => `<details class="mb4-card" style="margin-top:8px"><summary>✏️ 직접 고치기</summary>
+        const drawer = (p) => `<details class="mb4-card mb4-edcard" style="margin-top:8px"><summary>✏️ 직접 고치기</summary>
             <label class="mb4-label">옷<input class="mb4-input" data-f="wear" data-n="${esc(p.name)}" maxlength="120" value="${esc(p.wear ?? '')}" placeholder="지금 입은 것"></label>
             <label class="mb4-label">몸 상태<input class="mb4-input" data-f="body" data-n="${esc(p.name)}" maxlength="80" value="${esc(p.body ?? '')}" placeholder="예: hurt, 발목을 삠"></label>
             <label class="mb4-label">자세 · 위치<input class="mb4-input" data-f="pos" data-n="${esc(p.name)}" maxlength="80" value="${esc(p.pos ?? '')}" placeholder="예: 창가에 앉아 있음"></label>

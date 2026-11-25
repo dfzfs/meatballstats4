@@ -97,7 +97,7 @@ export default {
             ${Object.entries(KINDS).map(([k, x]) => `<label class="mb4-sw"><span><b>${x.icon} ${x.name}</b></span><input type="checkbox" data-act="kind" data-v="${k}" ${cfg.kinds[k] !== false ? 'checked' : ''}><i></i></label>`).join('')}
             <label class="mb4-sw"><span><b>AI도 알게</b><small>몰래 한 걸 다음 답에서 연인이 한 번 알아요 (한 줄)</small></span><input type="checkbox" data-act="tell" ${cfg.tell !== false ? 'checked' : ''}><i></i></label>
             <div class="mb4-btnrow"><button class="mb4-btn ghost sm" data-act="now" ${who ? '' : 'disabled'}>💌 지금 한 번 해 보기</button></div>`)}
-        <details class="mb4-card"><summary>✏️ 몰래 하는 말 고치기 · 더하기 <small>{n} 자리에 연인 이름이 들어가요</small></summary>${Object.keys(D_T).map((k) => optCard(cfg, `t_${k}`, D_T[k], { title: `${KINDS[k].icon} ${KINDS[k].name}`, fields: ['name'] })).join('')}</details>
+        <details class="mb4-card mb4-edcard"><summary>✏️ 몰래 하는 말 고치기 · 더하기 <small>{n} 자리에 연인 이름이 들어가요</small></summary>${Object.keys(D_T).map((k) => optCard(cfg, `t_${k}`, D_T[k], { title: `${KINDS[k].icon} ${KINDS[k].name}`, fields: ['name'] })).join('')}</details>
         ${hint('답이 올 때 코드가 가끔 주사위를 굴려 정해요(연달아 하지 않게 4답은 쉬어요). 바뀐 건 📞 연락 · 📅 달력 · 💰 지갑 · 📌 약속 · 홈 화면에 실제로 보이고, 💌 표시가 붙어요. 💰 · 🎁 · 📌은 그 앱이 켜져 있을 때만 해요.')}`;
         api.save();
         optWire(el, cfg, () => { api.save(); api.redraw(); });

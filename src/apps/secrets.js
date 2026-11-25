@@ -288,7 +288,7 @@ export default {
                     ${x?.open ? `<button class="mb4-btn ghost sm" data-act="lock" data-v="${esc(s.id)}">🔒 다시 잠그기</button>` : `<button class="mb4-btn ghost sm" data-act="open" data-v="${esc(s.id)}">🔓 열림으로 표시</button>
                     <button class="mb4-btn ${x?.letOn ? '' : 'ghost '}sm" data-act="let" data-v="${esc(s.id)}">${x?.letOn ? '✓ 털어놔도 돼 (이 장면)' : '이번 장면에 털어놔도 돼'}</button>`}
                 </div>
-                <details class="mb4-card" style="margin-top:10px"><summary>✏️ 고치기</summary>
+                <details class="mb4-card mb4-edcard" style="margin-top:10px"><summary>✏️ 고치기</summary>
                     ${field(n, 'v', '숨길 내용', '', true)}${s.vOrig ? `<p class="mb4-hint">처음 적은 말: ${esc(s.vOrig)}</p>` : ''}
                     ${field(n, 'who', '누가 지키나', '이름 (둘이면 A-B)')}
                     ${field(n, 'signs', '들키면 안 되는 낱말 (쉼표로)', '이 낱말이 답에 나오면 경고해요', true)}

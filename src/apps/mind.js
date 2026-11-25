@@ -53,7 +53,7 @@ export default {
         ${k.optCard(cfg, 'cells', D_CELLS, { title: '세포들' })}
         ${k.optCard(cfg, 'tones', D_TONES, { title: '말투', fields: ['name', 'ai'], aiLabel: '어떤 말투인지 (예: Short and blunt.)' })}
         ${k.optCard(cfg, 'fmt', D_FMT, { title: '형식', fields: ['name', 'ai'], aiLabel: '어떻게 꾸밀지 (예: End every line with a cat sound.)' })}
-        ${k.hint('속마음 · 관전자 한마디는 저장만 되고 본편 AI에는 보내지 않아요. 관전자 · 세포 · 말투 · 형식은 위 「고치기 · 더하기」에서 바꾸거나 새로 만들 수 있어요.')}`;
+        ${k.hint('속마음 · 관전자 한마디는 저장만 되고 본편 AI에는 보내지 않아요. 맨 밑 「✏️ 고치기」를 누르면 관전자 · 세포 · 말투 · 형식을 바꾸거나 새로 만들 수 있어요.')}`;
         k.optWire(el, cfg, () => { api.save(); api.redraw(); });
         k.editors(el, { line: { save: (i, t) => { if (st.list[i] && t) st.list[i].text = t; }, del: (i) => { st.list.splice(i, 1); } } }, () => { api.save(); api.redraw(); });
         k.acts(el, {

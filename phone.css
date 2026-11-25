@@ -322,3 +322,9 @@ textarea.mb4-input { resize: vertical; min-height: 44px; }
 .mb4-edrow textarea { resize: vertical; min-height: 34px; }
 .mb4-icoin { flex: 0 0 52px !important; width: 52px !important; text-align: center; }
 .mb4-dimrow { opacity: .5; }
+/* ✏️ one switch per app: edit boxes only while 「✏️ 고치기」 is pressed */
+.mb4-edcard { display: none !important; }
+.mb4-editing .mb4-edcard { display: block !important; }
+.mb4-editing .mb4-edcard > summary { list-style: none; pointer-events: none; color: var(--a); }
+.mb4-editing .mb4-edcard > summary::-webkit-details-marker { display: none; }
+.mb4-tabfoot .mb4-btn.sm { flex: none; }

@@ -115,7 +115,7 @@ export default {
             ${Object.entries(S.owes ?? {}).filter(([d]) => d.startsWith(`${p.name}>`)).map(([d, L]) => `<div class="mb4-row"><span class="mb4-row-k">🧾 ${esc(d.split('>')[1])}에게 빚 · 은혜</span><span class="mb4-row-v">${esc(L.map((x) => x.v).join(' · '))}</span></div>`).join('')}
             ${calls(p.name) ? `<div class="mb4-chips" style="margin:6px 0">${calls(p.name)}</div>` : ''}
             <input class="mb4-input" data-act="memo" data-v="${esc(p.name)}" maxlength="120" placeholder="내 메모 (AI도 같이 봐요)" value="${esc(st.notes[p.name] ?? '')}">
-            <details class="mb4-card" style="margin-top:8px"><summary>✏️ 직접 고치기</summary>
+            <details class="mb4-card mb4-edcard" style="margin-top:8px"><summary>✏️ 직접 고치기</summary>
                 <label class="mb4-label">소개<input class="mb4-input" data-pf="about" data-n="${esc(p.name)}" maxlength="100" value="${esc(p.about ?? '')}"></label>
                 <label class="mb4-label">직위 · 신분<input class="mb4-input" data-pf="role" data-n="${esc(p.name)}" maxlength="60" value="${esc(S.roles?.[p.name]?.v ?? '')}"></label>
                 <label class="mb4-label">취향 · 버릇 더하기<input class="mb4-input" data-pf="seed" data-n="${esc(p.name)}" maxlength="80" placeholder="예: 단 걸 싫어함"></label>
