@@ -48,6 +48,11 @@ export default {
         ${(st.past ?? []).length ? card('풀린 암시', st.past.slice().reverse().slice(0, 6).map((x) => `<div class="mb4-row mb4-dim"><span class="mb4-row-v">${esc(x.who)}: ${esc(x.text)}</span></div>`).join('')) : ''}
         ${optCard(api.cfg, 'str', D_STR, { title: '암시 세기', fields: ['name', 'ai'], aiLabel: '어떤 세기인지 (예: a whisper the character barely notices)' })}
         ${hint('한 사람에 하나씩, 모두 세 개까지. 같은 답을 다시 뽑아도 남은 답 수는 줄지 않아요.')}`;
+        api.kit.editMore(el, api, [
+            { name: 'on', list: st.on, label: (x) => `걸린 암시: ${x.who} (남은 답 수는 위에서)`, get: (x) => x.text, set: (x, t) => { x.text = t.slice(0, 200); }, rows: 2 },
+            { name: 'left', list: st.on, label: (x) => `${x.who}: 남은 답 수`, get: (x) => String(x.left), set: (x, t) => { const n = Math.round(+t); if (n >= 0) { x.left = n; x.len = Math.max(x.len, n); } }, del: false },
+            { name: 'past', list: st.past ?? [], label: (x) => `풀린 암시: ${x.who}`, get: (x) => x.text, set: (x, t) => { x.text = t; } },
+        ]);
         optWire(el, api.cfg, () => { api.save(); api.redraw(); });
         acts(el, {
             who: (n) => { st.who = n; api.save(); api.redraw(); },

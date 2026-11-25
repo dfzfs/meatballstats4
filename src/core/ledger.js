@@ -21,6 +21,8 @@ export function fold({ chat = [], records = {}, fixes = {}, reg, envOf = () => (
             for (const w of reg.watchers(k)) { try { w.reduce(S[w.id], { k, v, q: q ?? '', i, watched: true }, envOf(w.id)); } catch (e) { /* same */ } }
         }
     }
+    // ✏️ what the person set by hand on the screen (kept in the app's own data, no model call): laid over the sum
+    if (upto === Infinity) for (const app of reg.list()) { if (app.adjust) { try { app.adjust(S[app.id], envOf(app.id)); } catch (e) { /* optional */ } } }
     return S;
 }
 

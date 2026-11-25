@@ -101,6 +101,14 @@ export default {
         ${hint('답이 올 때 코드가 가끔 주사위를 굴려 정해요(연달아 하지 않게 4답은 쉬어요). 바뀐 건 📞 연락 · 📅 달력 · 💰 지갑 · 📌 약속 · 홈 화면에 실제로 보이고, 💌 표시가 붙어요. 💰 · 🎁 · 📌은 그 앱이 켜져 있을 때만 해요.')}`;
         api.save();
         optWire(el, cfg, () => { api.save(); api.redraw(); });
+        const nm = Object.entries(st.names ?? {});
+        api.kit.editMore(el, api, [
+            { name: 'log', list: st.log ?? [], max: 12, label: (x) => `${KINDS[x.k]?.icon ?? '💌'} 몰래 한 것${x.day ? ` · ${x.day}일째` : ''}`, get: (x) => x.t, set: (x, t) => { x.t = t.slice(0, 200); } },
+            { name: 'nick', list: nm, label: ([n]) => `📞 ${n}의 연락처 이름`, get: ([, v]) => v, set: ([n], t) => { st.names[n] = t.slice(0, 40); }, remove: ([n]) => { delete st.names[n]; } },
+            { name: 'cal', list: st.cal ?? [], label: () => '📅 달력에 적은 것: 날(일째) | 내용', get: (c) => `${c.day} | ${c.text}`, set: (c, t) => { const [d, x] = api.kit.two(t); if (+d > 0) c.day = Math.round(+d); if (x) c.text = x.slice(0, 120); } },
+            ...(st.note?.text ? [{ name: 'note', obj: st.note, keys: [['text', '📝 홈 화면 쪽지']] }] : []),
+            { name: 'title', obj: st, keys: [['title', '🔤 상태 줄 제목 (비우면 없음)']] },
+        ]);
         acts(el, {
             who: (n) => { st.who = n; api.save(); api.redraw(); },
             on: (_v, b) => { cfg.on = b.checked; api.save(); },

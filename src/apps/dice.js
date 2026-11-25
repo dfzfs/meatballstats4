@@ -75,6 +75,10 @@ export default {
         ${r ? '<button class="mb4-btn ghost wide" data-act="drop">이번 결과는 반영 안 함</button>' : ''}
         ${st.hist.length ? card(`최근 굴림 <small>성공 ${st.hist.filter((h) => verdict(h.n, h.mod, h.target)[2] === 'good').length} / ${st.hist.length}</small>`, st.hist.slice(-10).reverse().map((h) => { const v2 = verdict(h.n, h.mod, h.target); return `<div class="mb4-row"><span class="mb4-row-k"><span class="mb4-roll ${v2[2]}">${h.n}</span> ${esc(v2[0])}</span><span class="mb4-row-v"><small>${esc(h.what || '판정')}${h.day ? ` · ${h.day}일째` : ''} · ${h.n + (h.mod ?? 0)}/${h.target}</small></span></div>`; }).join('')) : ''}
         ${hint('결과는 다음 답에 한 번만 따라가요. AI 호출은 없어요.')}`;
+        api.kit.editMore(el, api, [
+            ...(r ? [{ name: 'res', obj: r, num: true, keys: [['n', '이번 결과: 주사위 눈 (1~20)'], ['mod', '이번 결과: 보정'], ['target', '이번 결과: 목표']] }, { name: 'resw', obj: r, keys: [['what', '이번 결과: 무엇을 판정']] }] : []),
+            { name: 'hist', list: st.hist, max: 10, label: () => '지난 굴림: 눈 | 보정 | 목표', get: (h) => `${h.n} | ${h.mod} | ${h.target}`, set: (h, t) => { const [n, m, g] = t.split('|').map((x) => +x.trim()); if (n >= 1 && n <= 20) h.n = n; if (Number.isFinite(m)) h.mod = m; if (g > 0) h.target = g; } },
+        ]);
         optWire(el, api.cfg, () => { api.save(); api.redraw(); });
         acts(el, {
             target: (t) => { st.target = +t; api.save(); api.redraw(); },

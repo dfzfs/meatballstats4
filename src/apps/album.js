@@ -57,6 +57,10 @@ export default {
             <input class="mb4-input" data-f="cap" maxlength="60" placeholder="한 줄 제목 (비워도 돼요)" style="margin-top:6px">
             ${st.shots.length ? st.shots.slice().reverse().map((x, n) => card(`${esc(x.cap || `${x.day ?? '?'}일째`)}${x.loc ? ` <small>📍 ${esc(x.loc)}</small>` : ''}`, `<p class="mbx-shot">${esc(x.text)}</p><div class="mb4-btnrow tight"><small class="mb4-dim" style="flex:1">${x.day ? `${x.day}일째` : ''}${x.with?.length ? ` · 👥 ${esc(x.with.join(', '))}` : ''}</small><button class="mb4-x" data-act="del" data-v="${st.shots.length - 1 - n}" aria-label="지우기">✕</button></div>`)).join('') : empty('📸', '아직 남긴 장면이 없어요', '마음에 드는 답이 오면 눌러서 남겨요')}`}`;
         if (news.size) { st.news = []; api.save(); }
+        if (tab === 'shots') api.kit.editMore(el, api, [
+            { name: 'cap', list: st.shots, label: (x) => `제목 · ${x.day ?? '?'}일째`, get: (x) => x.cap || '', set: (x, t) => { x.cap = t.slice(0, 60); } },
+            { name: 'text', list: st.shots, rows: 4, label: (x) => `장면 글 · ${x.cap || `${x.day ?? '?'}일째`}`, get: (x) => x.text, set: (x, t) => { x.text = t.slice(0, 900); }, del: false },
+        ]);
         acts(el, {
             tab: (v) => { st._tab = v; api.save(); api.redraw(); },
             shot: () => {

@@ -107,6 +107,9 @@ export default {
         ${Array.isArray(st.hist) && st.hist.length ? k.card('지난 선택', st.hist.slice(-6).reverse().map((h) => `<div class="mb4-row"><span class="mb4-row-k">${KINDS.find((x) => x.id === h.kind)?.icon ?? '·'}${h.day ? ` <small>${h.day}일째</small>` : ''}</span><span class="mb4-row-v">${esc(h.label)}${h.result ? ` <small>${{ win: '🎲 성공', crit: '🎲 대성공', lose: '🎲 실패', fumble: '🎲 대실패', trap: '🪤 함정', price: '💸 대가' }[h.result] ?? ''}</small>` : ''}</span></div>`).join('') + (() => { const c = {}; for (const h of st.hist) if (h.kind) c[h.kind] = (c[h.kind] ?? 0) + 1; const top = Object.entries(c).sort((x, y) => y[1] - x[1])[0]; return top && st.hist.length >= 5 ? k.hint(`가장 자주 고른 성향: ${KINDS.find((x) => x.id === top[0])?.icon ?? ''} ${KINDS.find((x) => x.id === top[0])?.name ?? top[0]} (${top[1]}번)`) : ''; })()) : ''}
         ${k.optCard(cfg, 'kinds', KINDS_BASE, { title: '선택지 성향' })}
         ${k.hint('누르면 입력창에 들어가요. 🎲 모험 · 운에 맡기기는 고르는 순간 굴려서, 결과가 다음 답에 한 번 따라가요. 함정은 「안전」처럼 보여요(기본 꺼짐).')}`;
+        api.kit.editMore(el, api, [
+            { name: 'hist', list: Array.isArray(st.hist) ? st.hist : [], max: 10, label: (h) => `지난 선택${h.day ? ` · ${h.day}일째` : ''}`, get: (h) => h.label, set: (h, t) => { h.label = t.slice(0, 120); } },
+        ]);
         k.optWire(el, cfg, () => { api.save(); api.redraw(); });
         k.acts(el, {
             pick: (n) => {

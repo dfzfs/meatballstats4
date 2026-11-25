@@ -66,6 +66,8 @@ export default {
         else if (k === 'washed') { S.clean = 100; mark('🫧'); }
     },
     stateLines: (S, env) => { const L = live(env).filter((n) => n.id !== 'social'); return L.length ? [`needs: ${L.map((n) => `${n.id} ${Math.round(S[n.id])}/100`).join(', ')}`] : []; },
+    // ✏️ numbers set by hand: kept as a difference, laid over what the story adds up to
+    adjust(S, env) { const a = env.store?.adj; if (a) for (const n of NEEDS) if (a[n.id]) S[n.id] = Math.max(0, Math.min(100, S[n.id] + a[n.id])); },
     note(S, env) {
         const low = live(env).filter((n) => S[n.id] <= LOW);
         if (!low.length) return null;
@@ -90,6 +92,7 @@ export default {
             ${NEEDS.map((n) => `<label class="mb4-sw"><span><b>${n.icon} ${n.name}</b><small>보통이면 한 시간에 ${n.rate}씩</small></span><input type="checkbox" data-act="need" data-v="${n.id}" ${on(env, n.id) ? 'checked' : ''}><i></i></label>`).join('')}`)}
         ${(S.log ?? []).length ? card('최근', `<div class="mb4-chips">${S.log.slice(-8).reverse().map((x) => `<span class="mb4-chip">${x.t}</span>`).join('')}</div>`) : ''}
         ${hint('시간과 「누구와 있는지」는 장면에서 그냥 받아 와요(AI에 더 안 물어요). 먹기 · 자기 · 씻기는 그런 말이 나온 답에서만 물어요. 30 아래로 내려가면 AI에 알려요.')}`;
+        api.kit.editMore(el, api, [{ name: 'need', list: L, del: false, label: (n) => `${n.icon} ${n.name} (0~100)`, get: (n) => String(Math.round(S[n.id])), set: (n, t) => { const x = Math.max(0, Math.min(100, Math.round(+t))); if (!Number.isFinite(x)) return; const a = (api.store.adj ??= {}); a[n.id] = Math.round((a[n.id] ?? 0) + x - S[n.id]); } }]);
         acts(el, {
             fix: (v) => { const [key, val] = v.split('='); api.fix(key, val); },
             say: (v) => { if (api.say(v)) api.toast('입력창에 적어 뒀어요.'); },

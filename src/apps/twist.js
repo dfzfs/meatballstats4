@@ -121,6 +121,11 @@ export default {
         ${cfg.on.debt ? card('🎲 운명의 빚', `<div class="mb4-row"><span class="mb4-row-k">쌓인 빚</span><span class="mb4-row-v">${st.debt ?? 0} / 5</span></div>`) : ''}
         ${st.fired ? hint(`지난 답에 쓴 장치: ${DEV.find((d) => d.id === st.fired)?.name ?? ''}`) : ''}
         ${hint('AI를 따로 부르지 않아요. 끈 장치는 아무것도 보내지 않아요. 빚 · 긴장도는 답을 지워도 되돌아가지 않아요.')}`;
+        api.kit.editMore(el, api, [
+            ...(cfg.on.tension || cfg.on.debt ? [{ name: 'num', obj: st, num: true, keys: [...(cfg.on.tension ? [['t', '🎬 긴장도 (0~100)'], ['calm', '숨 돌리기 남은 답']] : []), ...(cfg.on.debt ? [['debt', '🎲 운명의 빚 (0~5)']] : [])] }] : []),
+            ...(st.bomb?.text ? [{ name: 'bomb', obj: st.bomb, keys: [['text', '⏳ 예고된 사건']] }, { name: 'bombn', obj: st.bomb, num: true, keys: [['left', '⏳ 몇 답 뒤에 터지나']] }] : []),
+            { name: 'done', list: Array.isArray(st.done) ? st.done : [], max: 6, label: () => '터진 사건' },
+        ]);
         acts(el, {
             on: (id, b) => { cfg.on[id] = b.checked; if (id === 'away' && b.checked) st.seen = Date.now(); api.save(); api.redraw(); },
             rate: (v) => { cfg.rate = +v; api.save(); api.redraw(); },

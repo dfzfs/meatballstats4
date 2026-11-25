@@ -86,6 +86,10 @@ export default {
         ${k.optCard(api.cfg, 'tellers', D_TELL, { title: '점쟁이', aiLabel: '어떤 점쟁이인지 · 말투 (영어로 쓰면 더 잘 알아들어요)' })}
         ${k.card('', `<label class="mb4-sw"><span><b>이야기에 스며들게</b><small>그날의 운을 AI에 한 줄로 알려요</small></span><input type="checkbox" data-act="tell" ${st.tell ? 'checked' : ''}><i></i></label>`)}
         ${k.hint('카드 · 운세표 · 좋고 나쁨은 코드가 먼저 정해요(늘 좋은 말만 나오지 않게). AI는 풀이만 해요. 점괘는 본편 AI에 안 가요.')}`;
+        api.kit.editMore(el, api, [
+            { name: 'read', list: st.readings, rows: 4, max: 10, label: (x) => `${x.who} · ${x.day}일째 풀이`, get: (x) => x.text, set: (x, t) => { x.text = t.slice(0, 1500); } },
+            ...(c && st.card >= 0 ? [{ name: 'today', obj: st, keys: [['card', '오늘 카드 번호 (0부터)']], num: true }] : []),
+        ]);
         k.optWire(el, api.cfg, () => { api.save(); api.redraw(); });
         k.acts(el, {
             draw: () => { st.day = d; st.card = CARDS.indexOf(draw(st.seed, d)); api.save(); api.redraw(); },

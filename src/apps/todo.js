@@ -60,6 +60,11 @@ export default {
         }
     },
     stateLines: (S) => [S.open.length ? `open promises: ${S.open.map((p) => p.what).join(' ; ')}` : 'open promises: (none)'],
+    // ✏️ a promise reworded, re-dated or taken away by hand (kept in the app's own data, by the promise's first words)
+    adjust(S, env) {
+        const E = env.store?.edit ?? {}, H = env.store?.hide ?? {};
+        S.open = S.open.filter((p) => !H[p.what]).map((p) => { const e = E[p.what]; return e ? { ...p, _k: p.what, what: e.w ?? p.what, due: e.due !== undefined ? e.due : p.due } : p; });
+    },
     note(S) {
         if (!S.open.length) return null;
         const day = S.clock?.day ?? 1;
@@ -82,6 +87,10 @@ export default {
             <div class="mb4-btnrow"><select class="mb4-input" data-f="when">${WHEN.map(([v, n]) => `<option value="${v}">${n}</option>`).join('')}</select><button class="mb4-btn" data-act="add">넣기</button></div>`)}
         ${S.closed.length ? card(`끝난 약속 <small>지킴 ${kept} · 어김 ${broken}</small>`, S.closed.slice().reverse().map((p) => `<div class="mb4-row mb4-dim"><span class="mb4-row-v">${STATUS[p.st ?? 'kept'][0]} ${esc(what(p.what))} <small>${STATUS[p.st ?? 'kept'][1]}${p.end ? ` · ${p.end}일째` : ''}</small></span></div>`).join('')) : ''}
         ${hint('기한은 약속에 적힌 말(내일 · 3일 뒤 · 다음 주…)로 코드가 셈해요. 이야기 속 날짜는 🧭 장면에서 받아 와요. 기한이 지나면 AI가 「기다리는 사람이 눈치챘다」고 알아요.')}`;
+        api.kit.editMore(el, api, [
+            { name: 'what', list: S.open, label: (p) => `약속 (누가>누구=무엇) · ${p.day ?? 1}일째`, get: (p) => p.what, set: (p, t) => { ((api.store.edit ??= {})[p._k ?? p.what] ??= {}).w = t.slice(0, 140); }, remove: (p) => { (api.store.hide ??= {})[p._k ?? p.what] = true; } },
+            { name: 'due', list: S.open, del: false, label: (p) => `기한: 며칠 뒤까지 (지금 ${day}일째 · 비우려면 -)`, get: (p) => (p.due == null ? '-' : String(p.due - day)), set: (p, t) => { const e = ((api.store.edit ??= {})[p._k ?? p.what] ??= {}); e.due = /^-$/.test(t.trim()) ? null : Number.isFinite(+t) ? day + Math.round(+t) : e.due; } },
+        ]);
         acts(el, {
             done: (v) => { const [w, s] = v.split('|'); api.fix('done', `${w} — ${s}`); },
             add: () => { const t = val(el, '[data-f="new"]'), w = val(el, '[data-f="when"]'); if (t) api.fix('promise', `${t}${w ? `, ${w}` : ''}`); },

@@ -107,6 +107,9 @@ export default {
         <details class="mb4-card mb4-edcard"><summary>✏️ 틀린 곳 직접 고치기</summary>
             <label class="mb4-label">장소<input class="mb4-input" data-f="loc" maxlength="120" placeholder="큰 곳 > 작은 곳 > 방" value="${esc(S.loc)}"></label>
             <label class="mb4-label">때<select class="mb4-input" data-f="tod"><option value="">그대로</option>${TOD.map((t) => `<option value="${t}" ${t === S.tod ? 'selected' : ''}>${TOD_KO[t]}</option>`).join('')}</select></label>
+            <label class="mb4-label">날짜 · 요일 · 계절<input class="mb4-input" data-f="date" maxlength="60" placeholder="예: 3월 2일 월요일" value="${esc(S.date)}"></label>
+            <label class="mb4-label">날씨<input class="mb4-input" data-f="weather" maxlength="60" value="${esc(S.weather)}"></label>
+            <label class="mb4-label">분위기 · 기분<input class="mb4-input" data-f="mood" maxlength="60" value="${esc(S.mood ?? '')}"></label>
             <label class="mb4-label">같이 있는 사람 (쉼표로)<input class="mb4-input" data-f="with" value="${esc(S.with.join(', '))}"></label>
             <div class="mb4-btnrow"><button class="mb4-btn" data-act="save">고치기</button><button class="mb4-btn ghost" data-act="day">하루 넘기기</button></div>
             <label class="mb4-label">요약 한 줄<input class="mb4-input" data-f="gist" maxlength="220" value="${esc(S.gist)}"></label>
@@ -122,6 +125,7 @@ export default {
                 if (loc && loc !== S.loc) api.fix('loc', loc);
                 if (tod && tod !== S.tod) api.fix('time', tod);
                 if (w !== S.with.join(', ')) api.fix('with', `=${w}`);
+                for (const f of ['date', 'weather', 'mood']) { const x = val(el, `[data-f="${f}"]`); if (x && x !== (S[f] ?? '')) api.fix(f, x); }
                 const g = val(el, '[data-f="gist"]'); if (g && g !== S.gist) api.fix('gist', g);
                 api.toast('고쳤어요.');
             },

@@ -37,16 +37,16 @@ export function close() { root?.classList.remove('mb4-open'); undock(); }
 // ── 🎨 looks: wallpaper, accent colour, light / night, font. Screen only: nothing is sent anywhere. ──
 // A photo wallpaper is kept in the browser's own storage (not in the settings file), shrunk to at most 900px.
 export const WALLS = [
-    ['', '기본', ''],
-    ['cream', '크림', 'linear-gradient(165deg,#fff6ea 0%,#fde4dc 55%,#eef0e4 100%)'],
-    ['peach', '복숭아', 'linear-gradient(170deg,#ffe0cc 0%,#ffbfa8 45%,#f2a6a6 100%)'],
-    ['lilac', '라벤더 노을', 'linear-gradient(180deg,#d8c4e6 0%,#f6c6d9 55%,#c9dcf5 100%)'],
-    ['sky', '하늘', 'linear-gradient(180deg,#b9dcff 0%,#d9eef7 50%,#fff8ec 100%)'],
-    ['mint', '민트', 'linear-gradient(160deg,#e3f5e6 0%,#c4e8cf 50%,#fbf8e8 100%)'],
-    ['night', '밤', 'linear-gradient(180deg,#25253f 0%,#4b4e6d 55%,#9a8c98 100%)'],
+    ['', '기본', '', ''],
+    ['cream', '크림', 'linear-gradient(165deg,#fff6ea 0%,#fde4dc 55%,#eef0e4 100%)', '#fdeee4'],
+    ['peach', '복숭아', 'linear-gradient(170deg,#ffe0cc 0%,#ffbfa8 45%,#f2a6a6 100%)', '#ffd2bd'],
+    ['lilac', '라벤더 노을', 'linear-gradient(180deg,#d8c4e6 0%,#f6c6d9 55%,#c9dcf5 100%)', '#e6c8e0'],
+    ['sky', '하늘', 'linear-gradient(180deg,#b9dcff 0%,#d9eef7 50%,#fff8ec 100%)', '#cfe6fb'],
+    ['mint', '민트', 'linear-gradient(160deg,#e3f5e6 0%,#c4e8cf 50%,#fbf8e8 100%)', '#d6efdc'],
+    ['night', '밤', 'linear-gradient(180deg,#25253f 0%,#4b4e6d 55%,#9a8c98 100%)', '#34344f'],
 ];
 const ACCENTS = [['', '코랄', '#e2725b'], ['pink', '분홍', '#e0567f'], ['violet', '보라', '#7c5cff'], ['blue', '파랑', '#3a8ee6'], ['green', '초록', '#2f9e7a'], ['ink', '먹색', '#3d3a4b']];
-const FONTS = [['', '기본'], ['inherit', '실리태번 글꼴'], ["'Galmuri11', monospace", '갈무리 (도트)'], ['serif', '명조'], ['system-ui', '시스템']];
+const FONTS = [['', '기본'], ["'OngleipParkDahyeon', sans-serif", '온글잎 박다현체']];
 const WALL_KEY = 'meatball4-wall';
 let wallUrl = null, wallLoading = null;
 const lf = () => globalThis.SillyTavern?.libs?.localforage ?? null;
@@ -58,6 +58,14 @@ async function wallSave(data) {
     const db = lf();
     if (db) { try { await db.setItem(WALL_KEY, data); wallUrl = data; looks().wall = 'img'; saveCfg(); return true; } catch (e) { /* fall through */ } }
     toast('이 브라우저는 사진을 저장할 곳이 없어요. 그라데이션 배경을 써 주세요.', 'warning'); return false;
+}
+function tintOf(url) {
+    return new Promise((ok) => {
+        const img = new Image();
+        img.onload = () => { try { const c = document.createElement('canvas'); c.width = c.height = 8; const g = c.getContext('2d'); g.drawImage(img, 0, 0, 8, 8); const d = g.getImageData(0, 0, 8, 8).data; let r = 0, gg = 0, b = 0; for (let i = 0; i < d.length; i += 4) { r += d[i]; gg += d[i + 1]; b += d[i + 2]; } const n = d.length / 4, h = (x) => Math.round(x / n).toString(16).padStart(2, '0'); ok(`#${h(r)}${h(gg)}${h(b)}`); } catch (e) { ok(''); } };
+        img.onerror = () => ok('');
+        img.src = url;
+    });
 }
 function shrink(file, max = 900) {
     return new Promise((ok, no) => {
@@ -73,8 +81,11 @@ export function applyLook() {
     root.classList.toggle('mb4-dark', L.mode === 'dark' || (L.mode !== 'light' && L.wall === 'night'));
     root.style.setProperty('--a', acc[2]);
     root.style.setProperty('--a-soft', `${acc[2]}24`);
-    root.style.fontFamily = L.font || '';
-    let bg = WALLS.find((w) => w[0] === L.wall)?.[2] ?? '';
+    root.style.fontFamily = FONTS.some((f) => f[0] === L.font) ? L.font || '' : '';
+    const wall = WALLS.find((w) => w[0] === L.wall);
+    let bg = wall?.[2] ?? '';
+    const tint = L.wall === 'img' ? L.tint : wall?.[3];
+    if (tint && /^#[0-9a-f]{6}$/i.test(tint)) root.style.setProperty('--wall', tint); else root.style.removeProperty('--wall');
     if (L.wall === 'img') { if (wallUrl == null) { wallLoad().then(() => applyLook()); bg = ''; } else bg = wallUrl ? `url("${wallUrl}") center/cover no-repeat` : ''; }
     root.style.background = bg;
     root.classList.toggle('mb4-photo', L.wall === 'img' && !!wallUrl);
@@ -86,8 +97,8 @@ function drawLook(body) {
             <label class="mb4-wall up${L.wall === 'img' ? ' on' : ''}" ${wallUrl ? `style="background:url('${wallUrl}') center/cover"` : ''}><span>🖼 내 사진</span><input type="file" accept="image/*" data-photo hidden></label></div>
             ${kit.hint('사진은 이 브라우저 안에만 저장돼요(설정 파일에 안 들어가요). 크면 저절로 줄여요.')}`)}
         ${kit.card('🎨 테마 색', `<div class="mb4-chips">${ACCENTS.map(([id, n, c]) => `<button class="mb4-opt${(L.accent ?? '') === id ? ' on' : ''}" data-accent="${id}"><i class="mb4-dot" style="background:${c}"></i> ${n}</button>`).join('')}</div>`)}
-        ${kit.card('🌗 밝기', `<div class="mb4-chips">${[['', '배경 따라'], ['light', '밝게'], ['dark', '어둡게']].map(([id, n]) => `<button class="mb4-opt${(L.mode ?? '') === id ? ' on' : ''}" data-mode="${id}">${n}</button>`).join('')}</div>`)}
-        ${kit.card('🔤 글꼴', `<div class="mb4-chips">${FONTS.map(([id, n]) => `<button class="mb4-opt${(L.font ?? '') === id ? ' on' : ''}" data-font="${esc(id)}" style="font-family:${id || 'inherit'}">${n}</button>`).join('')}</div>`)}
+        ${kit.card('🌗 밝기', `<div class="mb4-seg">${[['', '배경 따라'], ['light', '밝게'], ['dark', '어둡게']].map(([id, n]) => `<button class="${(L.mode ?? '') === id ? 'on' : ''}" data-mode="${id}">${n}</button>`).join('')}</div>`)}
+        ${kit.card('🔤 글꼴', `<div class="mb4-seg">${FONTS.map(([id, n]) => `<button class="${(FONTS.some((f) => f[0] === L.font) ? L.font : '') === id ? 'on' : ''}" data-font="${esc(id)}" style="font-family:${id ? esc(id) : 'inherit'}">${n}</button>`).join('')}</div>`)}
         <button class="mb4-btn ghost wide" data-lookreset>처음대로 되돌리기</button>
         ${kit.hint('폰 모양만 바뀌어요. AI에 보내는 건 없어요.')}`;
     const set = (k, v) => { looks()[k] = v; saveCfg(); applyLook(); draw(true); };
@@ -98,7 +109,7 @@ function drawLook(body) {
     body.querySelector('[data-lookreset]').addEventListener('click', () => { cfg().look = {}; saveCfg(); applyLook(); draw(true); });
     body.querySelector('[data-photo]').addEventListener('change', async (e) => {
         const f = e.target.files?.[0]; if (!f) return;
-        try { if (await wallSave(await shrink(f))) { applyLook(); draw(true); toast('배경화면을 바꿨어요.'); } } catch (x) { toast('그림을 읽지 못했어요.', 'warning'); }
+        try { const data = await shrink(f); if (await wallSave(data)) { looks().tint = await tintOf(data); saveCfg(); applyLook(); draw(true); toast('배경화면을 바꿨어요.'); } } catch (x) { toast('그림을 읽지 못했어요.', 'warning'); }
     });
     if (L.wall === 'img' && wallUrl == null) wallLoad().then(() => { if (view === 'look') draw(true); });
 }
@@ -142,10 +153,12 @@ function build() {
     root = document.createElement('div');
     root.id = 'mb4-phone';
     root.className = 'mb4-phone';
-    root.innerHTML = '<div class="mb4-top"><button class="mb4-ico" data-back aria-label="뒤로">‹</button><span class="mb4-title"></span><span class="mb4-status" aria-hidden="true"><i class="mb4-sig"></i><i class="mb4-batt"></i></span><button class="mb4-ico" data-close aria-label="닫기">✕</button></div><div class="mb4-body"></div>';
+    root.innerHTML = '<div class="mb4-top"><button class="mb4-ico" data-back aria-label="뒤로">‹</button><span class="mb4-title"></span><span class="mb4-status" aria-hidden="true"><i class="mb4-sig"></i><i class="mb4-batt"></i></span><button class="mb4-ico" data-more aria-label="더 보기" hidden>⋯</button><button class="mb4-ico" data-close aria-label="닫기">✕</button></div><div class="mb4-body"></div><div class="mb4-menu"><div class="mb4-menu-box"></div></div>';
     document.body.append(root);
     $('[data-close]').addEventListener('click', close);
-    $('[data-back]').addEventListener('click', () => go(view === 'tr' || view === 'look' ? 'set' : 'home'));
+    $('[data-back]').addEventListener('click', back);
+    $('[data-more]').addEventListener('click', () => openMenu());
+    $('.mb4-menu').addEventListener('click', (e) => { if (e.target === e.currentTarget) closeMenu(); });
     $('.mb4-body').addEventListener('click', (e) => {
         const c = e.target.closest('[data-catch]');
         if (c && root.contains(c)) { e.stopPropagation(); onCatch(c.dataset.catch); return; }
@@ -161,21 +174,44 @@ function build() {
 // An app that lives inside a shelf entry is always shown on that entry's page (alone, or as one of its inner tabs).
 const route = (v) => { if (!String(v).startsWith('app:')) return v; const id = v.slice(4), h = homeOf(id); return h ? `page:${h.entry.id}${h.entry.apps.length > 1 ? `:${id}` : ''}` : v; };
 function go(v) { const to = route(v), same = to === view; view = to; draw(same); if (!same) $('.mb4-body').scrollTop = 0; }
+// ‹ : the app's own step back first (a chat room back to the list), then the page's main app, then home
+let backHook = null;
+function back() {
+    if (backHook) { try { if (backHook() === true) return; } catch (e) { /* fall through */ } }
+    if (view === 'tr' || view === 'look') { go('set'); return; }
+    if (view.startsWith('page:')) { const [, eid, tab] = view.split(':'), e = entryOf(eid); if (e && !e.front && e.apps.length > 1 && tab && tab !== e.apps[0]) { go(`page:${eid}`); return; } }
+    go('home');
+}
+// ⋯ : what the open app hides (its own extra buttons), then the other parts of the same page
+let menuItems = [], pageParts = [];
+function closeMenu() { $('.mb4-menu').classList.remove('on'); }
+function openMenu() {
+    const it = (x, i) => (x.sec != null ? `<div class="mb4-menu-sec">${esc(x.sec)}</div>` : `<button class="mb4-menu-it${x.cur ? ' cur' : ''}" data-mi="${i}" ${x.disabled ? 'disabled' : ''}><i>${x.icon ?? ''}</i><span>${esc(x.label)}${x.sub ? `<small>${esc(x.sub)}</small>` : ''}</span>${x.off ? '<b class="mb4-dotoff">꺼짐</b>' : x.cur ? '<b class="mb4-dotoff">✓</b>' : ''}</button>`);
+    const all = [...menuItems, ...(pageParts.length ? [{ sec: '같은 곳의 다른 기능' }, ...pageParts] : [])];
+    const box = $('.mb4-menu-box');
+    box.innerHTML = all.map(it).join('');
+    box.querySelectorAll('[data-mi]').forEach((b) => b.addEventListener('click', () => { const x = all[+b.dataset.mi]; closeMenu(); try { x.act?.(); } catch (e) { console.warn('[meatball] menu', e); } }));
+    $('.mb4-menu').classList.add('on');
+}
 
 const VIEWS = { ask: ['', drawAsk], home: ['', drawHome], market: ['🛍 마켓', drawMarket], set: ['⚙️ 설정', drawSet], tr: ['🌐 번역 · 용어집', drawTr], look: ['🎨 꾸미기', drawLook] };
 function draw(keepScroll = false) {
     const body = $('.mb4-body'), top = body.scrollTop;
     const isApp = view.startsWith('app:'), isPage = view.startsWith('page:');
     const ent = isPage ? entryInfo(entryOf(view.split(':')[1])) : null;
+    backHook = null; menuItems = []; pageParts = []; closeMenu();
     const [title, fn] = isPage ? [`${ent?.icon ?? ''} ${ent?.name ?? ''}`, drawPage] : isApp ? [`${meta(view.slice(4))?.icon ?? ''} ${meta(view.slice(4))?.name ?? ''}`, drawApp] : VIEWS[view] ?? VIEWS.home;
     const home = view === 'home' || view === 'ask';
     root.classList.toggle('mb4-at-home', home);
     $('.mb4-title').textContent = home ? clock() : title;
     try { fn(body); } catch (e) { console.warn('[meatball] view failed', e); body.innerHTML = kit.empty('⚠', '화면을 그리지 못했어요', '닫았다가 다시 열어 주세요'); }
+    if (pageTitle) { $('.mb4-title').textContent = pageTitle; pageTitle = ''; }
+    $('[data-more]').hidden = !(menuItems.length || pageParts.length);
     if (keepScroll) body.scrollTop = top;
     // 🌐 screen translation: only when an engine is picked (with «끔» its code is never fetched)
     if (trOn()) import('../st/tr.js').then((T) => { T.apply(body, R.engine); T.apply($('.mb4-title'), R.engine); }).catch((e) => console.warn('[meatball] translation', e));
 }
+let pageTitle = '';
 const trOn = () => { const m = cfg().tr?.mode; return m === 'free' || m === 'ai'; };
 // The time shown in the status bar: the story's, when the Scene app knows it.
 function clock() {
@@ -357,6 +393,12 @@ function mountApp(body, id) {
         save: () => { saveChat(); saveCfg(); E.touch(); E.refresh(); R.redrawFrame(); },
         fix: (k, v) => { const ok = E.fix(k, v); if (!ok) toast(E.lastReply() < 0 ? 'AI 답이 하나는 있어야 고칠 수 있어요.' : '그 값은 넣을 수 없어요.', 'warning'); else draw(true); return ok; },
         redraw: () => draw(true), toast, close,
+        // the phone's ⋯ menu: [{ icon, label, sub?, act, disabled?, cur? } | { sec: '제목' }] (only while this app is shown)
+        menu: (items) => { menuItems = Array.isArray(items) ? items : []; $('[data-more]').hidden = !(menuItems.length || pageParts.length); },
+        // ‹ goes here first; return true when it stepped back inside the app
+        onBack: (fn) => { backHook = typeof fn === 'function' ? fn : null; },
+        title: (t) => { pageTitle = String(t ?? ''); $('.mb4-title').textContent = pageTitle || $('.mb4-title').textContent; },
+        go: (v) => go(v), isOn: (other) => R.isOn(other), here: () => view,
         // a model call the person asked for by tapping (one call; '' when paused or failed)
         ask: (prompt, max) => E.ask(prompt, max),
         // what Meatball currently knows, as the English lines it would send (for an app's own prompt)
@@ -393,8 +435,17 @@ const EDITING = new Set();   // apps whose 「✏️ 고치기」 is pressed (un
 function drawPage(body) {
     const [, eid, tabRaw] = view.split(':'), e = entryOf(eid);
     if (!e) { go('home'); return; }
-    const multi = e.apps.length > 1, first = e.apps.find((id) => R.isOn(id)) ?? e.apps[0];
-    const tab = multi ? (e.apps.includes(tabRaw) ? tabRaw : e.front ? 'all' : first) : e.apps[0];
+    const multi = e.apps.length > 1;
+    const tab = multi ? (e.apps.includes(tabRaw) ? tabRaw : e.front ? 'all' : e.apps[0]) : e.apps[0];
+    // a page of several apps that is not a «한눈에» page: no tab row — the first app fills the page, the rest are in ⋯
+    if (multi && !e.front) {
+        pageParts = e.apps.filter((id) => id !== e.apps[0] || tab !== e.apps[0]).map((id) => ({ icon: meta(id)?.icon ?? '', label: meta(id)?.name ?? id, off: !R.isOn(id), cur: id === tab, act: () => go(`page:${e.id}${id === e.apps[0] ? '' : `:${id}`}`) }));
+        if (tab !== e.apps[0]) pageTitle = `${meta(tab)?.icon ?? ''} ${meta(tab)?.name ?? tab}`;
+        body.innerHTML = '<div class="mb4-page"></div>';
+        appTab(body.lastElementChild, tab, true);
+        wireSwitches(body);
+        return;
+    }
     const tabs = multi ? `<div class="mb4-tabs">${[...(e.front ? [['all', '한눈에', '✨']] : []), ...e.apps.map((id) => [id, meta(id)?.tab ?? meta(id)?.name ?? id, meta(id)?.icon ?? ''])].map(([id, name, ic]) => `<button class="mb4-tab${id === tab ? ' on' : ''}${id !== 'all' && !R.isOn(id) ? ' off' : ''}" data-go="page:${e.id}${id === 'all' ? '' : `:${id}`}">${ic} ${esc(name)}</button>`).join('')}</div>` : '';
     body.innerHTML = `${tabs}<div class="mb4-page"></div>`;
     const box = body.lastElementChild;
@@ -493,7 +544,7 @@ function drawSet(body) {
         ${kit.card('채팅 화면', `${sw('data-c="hud"', c.hud !== false, '입력창 위 상태 줄')}${sw('data-c="chips"', c.chips !== false, '답 밑 변화 딱지')}${sw('data-side', c.side === 'left', '폰을 왼쪽에 두기')}${sw('data-c="dock"', c.dock !== false, '채팅 옆에 붙이기', '넓은 화면에서 채팅을 가리지 않게 옆으로 비켜 줘요')}`)}
         ${kit.card('답을 읽는 AI', `<select class="mb4-input" data-profile><option value="">본편과 같은 연결</option>${profiles().map((p) => `<option value="${esc(p.id)}" ${p.id === c.profile ? 'selected' : ''}>${esc(p.name)}</option>`).join('')}</select>
             ${kit.hint(`빠르고 싼 모델의 연결 프로필을 고르면 좋아요. ${keys.length ? `지금은 답마다 1번 읽어요 (읽는 항목 ${keys.length}개).` : '지금 켠 앱은 답을 읽을 필요가 없어서 AI를 부르지 않아요.'}`)}
-            <label class="mb4-label">🍃 읽는 간격</label><div class="mb4-btnrow tight">${[[1, '답마다'], [2, '2답마다'], [3, '3답마다']].map(([v, n]) => `<button class="mb4-btn ${(Math.max(1, Number(c.every) || 1)) === v ? '' : 'ghost '}sm" data-every="${v}">${n}</button>`).join('')}</div>
+            <label class="mb4-label">🍃 읽는 간격</label><div class="mb4-seg">${[[1, '답마다'], [2, '2답마다'], [3, '3답마다']].map(([v, n]) => `<button class="${(Math.max(1, Number(c.every) || 1)) === v ? 'on' : ''}" data-every="${v}">${n}</button>`).join('')}</div>
             ${kit.hint('2 · 3으로 두면 답을 모았다가 한 번에 읽어서, AI를 부르는 횟수가 절반 · 3분의 1로 줄어요. 놓치는 건 없고, 상태가 그만큼 늦게 따라와요.')}
             <button class="mb4-btn wide" data-reread ${keys.length && lastI >= 0 ? '' : 'disabled'}>🔄 마지막 답 다시 읽기 (AI 1회)</button>
             ${kit.hint(`이번에 읽은 횟수 ${s.calls} · 받은 줄 ${s.kept} · 버린 줄 ${s.dropped}${s.status ? ` · ${s.status}` : ''}`)}`)}

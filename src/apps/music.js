@@ -27,6 +27,11 @@ export default {
         ${(st.fav ?? []).length ? k.card('💖 모아 둔 곡', st.fav.slice().reverse().map((t) => `<div class="mb4-row"><span class="mb4-row-v">${esc(t)}</span><a class="mb4-link" target="_blank" rel="noopener noreferrer" href="${esc(linkOf(cfg, t))}">▶</a></div>`).join('')) : ''}
         ${st.list.length > 1 ? k.card('지난 곡', st.list.slice(0, -1).reverse().slice(0, 8).map((s) => `<div class="mb4-row"><span class="mb4-row-v">${esc(s.title)}</span><a class="mb4-link" target="_blank" rel="noopener noreferrer" href="${esc(linkOf(cfg, s.title))}">▶</a></div>`).join('')) : ''}
         ${k.hint('「찾아 듣기」는 새 창에서 검색을 열어요. 곡 정보는 AI가 고른 것이라 틀릴 수 있어요.')}`;
+        api.kit.editMore(el, api, [
+            { name: 'song', list: st.list, label: (x) => '🎵 곡 | 어울리는 이유', get: (x) => `${x.title} | ${x.why ?? ''}`, set: (x, t) => { const [a, b] = api.kit.two(t); x.title = a; x.why = b; } },
+            { name: 'line', list: st.lines, label: () => '📜 구절 | 출처', get: (x) => `${x.t} | ${x.src ?? ''}`, set: (x, t) => { const [a, b] = api.kit.two(t); x.t = a; x.src = b; } },
+            { name: 'fav', list: st.fav ?? [], label: () => '💖 모아 둔 곡' },
+        ]);
         k.acts(el, {
             set: (_v, inp) => { cfg[inp.dataset.k] = inp.value.trim(); api.save(); },
             fav: () => { st.fav = Array.isArray(st.fav) ? st.fav : []; const t = now?.title; if (!t) return; st.fav = st.fav.includes(t) ? st.fav.filter((x) => x !== t) : [...st.fav, t].slice(-40); api.save(); api.redraw(); },

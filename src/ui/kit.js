@@ -86,3 +86,30 @@ export function optWire(el, cfg, save) {
     on('data-optd', (k) => { const [key, id] = split(k), c = C(key); c.add = c.add.filter((x) => x.id !== id); });
     on('data-opta', (key) => { const v = read(`[data-optn="${CSS.escape(key)}"]`); if (!v.name) return; C(key).add.push({ id: `my${Date.now().toString(36)}`, icon: v.icon || '✨', name: v.name, ai: v.ai || v.name }); });
 }
+
+// ✏️ The common «직접 고치기» card for what an app has kept, added to the end of el and wired in one call.
+// groups: { name, list, label(x, i), get(x) -> text, set(x, text, i) -> new item | undefined, max, rows, del }
+//       | { name, obj, keys: [[key, label, rows?]], num?: true }   (single values; emptying a field clears it)
+export function editMore(el, api, groups, title = '') {
+    const rows = [], table = {};
+    for (const g of groups) {
+        if (!g) continue;
+        if (g.obj) {
+            for (const [key, label, r] of g.keys) rows.push({ name: g.name, i: key, label, value: g.obj[key] ?? '', rows: r ?? 1, del: false });
+            table[g.name] = { save: (key, t) => { if (t === '') delete g.obj[key]; else g.obj[key] = g.num ? (Number.isFinite(+t) ? +t : g.obj[key]) : t; } };
+            continue;
+        }
+        const L = g.list;
+        if (!Array.isArray(L) || !L.length) continue;
+        const from = Math.max(0, L.length - (g.max ?? 20));
+        for (let i = L.length - 1; i >= from; i--) { const x = L[i]; if (x == null) continue; rows.push({ name: g.name, i, label: g.label?.(x, i) ?? '', value: g.get ? g.get(x) : String(x), rows: g.rows ?? 1, del: g.del ?? (g.remove ? true : undefined) }); }
+        table[g.name] = {
+            save: (i, t) => { if (!t || L[i] == null) return; if (g.set) { const r = g.set(L[i], t, i); if (r !== undefined) L[i] = r; } else L[i] = t; },
+            del: (i) => { if (L[i] == null) return; if (g.remove) g.remove(L[i], i); else L.splice(i, 1); },
+        };
+    }
+    el.insertAdjacentHTML('beforeend', editCard(rows, '', title));
+    editors(el.lastElementChild, table, () => { api.save(); api.redraw(); });
+}
+// "앞 | 뒤" split for items with two parts
+export const two = (t) => { const i = String(t).indexOf('|'); return i < 0 ? [String(t).trim(), ''] : [t.slice(0, i).trim(), t.slice(i + 1).trim()]; };

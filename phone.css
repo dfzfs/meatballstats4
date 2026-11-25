@@ -286,11 +286,6 @@ textarea.mb4-input { resize: vertical; min-height: 44px; }
 .mb4-sum-t { margin: 4px 0 10px; font-size: 16px; line-height: 1.5; font-weight: 600; }
 .mb4-tip { margin: 0 0 10px; padding: 9px 12px; border-radius: 12px; background: rgba(255, 236, 170, .45); font-size: 12.5px; line-height: 1.45; color: var(--fg); }
 
-/* sticky bars stay solid when the list scrolls under them */
-.mb4-shelves { background: var(--bg1); box-shadow: 0 4px 12px rgba(120, 70, 50, .10); backdrop-filter: none; }
-.mb4-tabs { background: var(--bg1); backdrop-filter: none; box-shadow: 0 4px 10px rgba(120, 70, 50, .08); }
-.mb4-docked { box-shadow: -4px 0 16px rgba(0, 0, 0, .12); }
-
 /* 🎨 looks */
 .mb4-walls { display: grid; grid-template-columns: repeat(4, 1fr); gap: 8px; }
 .mb4-wall { position: relative; aspect-ratio: 3 / 4; border: 2px solid transparent; border-radius: 12px; overflow: hidden; cursor: pointer; display: flex; align-items: flex-end; justify-content: center; padding: 0 0 6px; box-shadow: 0 1px 4px rgba(0, 0, 0, .12); }
@@ -298,20 +293,6 @@ textarea.mb4-input { resize: vertical; min-height: 44px; }
 .mb4-wall span { font-size: 11.5px; padding: 2px 6px; border-radius: 999px; background: rgba(255, 255, 255, .85); color: #231d1b; }
 .mb4-wall.up { background: repeating-linear-gradient(45deg, rgba(70, 45, 35, .06) 0 8px, transparent 8px 16px); }
 .mb4-dot { display: inline-block; width: 11px; height: 11px; border-radius: 50%; vertical-align: -1px; }
-.mb4-photo .mb4-card, .mb4-photo .mb4-ents, .mb4-photo .mb4-hero, .mb4-photo .mb4-pf { backdrop-filter: blur(8px); }
-.mb4-photo .mb4-shelves, .mb4-photo .mb4-tabs { background: rgba(255, 255, 255, .92); }
-
-/* 🌗 night */
-.mb4-phone.mb4-dark { --bg1: #22212c; --bg2: #2c2a38; --card: rgba(40, 38, 52, .86); --line: rgba(255, 255, 255, .09); --fg: #eeeaf3; --sub: #a9a3b6; color: var(--fg); }
-.mb4-dark:not([style*="background"]) { background: linear-gradient(160deg, var(--bg1), var(--bg2)); }
-.mb4-dark .mb4-top, .mb4-dark:not(.mb4-at-home) .mb4-top { background: rgba(30, 29, 40, .8); }
-.mb4-dark .mb4-hero, .mb4-dark .mb4-load, .mb4-dark .mb4-shelf.on, .mb4-dark .mb4-opt, .mb4-dark .mb4-tab, .mb4-dark .mb4-input, .mb4-dark .mb4-offcard { background: rgba(52, 49, 66, .92); color: var(--fg); }
-.mb4-dark .mb4-shelves, .mb4-dark .mb4-tabs { background: #26252f; }
-.mb4-dark.mb4-photo .mb4-shelves, .mb4-dark.mb4-photo .mb4-tabs { background: rgba(34, 33, 44, .92); }
-.mb4-dark .mb4-tip { background: rgba(255, 214, 120, .12); }
-.mb4-dark .mb4-btn.ghost { background: rgba(255, 255, 255, .06); color: var(--fg); }
-.mb4-dark .mb4-sw i { background: rgba(255, 255, 255, .18); }
-.mb4-dark .mb4-batt, .mb4-dark .mb4-sig { filter: invert(1); }
 /* 💌 a lover's touch */
 .mb4-sticky { position: relative; display: flex; align-items: flex-start; gap: 8px; margin: 0 6px 12px; padding: 12px 14px; background: #fff3a8; color: #4a3b10; border-radius: 4px 4px 14px 4px; box-shadow: 0 6px 14px rgba(120, 90, 20, .18); transform: rotate(-1.2deg); font-size: 14px; line-height: 1.5; }
 .mb4-sticky span { flex: 1; }
@@ -328,3 +309,113 @@ textarea.mb4-input { resize: vertical; min-height: 44px; }
 .mb4-editing .mb4-edcard > summary { list-style: none; pointer-events: none; color: var(--a); }
 .mb4-editing .mb4-edcard > summary::-webkit-details-marker { display: none; }
 .mb4-tabfoot .mb4-btn.sm { flex: none; }
+
+/* ═════ 4.2 look: quiet, grouped, Apple / Samsung-like. Later rules win over the ones above. ═════ */
+@font-face { font-family: 'OngleipParkDahyeon'; src: url('https://cdn.jsdelivr.net/gh/projectnoonnu/2411-3@1.0/Ownglyph_ParkDaHyun.woff2') format('woff2'); font-weight: normal; font-display: swap; }
+.mb4-phone {
+    --bg1: #f6f3ef; --bg2: #efe9e4; --card: rgba(255, 255, 255, .86); --line: rgba(60, 60, 67, .12);
+    --fg: #1c1c1e; --sub: #86868b; --fill: rgba(120, 120, 128, .12); --fill2: rgba(120, 120, 128, .08);
+    --wall: var(--bg1);
+    /* the bars that stay on top while the list scrolls under them: the wallpaper's own colour, a touch of the theme, glass */
+    --glass: color-mix(in srgb, color-mix(in srgb, var(--wall) 94%, var(--a)) 80%, transparent);
+    --on-a: color-mix(in srgb, var(--a) 88%, #000);
+    font-size: 14.5px; letter-spacing: -.015em;
+}
+.mb4-phone.mb4-dark {
+    --bg1: #1c1c22; --bg2: #24232b; --card: rgba(44, 44, 52, .84); --line: rgba(255, 255, 255, .09);
+    --fg: #f2f2f7; --sub: #9a9aa2; --fill: rgba(120, 120, 128, .26); --fill2: rgba(120, 120, 128, .16);
+    --glass: color-mix(in srgb, color-mix(in srgb, color-mix(in srgb, var(--wall) 22%, #1a1a20) 94%, var(--a)) 82%, transparent);
+    --on-a: color-mix(in srgb, var(--a) 55%, #fff);
+}
+.mb4-dark:not([style*="background:"]):not([style*="background: "]) { background: linear-gradient(160deg, var(--bg1), var(--bg2)); }
+.mb4-glass, .mb4-shelves, .mb4-tabs, .mb4-phone:not(.mb4-at-home) .mb4-top {
+    background: var(--glass) !important; -webkit-backdrop-filter: blur(22px) saturate(1.6); backdrop-filter: blur(22px) saturate(1.6);
+}
+.mb4-phone:not(.mb4-at-home) .mb4-top { border-bottom: .5px solid var(--line); }
+.mb4-top { min-height: 50px; padding: 6px 8px; }
+.mb4-title { font-size: 16.5px; font-weight: 650; text-align: center; letter-spacing: -.02em; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.mb4-at-home .mb4-title { text-align: left; font-weight: 600; }
+.mb4-ico { color: var(--a); font-size: 22px; }
+.mb4-ico[data-close] { color: var(--sub); font-size: 17px; }
+.mb4-ico[data-more] { font-size: 20px; letter-spacing: 1px; }
+.mb4-ico:hover, .mb4-ico:focus-visible { background: var(--fill2); }
+.mb4-body { padding: 8px 16px 26px; }
+
+/* cards = grouped lists: one soft sheet, hairlines between rows, no heavy shadow */
+.mb4-card, .mb4-list, .mb4-ents, .mb4-pf, .mb4-pick, .mb4-offcard { background: var(--card); border: 0; border-radius: 14px; box-shadow: 0 .5px 0 var(--line), 0 1px 3px rgba(0, 0, 0, .04); }
+.mb4-card { padding: 12px 14px; margin-bottom: 14px; }
+.mb4-card-h { margin: 0 0 8px; font-size: 12.5px; font-weight: 600; color: var(--sub); letter-spacing: -.005em; }
+.mb4-sec { margin: 22px 6px 7px; font-size: 12.5px; font-weight: 600; color: var(--sub); }
+.mb4-lead, .mb4-hint { font-size: 12.5px; line-height: 1.5; }
+.mb4-hero { background: var(--card); border: 0; border-radius: 18px; box-shadow: 0 1px 3px rgba(0, 0, 0, .05); }
+.mb4-hero-n { font-weight: 250; }
+.mb4-row { padding: 8px 0; }
+.mb4-row + .mb4-row, .mb4-item + .mb4-item, .mb4-ent + .mb4-ent { border-top: .5px solid var(--line); }
+.mb4-ent { padding: 11px 14px; }
+.mb4-ent:hover { background: var(--fill2); }
+.mb4-ent .mb4-app-ico, .mb4-item .mb4-app-ico { width: 40px; height: 40px; border-radius: 11px; font-size: 20px; box-shadow: none; }
+.mb4-app-ico { box-shadow: none; }
+.mb4-ent-t b, .mb4-item-t b { font-weight: 600; }
+.mb4-badge { font-weight: 600; background: var(--fill2); }
+.mb4-tip { background: var(--fill2); border-radius: 12px; }
+.mb4-load { background: var(--fill2); }
+.mb4-banner { border-radius: 12px; }
+
+/* buttons: soft tint, never a heavy block of colour */
+.mb4-btn { min-height: 36px; padding: 7px 14px; border-radius: 10px; background: color-mix(in srgb, var(--a) 14%, transparent); color: var(--on-a) !important; font-weight: 600 !important; }
+.mb4-btn:hover { background: color-mix(in srgb, var(--a) 20%, transparent); }
+.mb4-btn.ghost { background: var(--fill); color: var(--fg) !important; }
+.mb4-btn.ghost:hover { background: color-mix(in srgb, var(--fg) 12%, transparent); }
+.mb4-btn.sm { min-height: 30px; padding: 4px 11px; border-radius: 9px; }
+.mb4-btn.wide { min-height: 44px; border-radius: 12px; }
+/* a picked choice (anywhere, any app): tinted, readable on every theme colour and at night */
+.mb4-phone .mb4-btn.on, .mb4-phone .mb4-opt.on, .mb4-phone .mb4-tab.on, .mb4-phone [class*="-seg"] button.on {
+    background: color-mix(in srgb, var(--a) 18%, var(--card)) !important; color: var(--on-a) !important; border-color: transparent !important;
+    box-shadow: inset 0 0 0 1.5px color-mix(in srgb, var(--a) 45%, transparent); font-weight: 650 !important;
+}
+.mb4-opt { border: 0; background: var(--fill); padding: 6px 12px; }
+.mb4-get { background: color-mix(in srgb, var(--a) 14%, transparent); color: var(--on-a) !important; }
+.mb4-get.on { background: var(--fill); color: var(--sub) !important; }
+.mb4-link { color: var(--a) !important; }
+.mb4-x { background: var(--fill); }
+.mb4-sw i { background: var(--fill); }
+.mb4-sw input:checked + i { background: #34c759; }
+.mb4-phone .mb4-input { background: var(--fill2) !important; border: .5px solid var(--line) !important; border-radius: 10px !important; color: var(--fg) !important; }
+.mb4-phone .mb4-input:focus { border-color: var(--a) !important; background: var(--card) !important; }
+.mb4-pill { font-weight: 600; }
+
+/* segmented control: one rounded track, the picked part lifts */
+.mb4-seg, .mb4-shelves { display: flex; gap: 2px; padding: 2px; border-radius: 10px; background: var(--fill); }
+.mb4-seg > button, .mb4-shelf { flex: 1; min-height: 30px; padding: 5px 8px; border: 0; border-radius: 8px; background: transparent; color: var(--fg) !important; font-size: 13px !important; font-weight: 500 !important; }
+.mb4-phone .mb4-seg > button.on, .mb4-phone .mb4-shelf.on { background: var(--card) !important; color: var(--fg) !important; box-shadow: 0 1px 3px rgba(0, 0, 0, .12), 0 0 0 .5px rgba(0, 0, 0, .04) !important; font-weight: 650 !important; }
+.mb4-dark .mb4-seg > button.on, .mb4-dark .mb4-shelf.on { background: #636366 !important; }
+.mb4-shelves { display: grid; grid-template-columns: repeat(3, 1fr); margin: 0 -4px 10px; padding: 3px; border-radius: 12px; box-shadow: 0 .5px 0 var(--line); top: -8px; }
+.mb4-shelf { padding: 8px 4px; }
+.mb4-shelf small { background: var(--fill); }
+.mb4-phone .mb4-shelf.on small { background: color-mix(in srgb, var(--a) 18%, transparent); color: var(--on-a) !important; }
+.mb4-tabs { margin: -8px -16px 12px; padding: 8px 16px; top: -8px; border-bottom: .5px solid var(--line); gap: 6px; }
+.mb4-tab { border: 0; background: var(--fill); padding: 6px 12px; font-weight: 500 !important; }
+.mb4-tab.off:not(.on) { opacity: .45; border: 0; }
+.mb4-tabfoot { border-top: .5px solid var(--line); margin-top: 18px; }
+
+/* ⋯ menu: a sheet that drops from the top bar */
+.mb4-menu { position: absolute; z-index: 10; inset: 0; display: none; background: rgba(0, 0, 0, .18); }
+.mb4-menu.on { display: block; }
+.mb4-menu-box { position: absolute; top: 52px; right: 10px; width: min(300px, calc(100% - 20px)); max-height: calc(100% - 70px); overflow-y: auto; padding: 6px 0; border-radius: 14px; background: color-mix(in srgb, var(--card) 70%, var(--bg1)); -webkit-backdrop-filter: blur(24px) saturate(1.6); backdrop-filter: blur(24px) saturate(1.6); box-shadow: 0 10px 40px rgba(0, 0, 0, .22); }
+.mb4-left .mb4-menu-box { right: auto; left: 10px; }
+.mb4-menu-sec { padding: 8px 16px 4px; font-size: 12px; color: var(--sub); }
+.mb4-menu-sec + .mb4-menu-sec, .mb4-menu-it + .mb4-menu-sec { border-top: 6px solid var(--fill2); margin-top: 4px; padding-top: 10px; }
+.mb4-menu-it { display: flex; align-items: center; gap: 10px; width: 100%; min-height: 42px; padding: 8px 16px; border: 0; background: transparent; text-align: left; font-size: 14.5px !important; }
+.mb4-menu-it + .mb4-menu-it { border-top: .5px solid var(--line); }
+.mb4-menu-it:hover:not(:disabled) { background: var(--fill2); }
+.mb4-menu-it:disabled { opacity: .4; cursor: default; }
+.mb4-menu-it > i { flex: none; width: 22px; font-style: normal; text-align: center; }
+.mb4-menu-it > span { flex: 1; min-width: 0; display: flex; flex-direction: column; }
+.mb4-menu-it small { font-size: 11.5px; }
+.mb4-menu-it.cur { color: var(--on-a); font-weight: 650; }
+.mb4-menu-it .mb4-dotoff { flex: none; font-size: 11px; color: var(--sub); }
+
+/* the edit switch stays */
+.mb4-editing .mb4-edcard { box-shadow: inset 0 0 0 1.5px color-mix(in srgb, var(--a) 35%, transparent); }
+.mb4-edrow { border-top: .5px solid var(--line); }
+@media (max-width: 700px) { .mb4-menu-box { top: calc(52px + env(safe-area-inset-top)); } }

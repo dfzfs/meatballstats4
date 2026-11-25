@@ -40,6 +40,7 @@ export default {
         ${k.card('받을 종류', `<div class="mb4-chips">${KINDS.map((x) => `<button class="mb4-btn ${K[x.id] ? '' : 'ghost '}sm" data-act="kind" data-v="${x.id}">${x.icon} ${x.name}</button>`).join('')}</div>
             <label class="mb4-sw"><span><b>소문으로 흘려 넣기</b><small>본편 AI가 배경 이야기로 알아요</small></span><input type="checkbox" data-act="tell" ${st.tell ? 'checked' : ''}><i></i></label>`)}
         ${k.optCard(api.cfg, 'kinds', KINDS_BASE, { title: '소식 종류', aiLabel: '어떤 소식인지 (예: a weather report from the radio)' })}`;
+        k.editMore(el, api, [{ name: 'item', list: Array.isArray(st.items) ? st.items : [], label: (x) => `${KINDS.find((y) => y.id === x.k)?.icon ?? '📰'} ${x.who ? `${x.who} · ` : ''}소식`, get: (x) => (typeof x === 'string' ? x : x.t), set: (x, t) => (typeof x === 'string' ? t : (x.t = t.slice(0, 200), undefined)) }]);
         k.optWire(el, api.cfg, () => { api.save(); api.redraw(); });
         k.acts(el, {
             tab: (v) => { st._tab = v; api.redraw(); },

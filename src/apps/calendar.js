@@ -150,6 +150,12 @@ export default {
             <label class="mb4-label">이야기 1일째가 며칠인가요<input class="mb4-input" data-act="start" type="date" value="${esc(st.start ?? '')}"></label>
         </details>`;
         const save = () => { api.save(); api.redraw(); };
+        const memos = Object.entries(st.notes ?? {}).filter(([, x]) => x?.text);
+        api.kit.editMore(el, api, [
+            { name: 'mark', list: st.marks, label: (x) => `${x.yearly ? '🎂' : '🗓'} 표시 이름 · ${x.date}`, get: (x) => x.label, set: (x, t) => { x.label = t.slice(0, 40); } },
+            { name: 'markd', list: st.marks, del: false, label: (x) => `${x.label}: 날짜 (YYYY-MM-DD)`, get: (x) => x.date, set: (x, t) => { if (/^\d{4}-\d{2}-\d{2}$/.test(t)) x.date = t; } },
+            { name: 'memo', list: memos, label: ([d]) => `📝 ${d} 메모`, get: ([, x]) => x.text, set: ([, x], t) => { x.text = t.slice(0, 200); }, remove: ([d]) => { delete st.notes[d]; } },
+        ]);
         acts(el, {
             start: (v) => { st.start = v; save(); },
             pick: (v) => { st.pick = v; api.redraw(); },

@@ -63,6 +63,8 @@ export default {
         for (const d of Object.values(S.d)) if (d.j > 0) d.j = Math.max(0, d.j - 1);
         void me;
     },
+    // ✏️ 애정 · 신뢰 set by hand: kept as a difference per pair, laid over what the story adds up to
+    adjust(S, env) { for (const [k, x] of Object.entries(env.store?.adj ?? {})) { const d = S.d[k]; if (!d) continue; if (x.a) d.a = clampN(d.a + x.a); if (x.t) d.t = clampN(d.t + x.t); } },
     note(S, env) {
         const me = env.user, st = env.store, now = [], state = [];
         // a card the person answered: the outcome rides with the next reply once
@@ -104,6 +106,7 @@ export default {
         ${S.jl.length ? card('🔥 질투가 일었던 때', S.jl.slice(-4).reverse().map((x) => `<div class="mb4-row"><span class="mb4-row-v">${esc(x.who)}: ${esc(x.of)}이(가) ${esc(x.with)}와(과) 가까워지는 걸 봄</span></div>`).join('')) : ''}
         <label class="mb4-sw"><span><b>점수를 AI에게도 알려 주기</b><small>같이 있는 사람의 애정 · 신뢰와 질투 한 줄. 끄면 화면에만 보여요.</small></span><input type="checkbox" data-act="tell" ${cfg.tell !== false ? 'checked' : ''}><i></i></label>
         ${hint('점수는 💞 관계가 적은 줄(다가감 +4 · 물러남 −3 · 부딪힘 −3 · 스킨십 · 거절 · 받아 줌)로 코드가 셈해요. 고백 · 청혼의 답은 애정과 신뢰로 정한 확률로 주사위를 굴려요.')}`;
+        api.kit.editMore(el, api, [{ name: 'love', list: toMe, del: false, label: ([n]) => `${n}: 애정 | 신뢰 (0~100)`, get: ([, d]) => `${d.a} | ${d.t}`, set: ([n, d], t) => { const [a, b] = api.kit.two(t).map((x) => Math.round(+x)); const x = ((api.store.adj ??= {})[`${n}>${me}`] ??= {}); if (Number.isFinite(a) && api.kit.two(t)[0] !== '') x.a = (x.a ?? 0) + clampN(a) - d.a; if (Number.isFinite(b) && api.kit.two(t)[1] !== '') x.t = (x.t ?? 0) + clampN(b) - d.t; } }]);
         acts(el, {
             tell: (_v, b) => { cfg.tell = b.checked; api.save(); },
             uncard: () => { st.card = null; api.save(); api.redraw(); },

@@ -45,6 +45,7 @@ export default {
         ${api.kit.optCard(api.cfg, 'moods', D_MOODS, { title: '분위기', fields: ['name', 'ai'], aiLabel: '어떤 분위기로 떠드는지 (예: They are planning a surprise party.)' })}
         ${hint('「떠들게 하기」를 누를 때만 AI를 1번 불러요. 본편에는 「이야기에 알리기」를 켰을 때만 가요.')}`;
         const room = el.querySelector('.mbx-room'); if (room) room.scrollTop = room.scrollHeight;
+        api.kit.editMore(el, api, [{ name: 'log', list: st.log, max: 30, label: (m) => (m.me ? '나' : m.who), get: (m) => m.t, set: (m, t) => { m.t = t.slice(0, 300); } }]);
         api.kit.optWire(el, api.cfg, () => { api.save(); api.redraw(); });
         acts(el, {
             who: (n) => { st.in = st.in.includes(n) ? st.in.filter((x) => x !== n) : [...st.in, n].slice(0, 6); api.save(); api.redraw(); },
