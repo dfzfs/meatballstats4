@@ -18,7 +18,7 @@ function strip() {
         if (!app.hud) continue;
         try { for (const t of app.hud(S[app.id], E.envOf(app.id)) ?? []) if (t) pills.push(`<button class="mb4-h" data-view="app:${app.id}">${esc(t)}</button>`); } catch (e) { /* optional */ }
     }
-    const html = `<button class="mb4-h mb4-h-home" data-view="home" aria-label="미트볼 열기">🧆</button>${pills.join('')}${E.busy ? '<span class="mb4-h mb4-h-busy">읽는 중…</span>' : ''}`;
+    const html = `<button class="mb4-h mb4-h-home" data-view="home" aria-label="미트볼 열기">😼</button>${pills.join('')}${E.busy ? '<span class="mb4-h mb4-h-busy">읽는 중…</span>' : ''}`;
     if (!el) {
         const anchor = document.getElementById('form_sheld') ?? document.getElementById('send_form');
         if (!anchor?.parentElement) return;

@@ -189,7 +189,7 @@ function clock() {
 
 // ── first question ──
 function drawAsk(body) {
-    body.innerHTML = `<div class="mb4-ask-h"><div class="mb4-ask-logo">🧆</div><h3>어떤 롤플을 해요?</h3><p>하나만 골라 주세요. 거기 맞는 앱만 켜져요.<br>나중에 🛍 마켓에서 언제든 바꿀 수 있어요.</p></div>
+    body.innerHTML = `<div class="mb4-ask-h"><div class="mb4-ask-logo">😼</div><h3>어떤 롤플을 해요?</h3><p>하나만 골라 주세요. 거기 맞는 앱만 켜져요.<br>나중에 🛍 마켓에서 언제든 바꿀 수 있어요.</p></div>
         ${PRESETS.map((p) => `<button class="mb4-pick" data-preset="${p.id}"><span class="mb4-pick-ico">${p.icon}</span><span class="mb4-pick-t"><b>${p.name}</b><small>${p.desc}</small><span class="mb4-pick-apps">${p.apps.map((id) => `<i title="${esc(meta(id).name)}">${meta(id).icon}</i>`).join('')}</span></span></button>`).join('')}
         <button class="mb4-btn ghost wide" data-preset="">직접 고를게요 (첫 화면에서 하나씩 켜요)</button>`;
     body.querySelectorAll('[data-preset]').forEach((b) => b.addEventListener('click', async () => {
@@ -210,7 +210,7 @@ function hero() {
     const calOn = E.reg.has('calendar'), env = calOn ? E.envOf('calendar') : null;
     let date = '';
     if (S && env?.store.start) { const t = Date.parse(`${env.store.start}T00:00:00Z`); if (!Number.isNaN(t)) { const d = new Date(t + (S.day - 1) * 86400000); date = `${d.getUTCMonth() + 1}월 ${d.getUTCDate()}일 ${'일월화수목금토'[d.getUTCDay()]}요일`; } }
-    if (!S) return `<div class="mb4-hero mb4-home-hero"><div class="mb4-hero-n">🧆 미트볼</div><div class="mb4-hero-s">${chat ? `켠 앱 ${E.reg.size}개` : '채팅을 열면 기록이 시작돼요'}</div></div>`;
+    if (!S) return `<div class="mb4-hero mb4-home-hero"><div class="mb4-hero-n">😼 미트볼</div><div class="mb4-hero-s">${chat ? `켠 앱 ${E.reg.size}개` : '채팅을 열면 기록이 시작돼요'}</div></div>`;
     return `<div class="mb4-hero mb4-home-hero" data-go="app:scene">
         <div class="mb4-hero-n">${S.tod ? TOD_KO[S.tod] : `${S.day}일째`}</div>
         <div class="mb4-hero-s">${[date || `이야기 ${S.day}일째`, S.date, S.weather].filter(Boolean).map(esc).join(' · ')}</div>
