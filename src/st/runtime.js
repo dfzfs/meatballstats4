@@ -10,7 +10,9 @@ const IN_CHAT = 1, SYSTEM = 0;
 const SLOT = { state: { key: `${KEY}_state`, depth: 1 }, now: { key: `${KEY}_now`, depth: 0 } };
 // Token ceilings, not targets: a model that thinks before it answers spends its thinking from the same budget, and with
 // 500 a tap call came back cut off after one line two times in three (measured live). The prompts set the length.
-const AFTER_REPLY = 2500, GAP = 4000, TIMEOUT = 90000, MAX_OUT = 2500, ASK_MIN = 1500, ASK_MAX = 4000;
+// No length caps of our own: every call gets the same roomy ceiling (8192 — what most connections accept as their
+// largest), and the prompts only suggest how long to write.
+const AFTER_REPLY = 2500, GAP = 4000, TIMEOUT = 120000, ROOM = 8192;
 
 const Q = { timer: null, lastCall: 0, generating: false, calls: [], fails: 0, notBefore: 0, cont: null, told: false };
 const PER_MINUTE = 6, WAIT_LIMIT = 60000, COOL = 600000;
@@ -38,8 +40,8 @@ const host = {
     put(slot, text) { const s = SLOT[slot]; try { ctx().setExtensionPrompt(s.key, text || '', IN_CHAT, s.depth, false, SYSTEM); } catch (e) { console.warn('[meatball] could not place the note', e); } },
     changed() { try { document.dispatchEvent(new CustomEvent('mb4:update')); } catch (e) { /* no page */ } },
     gen: () => Q.gen ?? '',
-    classify: (prompt) => model(prompt, MAX_OUT, 0.2),
-    ask: (prompt, max) => model(prompt, Math.min(Math.max(+max || 400, ASK_MIN), ASK_MAX), 0.9),
+    classify: (prompt) => model(prompt, ROOM, 0.2),
+    ask: (prompt) => model(prompt, ROOM, 0.9),
 };
 export const engine = new Engine(host);
 
@@ -168,7 +170,7 @@ function listen(on) {
     listening = on;
     if (!on) { clearTimeout(Q.timer); engine.clear(); Object.assign(Q, { fails: 0, notBefore: 0, cont: null, told: false, calls: [] }); }
 }
-export const budgets = { read: MAX_OUT, askMin: ASK_MIN, askMax: ASK_MAX };
+export const budgets = { read: ROOM, askMin: ROOM, askMax: ROOM };
 export const listenerCount = () => (listening ? wiring().length : 0);
 
 // ── apps ──

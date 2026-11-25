@@ -17,13 +17,13 @@ function parse(raw, members) {
         const m = l.match(/^\s*[-*]?\s*\**([^:：*]{1,40})\**\s*[:：]\s*(.+)$/);
         if (!m) continue;
         const who = members.find((n) => n.toLowerCase() === m[1].trim().toLowerCase()) ?? m[1].trim();
-        out.push({ who, t: clip(m[2].replace(/^["“]|["”]$/g, ''), 300) });
+        out.push({ who, t: m[2].replace(/^["“]|["”]$/g, '').trim() });
     }
     return out.slice(0, 12);
 }
 
 export default {
-    api: 1, id: 'group', name: '단체방', icon: '💬', color: '#00b4d8', cost: 'tap',
+    api: 1, id: 'group', chat: true, name: '단체방', icon: '💬', color: '#00b4d8', cost: 'tap',
     desc: '인물들끼리의 단체 대화방. 누르면 자기들끼리 떠드는 몇 줄을 받아요. 내가 한마디 끼어들 수도 있어요.',
     note(_S, env) { const f = env.store.fresh; return f && env.store.tell ? { now: [`Off the page, in their group chat, this was just said — ${f}. The ones who took part know it; it may colour this reply without being quoted.`] } : null; },
     onReply(env) { if (env.store.fresh) { env.store.fresh = ''; return true; } return false; },
@@ -53,12 +53,12 @@ export default {
                 <div class="mb4-btnrow"><button class="mb4-btn ghost sm" data-act="panel" data-v="">닫기</button></div>`)
             : '';
         const head = `<button class="mbg-head" data-act="panel" data-v="who"><span>${open ? '🌐' : '🔒'}</span><b>${who ? esc(who) : open ? '아무나' : '아직 아무도 없어요'}${open && who ? ' + 그 밖의 사람들' : ''}</b><small>${MOODS.find((m) => m[0] === mood)?.[1] ?? ''} ›</small></button>`;
-        el.innerHTML = `${panel}${head}
+        el.innerHTML = `${panel}
             <div class="mbx-thread">${st.log.slice(-40).map((m) => (m.me
                 ? `<div class="mbx-b me"><div class="mbx-bubble mbg-me">${esc(m.t)}</div></div>`
                 : `<div class="mbx-b them"><span class="mb4-face mbx-av">${face(m.who)}</span><div class="mbg-col"><small class="mbg-n">${esc(m.who)}</small><div class="mbx-bubble">${esc(m.t)}</div></div></div>`)).join('') || `<p class="mb4-hint mb4-center">${ready ? '보내기를 누르면 떠들기 시작해요. 비워 두고 눌러도 돼요.' : '⋯에서 누가 떠들지 골라 주세요.'}</p>`}</div>
-            <div class="mbx-dock"><textarea class="mb4-input mbx-in" data-f="msg" rows="1" maxlength="200" placeholder="한마디 끼어들기 (비우면 그냥 떠들게)"></textarea><button class="mb4-btn mbx-go" data-act="go" ${ready ? '' : 'disabled'}>보내기</button></div>`;
-        api.kit.editMore(el, api, [{ name: 'log', list: st.log, max: 30, label: (m) => (m.me ? '나' : m.who), get: (m) => m.t, set: (m, t) => { m.t = t.slice(0, 300); } }]);
+            <div class="mbx-dock"><textarea class="mb4-input mbx-in" data-f="msg" rows="1" placeholder="한마디 끼어들기 (비우면 그냥 떠들게)"></textarea><button class="mb4-btn mbx-go" data-act="go" ${ready ? '' : 'disabled'}>보내기</button></div>`;
+        api.kit.editMore(el, api, [{ name: 'log', list: st.log, max: 30, label: (m) => (m.me ? '나' : m.who), get: (m) => m.t, set: (m, t) => { m.t = t; } }]);
         if (st._panel === 'mood') api.kit.optWire(el, api.cfg, () => { api.save(); api.redraw(); });
         api.menu([
             { icon: '👥', label: '누가 떠드나요', sub: `${open ? '🌐 오픈' : '🔒 고른 사람만'}${who ? ` · ${who}` : ''}`, act: () => { st._panel = 'who'; api.redraw(); } },
@@ -81,7 +81,7 @@ export default {
             go: async (_v, b) => {
                 if (!(st.open || st.in.length)) return;
                 const mine = val(el, '[data-f="msg"]');
-                if (mine) st.log.push({ me: true, who: env.user || 'me', t: clip(mine, 200) });
+                if (mine) st.log.push({ me: true, who: env.user || 'me', t: mine });
                 b.disabled = true; b.textContent = '…';
                 const P = env.peek('people')?.list ?? {};
                 const raw = await api.ask(`[TASK] Do NOT continue the story and do not narrate. Write the next lines of a phone group chat${st.open && (crowd = String(st.crowd ?? '').trim()) ? ` — the group chat of ${crowd}` : ''}. ${st.in.length ? `Named members: ${st.in.map((n) => `${n}${P[n]?.about ? ` (${P[n].about})` : ''}`).join('; ')}.` : ''}${st.open ? ` Other members${crowd ? ` of ${crowd}` : ' of their circle'} chime in too: give them fitting names or chat handles, keep them minor and consistent with earlier lines.` : ' Only these members speak; nobody else is in the room.'}${mine ? ` ${env.user} is in the room too and just wrote the last line; they react to it.` : ` ${env.user} is not reading right now.`} ${MOOD_EN[mood] ?? 'They talk as they normally would, about what is on their minds.'}\n\n[What is known]\n${api.facts() || '(nothing recorded)'}\n\n[Latest part of the story]\n${clip(env.recent(1)[0] ?? '', 1500)}\n\n[Group chat so far]\n${st.log.slice(-12).map((m) => `${m.who}: ${m.t}`).join('\n') || '(empty)'}\n\nWrite 4 to 7 short chat lines, each exactly "Name: message", every voice distinct, in the language of the story. Nobody says what they could not know. Output only those lines.`, 1500);

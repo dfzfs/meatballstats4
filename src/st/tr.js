@@ -64,7 +64,7 @@ async function viaAI(texts, terms, lang) {
     if (pid && C.ConnectionManagerRequestService) {
         const r = await C.ConnectionManagerRequestService.sendRequest(pid, [{ role: 'system', content: sys }, { role: 'user', content: pack(texts) }], 3000, { stream: false, extractData: true, includePreset: false, includeInstruct: false });
         text = String(r?.content ?? r ?? '');
-    } else text = String(await C.generateRaw({ prompt: `${sys}\n\n${pack(texts)}`, responseLength: 3000 }) ?? '');
+    } else text = String(await C.generateRaw({ prompt: `${sys}\n\n${pack(texts)}`, responseLength: 8192 }) ?? '');
     if (!text.trim()) throw new Error('AI 답이 비었어요');
     return unpack(text, texts.length);
 }

@@ -72,7 +72,7 @@ export default {
                 else if (who === 'cells') { const on = C.filter((c) => cfg.cells[c.id]).slice(0, 4); prompt = `Little brain cells living inside ${env.user}'s head react to what just happened to ${env.user}. Pick one or two of them: ${on.map((c) => `${c.name} (${c.ai})`).join('; ') || 'any'}. Each says one short line in character.${base} Format: Name: line. Output only those lines.`; icon = '🧠'; who = '세포들'; }
                 else { const w = W.find((x) => x.id === who); if (!w) return; prompt = `This watcher of the story — ${w.ai} — reacts to what just happened in one or two short lines, in character.${base} Output only the reaction.`; icon = w.icon; who = w.name; }
                 const answer = await api.ask(prompt, 260);
-                if (answer) { st.list.push({ who, icon, text: clip(answer.replace(/^["“*]+|["”*]+$/g, ''), 600) }); if (st.list.length > 30) st.list.shift(); } else api.toast('보지 못했어요. 잠시 뒤 다시 해 보세요.');
+                if (answer) { st.list.push({ who, icon, text: answer.replace(/^["“*]+|["”*]+$/g, '').trim() }); if (st.list.length > 30) st.list.shift(); } else api.toast('보지 못했어요. 잠시 뒤 다시 해 보세요.');
                 api.save(); api.redraw();
             },
         });

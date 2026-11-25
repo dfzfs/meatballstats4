@@ -474,13 +474,21 @@ function appTab(box, id, multi) {
         return;
     }
     const editing = EDITING.has(id);
-    box.innerHTML = `<div></div><div class="mb4-tabfoot">${badge(a?.cost)}<button class="mb4-btn ${editing ? '' : 'ghost '}sm" data-editmode>${editing ? '✔ 다 고쳤어요' : '✏️ 고치기'}</button><button class="mb4-link" data-turnoff>${multi ? `「${esc(a?.name ?? id)}」 끄기` : '끄기'}</button></div>`;
+    // a chat screen (📞 연락 · 💬 단체방) shows only the conversation: 고치기 · 끄기 go into ⋯
+    const chatty = !!R.engine.reg.get(id)?.chat;
+    box.innerHTML = chatty ? '<div></div>' : `<div></div><div class="mb4-tabfoot">${badge(a?.cost)}<button class="mb4-btn ${editing ? '' : 'ghost '}sm" data-editmode>${editing ? '✔ 다 고쳤어요' : '✏️ 고치기'}</button><button class="mb4-link" data-turnoff>${multi ? `「${esc(a?.name ?? id)}」 끄기` : '끄기'}</button></div>`;
     mountApp(box.firstElementChild, id);
+    if (chatty) {
+        menuItems = [...menuItems, { sec: '이 앱' },
+            { icon: editing ? '✔' : '✏️', label: editing ? '다 고쳤어요' : '고치기', sub: '주고받은 말 · 요약을 직접 고쳐요', act: () => { if (EDITING.has(id)) EDITING.delete(id); else EDITING.add(id); draw(true); } },
+            { icon: '⏻', label: `「${a?.name ?? id}」 끄기`, act: async () => { await R.setApp(id, false); draw(true); } }];
+        $('[data-more]').hidden = false;
+    }
     // one 「✏️ 고치기」 for the whole app: every edit box of this app shows, already open; pressed again, they all go away
     const app = box.firstElementChild;
     app.classList.toggle('mb4-editing', editing);
     if (editing) { app.querySelectorAll('details.mb4-edcard').forEach((d) => { d.open = true; }); if (!app.querySelector('.mb4-edcard')) app.insertAdjacentHTML('beforeend', kit.hint('이 앱은 위 화면에서 바로 고쳐요.')); }
-    box.querySelector('[data-editmode]').addEventListener('click', () => { if (EDITING.has(id)) EDITING.delete(id); else EDITING.add(id); draw(true); if (EDITING.has(id)) setTimeout(() => $('.mb4-body .mb4-edcard')?.scrollIntoView({ block: 'start', behavior: 'smooth' }), 60); });
+    box.querySelector('[data-editmode]')?.addEventListener('click', () => { if (EDITING.has(id)) EDITING.delete(id); else EDITING.add(id); draw(true); if (EDITING.has(id)) setTimeout(() => $('.mb4-body .mb4-edcard')?.scrollIntoView({ block: 'start', behavior: 'smooth' }), 60); });
     box.querySelector('[data-turnoff]')?.addEventListener('click', async () => { await R.setApp(id, false); draw(true); });
 }
 const offRow = (off) => (off.length ? `<div class="mb4-offrow"><small>꺼져 있어요 · 누르면 켜요</small>${off.map((id) => `<label class="mb4-offchip"><input type="checkbox" data-app="${id}"><span>${meta(id)?.icon ?? ''} ${esc(meta(id)?.name ?? id)}</span></label>`).join('')}</div>` : '');

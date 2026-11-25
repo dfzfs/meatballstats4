@@ -30,7 +30,7 @@ function parse(raw) {
         const m = l.match(/^(@?[a-z]{2,16})\s*:\s*(.+)$/i);
         return m ? { k: m[1].toLowerCase(), v: m[2].trim(), on: true } : null;
     }).filter(Boolean).slice(0, 20);
-    return { say: clip(say, 800), edits };
+    return { say: String(say ?? '').trim(), edits };
 }
 const STORE_ACTS = {
     '@memo': { need: 'memo', ko: '📝 메모 더하기', line: '@memo: the note text (adds a memo the AI keeps seeing)' },
@@ -85,7 +85,7 @@ export default {
             },
             send: async () => {
                 const t = String(el.querySelector('[data-f="ask"]')?.value ?? '').trim(); if (!t) return;
-                st.log.push({ me: true, text: clip(t, 400) }); st.busy = true; api.save(); api.redraw();
+                st.log.push({ me: true, text: t }); st.busy = true; api.save(); api.redraw();
                 const on = H.appsOn(), keys = H.keys(), acts2 = Object.entries(STORE_ACTS).filter(([, a]) => on.some((x) => x.id === a.need));
                 const prompt = `[ROLE] You are 미트볼 도우미, the cat mascot of a roleplay helper phone. Reply in short, friendly, plain Korean (casual speech, at most a light cat touch — no 냥 spam). You can also change what the phone has recorded, but ONLY what the user clearly asks for.
 

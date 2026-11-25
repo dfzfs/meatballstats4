@@ -39,7 +39,7 @@ function parseReply(raw) {
         else if (k === '선물') o.gift = clip(v, 40); else if (k === '송금') o.money = Math.max(0, +v.replace(/[^\d]/g, '') || 0);
         else if (k === 'yes' || k === 'no') o.answer = k;
     }
-    o.lines = s.replace(TAG, '').split('\n').map((l) => clip(l.replace(/^["“]|["”]$/g, '').replace(/^[^:\n]{1,20}:\s*/, ''), 300)).filter(Boolean).slice(0, 3);
+    o.lines = s.replace(TAG, '').split('\n').map((l) => l.replace(/^["“]|["”]$/g, '').replace(/^[^:\n]{1,20}:\s*/, '').trim()).filter(Boolean).slice(0, 3);
     return o;
 }
 const ASK_TEXT = { confess: '있잖아… 나 너 좋아해. 우리 사귈래?', propose: '나랑… 결혼해 줄래?' };
@@ -47,7 +47,7 @@ const LOVER = /lover|couple|dating|engaged|married|연인|애인|사귀|약혼|�
 
 export default {
     _t: { memory, awayOf, parseReply },   // for tests only; not part of the app contract
-    api: 1, id: 'contacts', name: '연락', icon: '📞', color: '#34c759', cost: 'tap',
+    api: 1, id: 'contacts', chat: true, name: '연락', icon: '📞', color: '#34c759', cost: 'tap',
     desc: '이야기 속 인물에게 문자를 보내고 답장을 받아요. 주고받은 문자는 다음 답에 한 번 알려 줘요.',
     // Told to the main model once, by the next reply, then spent.
     note(_s, env) {
@@ -91,12 +91,13 @@ export default {
                 return `<button class="mbx-row" data-act="open" data-v="${esc(n)}"><span class="mb4-face">${k.face(n)}</span><span class="mbx-row-t"><b>${nameOf(n)}${P.dnd ? ' <i>🔕</i>' : ''}${away ? ` <i>${away.sleep ? '😴' : '💤'}</i>` : ''}</b><small>${last ? `${last.me ? '나: ' : ''}${last.letter ? '✉️ ' : ''}${esc(clip(one(last.text), 60))}` : '아직 문자가 없어요'}</small></span>${dot ? '<em class="mbx-new"></em>' : ''}</button>`;
             };
             el.innerHTML = `<div class="mb4-list mbx-list">
-                <button class="mbx-row" data-act="group"><span class="mb4-face mbx-gface">💬</span><span class="mbx-row-t"><b>단체방</b><small>${groupOn ? (gl ? `${esc(gl.me ? '나' : gl.who)}: ${esc(clip(gl.t, 50))}` : '인물들끼리 떠드는 방') : '꺼져 있어요 · 눌러서 켜기'}</small></span></button>
+                ${''/* the group room lives on its own screen (⋯ › 단체방), not in this list */}
                 ${(() => { const at = Number(env.peekStore?.('heart')?.showAt) || k.SHOW_AT, sp = k.byHeart(known, env.peek('heart'), env.user, env.peek('scene')?.with ?? [], at, (n) => (T[n] ?? []).length > 0); return sp ? k.foldUnder(sp.shown.map(row), sp.rest.map(row), at) : k.foldRest(known.map(row)); })()}</div>
-                ${known.length ? '' : k.hint('이야기에 인물이 나오면 여기 떠요. 이름을 직접 적어 추가할 수도 있어요.')}
-                <div class="mb4-btnrow"><input class="mb4-input" data-f="new" maxlength="40" placeholder="＋ 이름 직접 적어 추가"><button class="mb4-btn ghost" data-act="add">추가</button></div>
+                ${known.length ? '' : k.hint('이야기에 인물이 나오면 여기 떠요. ⋯에서 직접 더할 수도 있어요.')}
+                ${st._panel === 'new' ? `<div class="mb4-btnrow"><input class="mb4-input" data-f="new" maxlength="40" placeholder="누구에게 보낼까요"><button class="mb4-btn ghost" data-act="add">추가</button></div>` : ''}
                 ${st._panel === 'cfg' ? settings() : ''}`;
             api.menu([
+                { icon: '＋', label: '새 대화', sub: '목록에 없는 사람에게', act: () => { st._panel = st._panel === 'new' ? '' : 'new'; api.redraw(); setTimeout(() => el.querySelector('[data-f="new"]')?.focus(), 0); } },
                 { icon: '⚙️', label: '연락 설정', sub: '본편에 알리기 · 연락 끊김 · 기억 분량', act: () => { st._panel = st._panel === 'cfg' ? '' : 'cfg'; api.redraw(); } },
             ]);
             wire();
@@ -113,7 +114,7 @@ export default {
         const idx = L.map((m, i) => [m, i]).filter(([m]) => visible(m)).slice(-30);
         const waiting = L.some((m) => m.me && m.wait);
         const coming = L.filter((m) => m.letter && !m.me && day != null && day < m.arrive);
-        const panel = st._panel === 'sum' ? k.card('🧠 한 줄 요약', `<textarea class="mb4-input" rows="2" maxlength="300" data-f="sum" placeholder="오래된 일도 기억하게 한 줄로 적어 두세요">${esc(P.sum ?? '')}</textarea><div class="mb4-btnrow"><button class="mb4-btn sm" data-act="sumSave">저장</button><button class="mb4-btn ghost sm" data-act="sum" ${L.length < 6 ? 'disabled' : ''}>🪄 AI로 요약 (1회)</button><button class="mb4-btn ghost sm" data-act="panel" data-v="">닫기</button></div>`)
+        const panel = st._panel === 'sum' ? k.card('🧠 한 줄 요약', `<textarea class="mb4-input" rows="2" data-f="sum" placeholder="오래된 일도 기억하게 한 줄로 적어 두세요">${esc(P.sum ?? '')}</textarea><div class="mb4-btnrow"><button class="mb4-btn sm" data-act="sumSave">저장</button><button class="mb4-btn ghost sm" data-act="sum" ${L.length < 6 ? 'disabled' : ''}>🪄 AI로 요약 (1회)</button><button class="mb4-btn ghost sm" data-act="panel" data-v="">닫기</button></div>`)
             : st._panel === 'gift' ? k.card('🎁 무엇을 줄까요?', (W?.items ?? []).length ? `<div class="mb4-chips">${W.items.map((x) => { const n = typeof x === 'string' ? x : x?.name; return n ? `<button class="mb4-opt" data-act="gift" data-v="${esc(n)}">${esc(n)}</button>` : ''; }).join('')}</div>` : k.hint('가방이 비었어요.'))
             : st._panel === 'cfg' ? settings() : '';
         el.innerHTML = `${P.sum ? `<button class="mbx-sum" data-act="panel" data-v="sum">🧠 ${esc(P.sum)}</button>` : ''}
@@ -122,7 +123,7 @@ export default {
             <div class="mbx-thread">${idx.map(([m]) => `<div class="mbx-b ${m.me ? 'me' : 'them'}">${m.me ? (m.wait && !m.read ? '<em class="mbx-one">1</em>' : '') : `<span class="mb4-face mbx-av">${k.face(who)}</span>`}<div class="mbx-bubble${m.letter ? ' letter' : ''}">${m.letter ? '✉️ ' : ''}${esc(m.text)}${m.att ? `<small>${esc(m.att)}</small>` : ''}</div></div>`).join('') || `<p class="mb4-hint mb4-center">${esc(who)}에게 첫 문자를 보내 보세요.</p>`}
                 ${coming.length ? `<p class="mb4-hint mb4-center">✉️ 답장 편지가 오는 중 (${Math.min(...coming.map((m) => m.arrive)) - day}일 뒤)</p>` : ''}
                 ${waiting && !away ? `<div class="mbx-retry"><span>${P.note === 'seen' ? '읽고 답이 없어요.' : P.note === 'unread' ? '아직 안 읽었어요.' : '아직 답장이 없어요.'}</span><button class="mb4-btn ghost sm" data-act="reply">답장 받기</button></div>` : ''}</div>
-            <div class="mbx-dock"><textarea class="mb4-input mbx-in" data-f="msg" rows="1" maxlength="300" placeholder="${away ? '보내 두면 깼을 때 답장해요' : '문자 보내기'}">${esc(st._draft?.[who] ?? '')}</textarea><button class="mb4-btn mbx-go" data-act="send">보내기</button></div>
+            <div class="mbx-dock"><textarea class="mb4-input mbx-in" data-f="msg" rows="1" placeholder="${away ? '보내 두면 깼을 때 답장해요' : '문자 보내기'}">${esc(st._draft?.[who] ?? '')}</textarea><button class="mb4-btn mbx-go" data-act="send">보내기</button></div>
             ${edit([...(P.sum != null ? [{ name: 'sum', i: 0, label: '🧠 한 줄 요약', value: P.sum, rows: 2 }] : []), ...idx.map(([m, i]) => ({ name: 'msg', i, label: `${m.me ? '나' : who}${m.letter ? ' · 편지' : ''}`, value: m.text, rows: 2 }))])}`;
         api.menu([
             { icon: '📨', label: '먼저 연락 오게', sub: 'AI 1회', disabled: !!P.dnd, act: () => run('first') },
@@ -185,7 +186,7 @@ export default {
                 tell: (_v, c) => { st.tell = c.checked; api.save(); },
                 cut: (_v, c) => { cfg.cut = c.checked; api.save(); api.redraw(); },
                 recall: (v) => { cfg.recall = v; api.save(); api.redraw(); },
-                sumSave: () => { const t = k.val(el, '[data-f="sum"]'); if (t) PP.sum = clip(t, 300); else delete PP.sum; st._panel = ''; api.save(); api.redraw(); },
+                sumSave: () => { const t = k.val(el, '[data-f="sum"]'); if (t) PP.sum = t; else delete PP.sum; st._panel = ''; api.save(); api.redraw(); },
                 send: async (_v, b) => {
                     const text = msg(); if (!text || !w) return;
                     (T[w] ??= []).push({ me: true, text, wait: true }); clear(); bump(w);
@@ -208,7 +209,7 @@ export default {
                     busy(null, '부치는 중…');
                     const raw = await api.ask(`[TASK] Do NOT continue the story. ${user} sent ${w}${about()} a letter. Write ONLY ${w}'s reply letter, as ${w} would write it by hand: a few warm or fitting sentences, the same language as ${user}'s letter, no narration.\n\n[What is known]\n${facts()}\n\n[${user}'s letter]\n${text}\n\nOutput only the letter.`, 500);
                     const r = parseReply(raw);
-                    if (r.lines.length) { T[w].push({ me: false, text: clip(String(raw).replace(TAG, '').trim(), 600), letter: true, arrive: day + days * 2 }); api.toast(`부쳤어요. 답장은 이야기 속 약 ${days * 2}일 뒤 도착해요.`); }
+                    if (r.lines.length) { T[w].push({ me: false, text: String(raw).replace(TAG, '').trim(), letter: true, arrive: day + days * 2 }); api.toast(`부쳤어요. 답장은 이야기 속 약 ${days * 2}일 뒤 도착해요.`); }
                     else api.toast('답장을 받지 못했어요.');
                     api.save(); api.redraw();
                 },
@@ -226,7 +227,7 @@ export default {
                 sum: async (_v, b) => {
                     busy(b, '요약 중…');
                     const raw = await api.ask(`[TASK] Do NOT continue the story. Summarize what ${user} and ${w} have talked about by text so far in ONE short Korean line (under 120 characters): key facts, plans, promises, mood. Output only that line.\n${PP.sum ? `Previous summary: ${PP.sum}\n` : ''}Texts (oldest first):\n${(T[w] ?? []).slice(-60).map((m) => `${m.me ? user : w}: ${one(m.text)}`).join('\n')}`, 200);
-                    if (raw) PP.sum = clip(one(raw), 160);
+                    if (raw) PP.sum = one(raw);
                     api.save(); api.redraw();
                 },
             };
