@@ -22,7 +22,8 @@ export function fold({ chat = [], records = {}, fixes = {}, reg, envOf = () => (
         }
     }
     // ✏️ what the person set by hand on the screen (kept in the app's own data, no model call): laid over the sum
-    if (upto === Infinity) for (const app of reg.list()) { if (app.adjust) { try { app.adjust(S[app.id], envOf(app.id)); } catch (e) { /* optional */ } } }
+    // (also when the reader gets the state before a reply, so it judges from the corrected values)
+    for (const app of reg.list()) { if (app.adjust) { try { app.adjust(S[app.id], envOf(app.id)); } catch (e) { /* optional */ } } }
     return S;
 }
 

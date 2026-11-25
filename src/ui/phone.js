@@ -212,7 +212,7 @@ function draw(keepScroll = false) {
     const body = $('.mb4-body'), top = body.scrollTop;
     const isApp = view.startsWith('app:'), isPage = view.startsWith('page:');
     const ent = isPage ? entryInfo(entryOf(view.split(':')[1])) : null;
-    backHook = null; menuItems = []; pageParts = []; closeMenu();
+    backHook = null; menuItems = []; pageParts = []; pageTitle = ''; closeMenu();
     const [title, fn] = isPage ? [`${ent?.icon ?? ''} ${ent?.name ?? ''}`, drawPage] : isApp ? [`${meta(view.slice(4))?.icon ?? ''} ${meta(view.slice(4))?.name ?? ''}`, drawApp] : VIEWS[view] ?? VIEWS.home;
     const home = view === 'home' || view === 'ask';
     root.classList.toggle('mb4-at-home', home);
