@@ -6,13 +6,15 @@ const clip = (s, n) => { const t = String(s ?? '').trim(); return t.length > n ?
 // Ported from the second generation's world-news kinds: 📰 news (the wider world), 💬 rumours (what goes around the
 // neighbourhood, school or office), 📱 feed (short posts the characters put online, with likes worked out in code),
 // 🌙 off-screen (what someone did while not on the page). The person picks which kinds; default news + off-screen.
+import { optList } from '../ui/kit.js';
 const hash = (s) => { let h = 2166136261; for (let i = 0; i < s.length; i++) { h ^= s.charCodeAt(i); h = Math.imul(h, 16777619); } return h >>> 0; };
-const KINDS = [
+const KINDS_BASE = [
     { id: 'world', icon: '📰', name: '뉴스', ai: 'a news item from the wider world, off-screen, not caused by the main characters' },
     { id: 'rumor', icon: '💬', name: '소문', ai: 'a rumour going around the neighbourhood, school or workplace' },
     { id: 'feed', icon: '📱', name: '피드', ai: 'a short social-media post by one of the characters, written as they would post it (Name | post)' },
     { id: 'life', icon: '🌙', name: '화면 밖', ai: 'what one of the characters did off-screen recently (Name | what they did)' },
 ];
+let KINDS = KINDS_BASE;
 const DEF = { world: true, rumor: false, feed: false, life: true };
 const on = (st) => ({ ...DEF, ...(st.kinds ?? {}) });
 // a feed card's reactions, decided in code from the text (same text, same numbers)
@@ -24,9 +26,10 @@ export default {
     api: 1, id: 'news', name: '소식', icon: '📰', color: '#6c7a89', cost: 'tap',
     desc: '누르면 이야기 속 세상의 소식 몇 줄을 만들어 줘요. 원하면 소문으로 이야기에 흘려 넣어요.',
     note: (_s, env) => { const L = itemsOf(env.store); return L.length && env.store.tell ? { state: [`Talk going around in the background (may be overheard, never the focus): ${L.slice(0, 3).map((x) => clip(x.who ? `${x.who}: ${x.t}` : x.t, 120)).join(' / ')}.`] } : null; },
-    widget: (_s, env) => itemsOf(env.store).slice(0, 2).map((x) => `<div class="mb4-row"><span class="mb4-row-v">${KINDS.find((k) => k.id === x.k)?.icon ?? '📰'} ${esc(clip(x.who ? `${x.who}: ${x.t}` : x.t, 70))}</span></div>`).join(''),
+    widget: (_s, env) => (KINDS = optList(env.cfg, 'kinds', KINDS_BASE), itemsOf(env.store)).slice(0, 2).map((x) => `<div class="mb4-row"><span class="mb4-row-v">${KINDS.find((k) => k.id === x.k)?.icon ?? '📰'} ${esc(clip(x.who ? `${x.who}: ${x.t}` : x.t, 70))}</span></div>`).join(''),
     widgetTitle: '세상 소식',
     render(el, api) {
+        KINDS = optList(api.cfg, 'kinds', KINDS_BASE);
         const st = api.store, k = api.kit, K = on(st), L = itemsOf(st), tab = st._tab ?? 'all';
         const shown = L.filter((x) => tab === 'all' || x.k === tab);
         const card = (x) => x.k === 'feed' ? `<div class="mb4-quote"><b>${k.face(x.who)} ${esc(x.who || '누군가')}</b><q>${esc(x.t)}</q><small class="mb4-dim">♥ ${likes(x.t).like} · 💬 ${likes(x.t).talk}</small></div>`
@@ -35,7 +38,9 @@ export default {
         ${shown.length ? k.card('오늘의 소식', shown.map(card).join('')) : k.empty('📰', '아직 소식이 없어요', '버튼을 누르면 이 세계의 소식을 만들어요')}
         <button class="mb4-btn wide" data-act="get">📰 새 소식 받기 (AI 1회)</button>
         ${k.card('받을 종류', `<div class="mb4-chips">${KINDS.map((x) => `<button class="mb4-btn ${K[x.id] ? '' : 'ghost '}sm" data-act="kind" data-v="${x.id}">${x.icon} ${x.name}</button>`).join('')}</div>
-            <label class="mb4-sw"><span><b>소문으로 흘려 넣기</b><small>본편 AI가 배경 이야기로 알아요</small></span><input type="checkbox" data-act="tell" ${st.tell ? 'checked' : ''}><i></i></label>`)}`;
+            <label class="mb4-sw"><span><b>소문으로 흘려 넣기</b><small>본편 AI가 배경 이야기로 알아요</small></span><input type="checkbox" data-act="tell" ${st.tell ? 'checked' : ''}><i></i></label>`)}
+        ${k.optCard(api.cfg, 'kinds', KINDS_BASE, { title: '소식 종류', aiLabel: '어떤 소식인지 (예: a weather report from the radio)' })}`;
+        k.optWire(el, api.cfg, () => { api.save(); api.redraw(); });
         k.acts(el, {
             tab: (v) => { st._tab = v; api.redraw(); },
             tell: (_v, c) => { st.tell = c.checked; api.save(); },

@@ -1,4 +1,4 @@
-// 😼 Helper: the Meatball cat. Tell it in plain words what to change ("make 세라 and me lovers, put 300 in my wallet,
+// 😼 Helper: the Meatball cat. Tell it in plain words what to change ("make X and me lovers, put 300 in my wallet,
 // mark the 9th as market day") or ask how something works. One model call per message, never on its own.
 // Changes are never made straight away: the cat lists them first, the person ticks what to keep, and each one goes
 // through the owner app's own correction path (same checks; shown in 📒 기록 as «손으로 고침», and undoable there).
@@ -8,7 +8,11 @@ import { esc, card, hint, acts } from '../ui/kit.js';
 
 const img = (n) => new URL(`../../img/${n}.webp`, import.meta.url).href;
 const FACE = { idle: 'mascot_idle', think: 'mascot_think', happy: 'mascot_happy', oops: 'mascot_surprise', sad: 'mascot_sad', hi: 'meatcon/hi', proud: 'meatcon/proud' };
-const EXAMPLES = ['세라랑 나를 연인으로 바꿔 줘', '지갑에 300 넣어 줘', '도윤 소개를 「항구 장부 담당」으로 고쳐 줘', '읽는 간격이 뭐야?', '부하를 줄이려면 뭘 끄면 돼?'];
+// quick questions: with a real name from this story when there is one, never a made-up one
+const examples = (env) => {
+    const n = (env.peek?.('scene')?.with ?? []).find((x) => x && x !== env.user) ?? Object.keys(env.peek?.('people')?.list ?? {}).find((x) => x && x !== env.user) ?? '';
+    return [n ? `${n} 소개 고쳐 줘` : '인물 소개 고쳐 줘', '지갑에 300 넣어 줘', '내일을 기념일로 표시해 줘', '읽는 간격이 뭐야?', '부하 줄이려면?'];
+};
 // What the cat knows about Meatball itself (sent only with a message, never on its own)
 const ABOUT = `Meatball 4 facts (answer questions from these; never invent features):
 - The phone has three shelves: 상태 (장면 · 인물 · 달력 · 지도 · 나), 지시 (도우미 · 지시 · 되풀이 막기 · 약속 · 메모 · 기록 · 선택지), 재미 (주사위 · 연락 · 점집 · 추천 음악 · 이야기 장치). Rows with several apps open as tabs.
@@ -36,7 +40,7 @@ const STORE_ACTS = {
 
 export default {
     api: 1, id: 'helper', name: '도우미', icon: '😼', color: '#f2a65a', cost: 'tap',
-    desc: '미트볼 고양이에게 말로 시켜요. 「세라랑 연인으로 바꿔 줘」 「돈 300 넣어 줘」처럼 고칠 걸 말하면 먼저 보여 주고, 확인하면 고쳐요. 기능 질문에도 답해요.',
+    desc: '미트볼 고양이에게 말로 시켜요. 「돈 300 넣어 줘」처럼 고칠 걸 말하면 먼저 보여 주고, 확인하면 고쳐요. 기능 질문에도 답해요.',
     widget: (_s, env) => { const m = (env.store.log ?? []).filter((x) => !x.me).at(-1); return `<div class="mbx-hw"><img src="${img(FACE[m?.face] ?? FACE.hi)}" alt=""><span>${esc(clip(m?.say ?? '뭐든 시켜 줘. 고칠 거 있으면 말로 해.', 70))}</span></div>`; },
     widgetTitle: '😼 도우미',
     render(el, api) {
@@ -51,12 +55,11 @@ export default {
         const msg = (m, n) => (m.me ? `<div class="mbx-hm me">${esc(m.text)}</div>`
             : `<div class="mbx-hm"><img src="${img(FACE[m.face] ?? FACE.idle)}" alt=""><div><p>${esc(m.say)}</p>${m.edits?.length ? `<div class="mbx-edits">${m.edits.map((e, j) => `<label class="mbx-ed${e.done ? ` ${e.done}` : ''}"><input type="checkbox" data-act="tick" data-v="${n}|${j}" ${e.on ? 'checked' : ''} ${e.done ? 'disabled' : ''}><span>${label(e)}${e.done === 'ok' ? ' ✅' : e.done === 'no' ? ' ⚠ 못 고침' : ''}</span></label>`).join('')}
                 ${m.edits.some((e) => !e.done) ? `<div class="mb4-btnrow"><button class="mb4-btn sm" data-act="apply" data-v="${n}">✔ 고르기한 것 고치기</button><button class="mb4-btn ghost sm" data-act="skip" data-v="${n}">안 고칠래</button></div>` : ''}</div>` : ''}</div></div>`);
-        el.innerHTML = `<div class="mbx-hhead"><img src="${img(face)}" alt="미트볼 고양이"><div class="mbx-bubble">${esc(st.busy ? '음… 생각 중…' : last && !last.me ? clip(last.say, 120) : '안녕. 고칠 거나 궁금한 거 있으면 말해 줘.')}</div></div>
-        <div class="mbx-hlog">${st.log.slice(-16).map((m, i, arr) => msg(m, st.log.length - arr.length + i)).join('') || ''}</div>
-        <div class="mb4-chips" style="margin:8px 0">${EXAMPLES.map((x) => `<button class="mb4-opt" data-act="ex" data-v="${esc(x)}">${esc(x)}</button>`).join('')}</div>
-        <textarea class="mb4-input" rows="2" data-f="ask" maxlength="400" placeholder="예: 도윤을 이야기에서 떠난 걸로 해 줘 / 내일을 장날로 표시해 줘"></textarea>
-        <div class="mb4-btnrow"><button class="mb4-btn wide" data-act="send" ${st.busy ? 'disabled' : ''}>😼 시키기 (AI 1번)</button>${st.log.length ? '<button class="mb4-btn ghost" data-act="clear">🧹</button>' : ''}</div>
-        ${hint('고칠 건 먼저 목록으로 보여 줘요. 체크한 것만, 「고치기」를 눌러야 바뀌어요. 고친 건 📒 기록에서 되돌릴 수 있어요.')}`;
+        el.innerHTML = `<div class="mbx-hhead"><img src="${img(face)}" alt="미트볼 고양이"><div><b>미트볼 도우미</b><small>말로 시키기 · 1번에 AI 1회 · 고치기 전에 꼭 물어봐요</small></div></div>
+        <div class="mbx-hlog">${st.log.length ? '' : `<div class="mbx-hm"><img src="${img(FACE.hi)}" alt=""><div><p>안녕! 고칠 거나 궁금한 거 말해 줘. 아래 질문을 눌러도 돼 🐾</p></div></div>`}${st.log.slice(-16).map((m, i, arr) => msg(m, st.log.length - arr.length + i)).join('')}${st.busy ? `<div class="mbx-hm wait"><img src="${img(FACE.think)}" alt=""><div><p>생각하는 중…</p></div></div>` : ''}</div>
+        <div class="mbx-hq">${examples(api.env).map((x) => `<button class="mbx-qchip" data-act="ex" data-v="${esc(x)}">${esc(x)}</button>`).join('')}</div>
+        <div class="mbx-hin"><textarea class="mb4-input" rows="2" data-f="ask" maxlength="400" placeholder="예: 지금 같이 있는 사람이랑 연인으로 바꿔 줘"></textarea><button class="mb4-btn" data-act="send" ${st.busy ? 'disabled' : ''} aria-label="보내기">➤</button></div>
+        <p class="mb4-hint">고칠 건 목록으로 먼저 보여 줘요. 체크한 것만 「고치기」를 눌러야 바뀌고, 📒 기록에서 되돌릴 수 있어요.${st.log.length ? ' <button class="mb4-link mbx-clear" data-act="clear">대화 지우기</button>' : ''}</p>`;
         const box = el.querySelector('.mbx-hlog'); if (box) box.scrollTop = box.scrollHeight;
         acts(el, {
             ex: (v) => { const t = el.querySelector('[data-f="ask"]'); t.value = v; t.focus(); },
@@ -124,11 +127,15 @@ key: value
             },
         });
     },
-    css: `.mbx-hhead{display:flex;align-items:flex-end;gap:10px;margin:0 0 10px}.mbx-hhead img{width:96px;height:auto;flex:none;filter:drop-shadow(0 4px 8px rgba(120,70,50,.15))}
-.mbx-bubble{position:relative;flex:1;padding:10px 13px;border-radius:16px 16px 16px 4px;background:var(--card);box-shadow:0 2px 8px rgba(120,70,50,.1);line-height:1.5}
-.mbx-hlog{display:flex;flex-direction:column;gap:8px;max-height:360px;overflow-y:auto}
-.mbx-hm{display:flex;gap:8px;align-items:flex-start}.mbx-hm img{width:34px;flex:none}.mbx-hm>div{flex:1;padding:8px 11px;border-radius:14px 14px 14px 4px;background:var(--card)}
-.mbx-hm.me{align-self:flex-end;max-width:85%;padding:8px 11px;border-radius:14px 14px 4px 14px;background:var(--a);color:#fff}
+    css: `.mbx-hhead{display:flex;align-items:center;gap:12px;margin:0 0 12px}.mbx-hhead img{width:72px;height:72px;object-fit:contain;flex:none}.mbx-hhead>div{display:flex;flex-direction:column;min-width:0}.mbx-hhead b{font-size:17px;font-weight:780}.mbx-hhead small{color:var(--sub)}
+.mbx-hlog{display:flex;flex-direction:column;gap:10px;min-height:180px;max-height:46vh;overflow-y:auto;padding:12px;background:var(--card);border:1px solid var(--line);border-radius:16px;margin:0 0 10px}
+.mbx-hm{display:flex;gap:8px;align-items:flex-end;max-width:92%}.mbx-hm img{width:34px;height:34px;object-fit:contain;flex:none}
+.mbx-hm>div{padding:9px 12px;border-radius:14px 14px 14px 4px;line-height:1.55;font-size:13.5px;background:var(--bg1);border:1px solid var(--line)}.mbx-hm p{margin:0}
+.mbx-hm.wait>div{color:var(--sub);font-style:italic}
+.mbx-hm.me{align-self:flex-end;max-width:85%;padding:9px 12px;border-radius:14px 14px 4px 14px;background:var(--a);color:#fff;font-size:13.5px;line-height:1.55}
+.mbx-hq{display:flex;flex-wrap:wrap;gap:6px;margin:0 0 10px}.mbx-qchip{padding:4px 10px;border:1px solid var(--line);border-radius:999px;background:var(--card);font-size:12.5px!important;cursor:pointer}
+.mbx-hin{display:flex;gap:8px;align-items:stretch}.mbx-hin textarea{flex:1;min-width:0;margin:0;resize:vertical}.mbx-hin .mb4-btn{flex:none;padding:0 16px;font-size:16px}
+.mbx-clear{display:inline;flex:none;font-size:12px!important;text-decoration:underline}
 .mbx-edits{margin-top:6px;display:flex;flex-direction:column;gap:4px}.mbx-ed{display:flex;gap:6px;align-items:flex-start;font-size:13px}.mbx-ed.ok{opacity:.7}.mbx-ed.no{color:var(--bad)}.mbx-ed.skip{opacity:.45;text-decoration:line-through}
-.mbx-hw{display:flex;align-items:center;gap:8px}.mbx-hw img{width:44px}`,
+.mbx-hw{display:flex;align-items:center;gap:8px}.mbx-hw img{width:40px;height:40px;object-fit:contain}`,
 };

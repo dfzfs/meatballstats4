@@ -3,7 +3,7 @@
 // phone. Decided in code (no reader key, no model call). The other screens read these marks (read-only) and show them.
 // With «AI도 알게» on, the main model gets ONE line, once, so the lover can act on it; caught = one more line, once.
 import { clip } from '../core/text.js';
-import { esc, card, hint, acts, empty, pill, face } from '../ui/kit.js';
+import { esc, card, hint, acts, empty, pill, face, optList, optCard, optWire } from '../ui/kit.js';
 
 const LOVER = /lover|couple|dating|engaged|married|연인|애인|사귀|약혼|부부/i, BREAK = /broke|ex-|former|separated|헤어|이별|파혼/i;
 // Korean particles after a name: 이랑/랑, 이/가
@@ -24,6 +24,9 @@ const KINDS = {
     title: { icon: '📱', name: '폰 이름 바꾸기', say: (t) => `renamed the user's phone to "${t}"`,
         T: ['{n}의 폰', '♡ {n} 전용', '{n} 생각 중', '{n} 꺼'] },
 };
+const D_T = Object.fromEntries(Object.entries(KINDS).filter(([, x]) => x.T.length > 1).map(([k, x]) => [k, x.T.map((t, i) => ({ id: `t${i}`, icon: '', name: t, ai: '' }))]));
+// the phrases for one kind: the built-ins (edited / hidden) and the person's own; {n} = the lover's name
+const phrases = (cfg, k) => { if (!D_T[k]) return KINDS[k].T; const L = optList(cfg, `t_${k}`, D_T[k]).map((x) => x.name).filter(Boolean); return L.length ? L : KINDS[k].T; };
 const RATES = [[0.05, '드물게'], [0.1, '가끔'], [0.2, '자주']];
 const COOL = 4;   // at least this many replies between two pranks
 
@@ -39,7 +42,7 @@ export function prank(env, kind = '') {
     const who = whoOf(env), st = env.store; if (!who) return null;
     const k = kind || rnd(kindsOn(env)); if (!KINDS[k]) return null;
     const day = env.peek?.('scene')?.day ?? null;
-    let t = fill(rnd(KINDS[k].T), who);
+    let t = fill(rnd(phrases(env.cfg, k)), who);
     if (k === 'money') { const cash = Number(env.peek?.('wallet')?.cash) || 0, n = Math.max(10, Math.round((cash > 0 ? cash * (0.05 + Math.random() * 0.1) : 10 + Math.random() * 40) / 10) * 10); t = `+${n}`; }
     const item = { k, who, t, day, at: Date.now(), seen: false };
     // money, things and promises go through the owner app's own record, so its totals stay right and it shows there (💌)
@@ -94,8 +97,10 @@ export default {
             ${Object.entries(KINDS).map(([k, x]) => `<label class="mb4-sw"><span><b>${x.icon} ${x.name}</b></span><input type="checkbox" data-act="kind" data-v="${k}" ${cfg.kinds[k] !== false ? 'checked' : ''}><i></i></label>`).join('')}
             <label class="mb4-sw"><span><b>AI도 알게</b><small>몰래 한 걸 다음 답에서 연인이 한 번 알아요 (한 줄)</small></span><input type="checkbox" data-act="tell" ${cfg.tell !== false ? 'checked' : ''}><i></i></label>
             <div class="mb4-btnrow"><button class="mb4-btn ghost sm" data-act="now" ${who ? '' : 'disabled'}>💌 지금 한 번 해 보기</button></div>`)}
+        <details class="mb4-card"><summary>✏️ 몰래 하는 말 고치기 · 더하기 <small>{n} 자리에 연인 이름이 들어가요</small></summary>${Object.keys(D_T).map((k) => optCard(cfg, `t_${k}`, D_T[k], { title: `${KINDS[k].icon} ${KINDS[k].name}`, fields: ['name'] })).join('')}</details>
         ${hint('답이 올 때 코드가 가끔 주사위를 굴려 정해요(연달아 하지 않게 4답은 쉬어요). 바뀐 건 📞 연락 · 📅 달력 · 💰 지갑 · 📌 약속 · 홈 화면에 실제로 보이고, 💌 표시가 붙어요. 💰 · 🎁 · 📌은 그 앱이 켜져 있을 때만 해요.')}`;
         api.save();
+        optWire(el, cfg, () => { api.save(); api.redraw(); });
         acts(el, {
             who: (n) => { st.who = n; api.save(); api.redraw(); },
             on: (_v, b) => { cfg.on = b.checked; api.save(); },

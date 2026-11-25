@@ -1,5 +1,6 @@
 // Built into Meatball 4 (was a separately installed app). Fetched only when switched on.
 import { todayLuck } from '../core/luck.js';
+import { optList } from '../ui/kit.js';
 const esc = (s) => String(s ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
 const clip = (s, n) => { const t = String(s ?? '').trim(); return t.length > n ? t.slice(0, n) : t; };
 
@@ -22,11 +23,15 @@ const hashOf = (s) => { let h = 2166136261; for (let i = 0; i < s.length; i++) {
 const draw = (seed, day) => CARDS[hashOf(`${seed}:${day}`) % CARDS.length];
 const today = (env) => env.peek('scene')?.day ?? 1;
 const mine = (env) => (env.store.day === today(env) ? CARDS[env.store.card] : null);
-const TELLERS = {
+const TELLERS_BASE = {
     tarot: { icon: '🃏', name: '타로', who: '타로 언니', voice: 'a chatty tarot reader in a corner café booth who gasps at every card and loves a twist in someone\'s love life' },
     orb: { icon: '🔮', name: '수정구슬', who: '마담', voice: 'a mysterious crystal-ball madame with a vague foreign accent who slips into plain local speech when the ball shows something odd' },
     shaman: { icon: '🪭', name: '무당', who: '보살 할매', voice: 'a grumpy old shaman grandmother who scolds, then suddenly speaks as the spirits' },
 };
+let TELLERS = TELLERS_BASE;
+const D_TELL = Object.entries(TELLERS_BASE).map(([id, t]) => ({ id, icon: t.icon, name: t.name, ai: t.voice }));
+// every teller (hidden ones too, so old readings still show their icon), as the same object shape as before
+const tellersOf = (cfg) => { const hide = cfg?.opts?.tellers?.hide ?? {}; return Object.fromEntries([...optList(cfg, 'tellers', D_TELL), ...D_TELL.filter((d) => hide[d.id])].map((t) => [t.id, { icon: t.icon || '🔮', name: t.name, who: TELLERS_BASE[t.id]?.who ?? t.name, voice: t.ai || TELLERS_BASE[t.id]?.voice || t.name, hidden: !!hide[t.id] }])); };
 const MAJOR = ['바보', '마법사', '여사제', '여황제', '황제', '교황', '연인', '전차', '힘', '은둔자', '운명의 수레바퀴', '정의', '매달린 사람', '죽음', '절제', '악마', '탑', '별', '달', '태양', '심판', '세계'];
 const SUITS = ['완드', '컵', '소드', '펜타클'], RANKS = ['에이스', '2', '3', '4', '5', '6', '7', '8', '9', '10', '시종', '기사', '여왕', '왕'];
 const TAROT = [...MAJOR, ...SUITS.flatMap((su) => RANKS.map((r) => `${su} ${r}`))];
@@ -58,27 +63,30 @@ export default {
     widget: (_s, env) => (mine(env) ? `<div class="mb4-row"><span class="mb4-row-k">${mine(env)[0]} ${mine(env)[1]}</span><span class="mb4-row-v">${esc(mine(env)[2])}</span></div>` : ''),
     widgetTitle: '오늘의 운세',
     render(el, api) {
+        TELLERS = tellersOf(api.cfg);
         const st = api.store, k = api.kit, env = api.env, c = mine(env), d = today(env);
         st.seed ??= String(Math.random()).slice(2, 10);
         st.readings = Array.isArray(st.readings) ? st.readings : [];
-        const m = TELLERS[st.method] ? st.method : 'tarot', n = [1, 3, 5].includes(st.n) ? st.n : 3;
+        const m = TELLERS[st.method] && !TELLERS[st.method].hidden ? st.method : (Object.keys(TELLERS).find((x) => !TELLERS[x].hidden) ?? 'tarot'), n = [1, 3, 5].includes(st.n) ? st.n : 3;
         const cast = [...new Set([env.user, ...(env.peek('scene')?.with ?? []), ...Object.keys(env.peek('people')?.list ?? {})])].filter(Boolean);
         const who = cast.includes(st.who) ? st.who : cast[0] ?? '';
         const last = st.readings.at(-1);
         el.innerHTML = `<div class="mb4-hero mb4-center">${c ? `<div class="mb4-hero-n">${c[0]}</div><div class="mb4-big">${c[1]}</div><p>${esc(c[2])}</p><small>이야기 ${d}일째의 운세</small>` : `<div class="mb4-hero-n">🔮</div><div class="mb4-big">오늘의 운세</div><small>이야기 속 하루에 한 번 뽑아요</small>`}</div>
         ${(() => { const T = todayLuck(env, 'fortune'); if (!c || !T) return ''; const parts = [T.n ? `🎲 주사위 ${T.n > 0 ? '+' : '−'}${Math.abs(T.n)}` : '🎲 주사위 보정 없음', `🎯 선택지: ${T.good.good} 좋고 · ${T.bad.bad}`]; return k.hint(`오늘 운이 다른 앱에 닿아요 → ${parts.join(' · ')}`); })()}
         <button class="mb4-btn wide" data-act="draw" ${c ? 'disabled' : ''}>${c ? '내일 다시 뽑을 수 있어요' : '🔮 뽑기 (AI 0회)'}</button>
-        ${k.card('🔮 점 보러 가기', `<div class="mb4-chips">${Object.entries(TELLERS).map(([id, t]) => `<button class="mb4-opt${m === id ? ' on' : ''}" data-act="method" data-v="${id}">${t.icon} ${t.name}</button>`).join('')}</div>
+        ${k.card('🔮 점 보러 가기', `<div class="mb4-chips">${Object.entries(TELLERS).filter(([, t]) => !t.hidden).map(([id, t]) => `<button class="mb4-opt${m === id ? ' on' : ''}" data-act="method" data-v="${id}">${t.icon} ${t.name}</button>`).join('')}</div>
             ${m === 'tarot' ? `<div class="mb4-chips" style="margin-top:6px">${[1, 3, 5].map((x) => `<button class="mb4-opt${n === x ? ' on' : ''}" data-act="n" data-v="${x}">${x}장</button>`).join('')}</div>` : ''}
             <div class="mb4-chips" style="margin-top:6px">${cast.map((x) => `<button class="mb4-opt${x === who ? ' on' : ''}" data-act="who" data-v="${esc(x)}">${k.face(x)} ${esc(x)}</button>`).join('')}</div>
             <input class="mb4-input" data-f="q" maxlength="80" placeholder="궁금한 것 (비우면 종합운)">
             <div class="mb4-btnrow"><button class="mb4-btn wide" data-act="read" ${who ? '' : 'disabled'}>점괘 받기 (AI 1회)</button></div>`)}
-        ${last ? k.card(`${TELLERS[last.m].icon} ${esc(last.who)}의 점괘 · ${last.day}일째`, `${last.cards?.length ? `<div class="mb4-chips">${last.cards.map((x) => `<span class="mb4-chip">${esc(x.pos)}: ${esc(x.name)}${x.rev ? ' (역)' : ''}</span>`).join('')}</div>` : ''}
+        ${last ? k.card(`${TELLERS[last.m]?.icon ?? '🔮'} ${esc(last.who)}의 점괘 · ${last.day}일째`, `${last.cards?.length ? `<div class="mb4-chips">${last.cards.map((x) => `<span class="mb4-chip">${esc(x.pos)}: ${esc(x.name)}${x.rev ? ' (역)' : ''}</span>`).join('')}</div>` : ''}
             <div class="mb4-chips" style="margin-top:6px">${last.luck.map((l) => `<span class="mb4-pill ${/길/.test(l.v) ? 'good' : /흉/.test(l.v) ? 'bad' : ''}">${esc(l.a)} ${esc(l.v)}</span>`).join(' ')}</div>
             <p style="white-space:pre-wrap">${esc(last.text)}</p>`) : ''}
         ${st.readings.length > 1 ? k.card(`지난 점괘 <small>맞음 ${st.readings.filter((r) => r.hit === true).length} · 빗나감 ${st.readings.filter((r) => r.hit === false).length}</small>`, st.readings.map((r, ix) => [r, ix]).slice(0, -1).reverse().slice(0, 10).map(([r, ix]) => `<details class="mb4-tr-item"><summary>${TELLERS[r.m]?.icon ?? '🔮'} <b>${esc(r.who)}</b> <small>${r.day}일째${r.hit === true ? ' · ✅ 맞음' : r.hit === false ? ' · ❌ 빗나감' : ''}</small></summary>${r.cards?.length ? `<div class="mb4-chips">${r.cards.map((x) => `<span class="mb4-chip">${esc(x.pos)}: ${esc(x.name)}${x.rev ? ' (역)' : ''}</span>`).join('')}</div>` : ''}<p style="white-space:pre-wrap">${esc(r.text)}</p><div class="mb4-btnrow tight"><button class="mb4-btn ghost sm" data-act="hit" data-v="${ix}:1">✅ 맞았어요</button><button class="mb4-btn ghost sm" data-act="hit" data-v="${ix}:0">❌ 빗나갔어요</button></div></details>`).join('')) : ''}
+        ${k.optCard(api.cfg, 'tellers', D_TELL, { title: '점쟁이', aiLabel: '어떤 점쟁이인지 · 말투 (영어로 쓰면 더 잘 알아들어요)' })}
         ${k.card('', `<label class="mb4-sw"><span><b>이야기에 스며들게</b><small>그날의 운을 AI에 한 줄로 알려요</small></span><input type="checkbox" data-act="tell" ${st.tell ? 'checked' : ''}><i></i></label>`)}
         ${k.hint('카드 · 운세표 · 좋고 나쁨은 코드가 먼저 정해요(늘 좋은 말만 나오지 않게). AI는 풀이만 해요. 점괘는 본편 AI에 안 가요.')}`;
+        k.optWire(el, api.cfg, () => { api.save(); api.redraw(); });
         k.acts(el, {
             draw: () => { st.day = d; st.card = CARDS.indexOf(draw(st.seed, d)); api.save(); api.redraw(); },
             tell: (_v, x) => { st.tell = x.checked; api.save(); },

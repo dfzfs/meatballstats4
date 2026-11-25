@@ -1,5 +1,6 @@
 // Built into Meatball 4 (was a separately installed app). Fetched only when switched on.
 import { todayLuck, fitToday } from '../core/luck.js';
+import { optList } from '../ui/kit.js';
 const esc = (s) => String(s ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
 const clip = (s, n) => { const t = String(s ?? '').trim(); return t.length > n ? t.slice(0, n) : t; };
 const hash = (s) => { let h = 2166136261; for (let i = 0; i < s.length; i++) { h ^= s.charCodeAt(i); h = Math.imul(h, 16777619); } return h >>> 0; };
@@ -10,7 +11,7 @@ const hash = (s) => { let h = 2166136261; for (let i = 0; i < s.length; i++) { h
 // chance pick rolls a d20 the moment it is picked and the outcome rides along with the next reply once; each option
 // shows what it would cost (wallet), its odds (gauges, needs and the day's luck from the other apps, read-only), and a
 // 🍀 / ⚠ mark when it fits or goes against today's luck.
-const KINDS = [
+const KINDS_BASE = [
     { id: 'rational', name: '이성적으로', icon: '🧠', ai: 'the realistic, level-headed thing a sensible person would do' },
     { id: 'persona', name: '성격대로', icon: '🎭', ai: "exactly what the user's character would do by their established personality" },
     { id: 'need', name: '욕구대로', icon: '🍞', ai: "what the user's character's most urgent need or desire pushes toward" },
@@ -18,6 +19,7 @@ const KINDS = [
     { id: 'brave', name: '정면으로', icon: '⚔', ai: 'confront it head-on' },
     { id: 'fate', name: '운에 맡기기', icon: '🎲', check: true, ai: 'leave it to chance: a coin flip, a hunch, a random pick' },
 ];
+let KINDS = KINDS_BASE;
 const RISKS = [
     { id: 'none', name: '보통', icon: '', tone: '', ai: 'ordinary stakes' },
     { id: 'safe', name: '안전', icon: '🛡', tone: 'good', ai: 'low stakes, low reward' },
@@ -72,6 +74,7 @@ export default {
     api: 1, id: 'choices', name: '선택지', icon: '🎯', color: '#ef476f', cost: 'tap',
     desc: 'AI 답 끝의 선택지를 누르기 쉬운 목록으로 보여 주고, 누르면 입력창에 넣어 줘요.',
     note(_s, env) {
+        KINDS = optList(env.cfg, 'kinds', KINDS_BASE);
         const now = [], p = env.store.picked;
         // the outcome of a picked gamble / chance / price / trap goes with the next reply once
         if (p && p.at === env.last && p.result) now.push(`The user chose: "${clip(p.label, 160)}". ${RESULT[p.result]} Do not mention dice or numbers.`);
@@ -85,6 +88,7 @@ export default {
     hud: (_s, env) => { const n = current(env).length; return [...(n ? [`🎯 ${n}`] : []), ...(env.store.picked?.result ? [`🎲 ${{ win: '성공', crit: '대성공', lose: '실패', fumble: '대실패', trap: '함정!', price: '대가' }[env.store.picked.result]}`] : [])]; },
     widget: (_s, env) => current(env).slice(0, 3).map((c, n) => `<div class="mb4-row"><span class="mb4-row-k">${n + 1}</span><span class="mb4-row-v">${esc(clip(c.label, 60))}</span></div>`).join(''),
     render(el, api) {
+        KINDS = optList(api.cfg, 'kinds', KINDS_BASE);
         const env = api.env, st = api.store, cfg = api.cfg, k = api.kit, L = current(env), lk = luck(env), mod = mods(env), target = cfg.target ?? 12;
         cfg.kinds ??= {}; cfg.risks ??= {};
         const row = (c, n) => {
@@ -101,7 +105,9 @@ export default {
             <details><summary class="mb4-hint">성향 · 위험 고르기</summary><div class="mb4-chips">${KINDS.map((x) => `<button class="mb4-btn ${cfg.kinds[x.id] !== false ? '' : 'ghost '}sm" data-act="kind" data-v="${x.id}">${x.icon} ${esc(x.name)}</button>`).join('')}</div>
             <div class="mb4-chips" style="margin-top:6px">${RISKS.map((x) => { const on = x.off ? cfg.risks[x.id] === true : cfg.risks[x.id] !== false; return `<button class="mb4-btn ${on ? '' : 'ghost '}sm" data-act="risk" data-v="${x.id}">${x.icon || '·'} ${esc(x.name)}</button>`; }).join('')}</div></details>`)}
         ${Array.isArray(st.hist) && st.hist.length ? k.card('지난 선택', st.hist.slice(-6).reverse().map((h) => `<div class="mb4-row"><span class="mb4-row-k">${KINDS.find((x) => x.id === h.kind)?.icon ?? '·'}${h.day ? ` <small>${h.day}일째</small>` : ''}</span><span class="mb4-row-v">${esc(h.label)}${h.result ? ` <small>${{ win: '🎲 성공', crit: '🎲 대성공', lose: '🎲 실패', fumble: '🎲 대실패', trap: '🪤 함정', price: '💸 대가' }[h.result] ?? ''}</small>` : ''}</span></div>`).join('') + (() => { const c = {}; for (const h of st.hist) if (h.kind) c[h.kind] = (c[h.kind] ?? 0) + 1; const top = Object.entries(c).sort((x, y) => y[1] - x[1])[0]; return top && st.hist.length >= 5 ? k.hint(`가장 자주 고른 성향: ${KINDS.find((x) => x.id === top[0])?.icon ?? ''} ${KINDS.find((x) => x.id === top[0])?.name ?? top[0]} (${top[1]}번)`) : ''; })()) : ''}
+        ${k.optCard(cfg, 'kinds', KINDS_BASE, { title: '선택지 성향' })}
         ${k.hint('누르면 입력창에 들어가요. 🎲 모험 · 운에 맡기기는 고르는 순간 굴려서, 결과가 다음 답에 한 번 따라가요. 함정은 「안전」처럼 보여요(기본 꺼짐).')}`;
+        k.optWire(el, cfg, () => { api.save(); api.redraw(); });
         k.acts(el, {
             pick: (n) => {
                 const c = L[+n], kd = KINDS.find((x) => x.id === c.kind), rk = RISKS.find((x) => x.id === c.risk);

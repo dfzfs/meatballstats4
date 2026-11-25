@@ -4,7 +4,7 @@
 // a reason, directions (where the story should end up, with pacing), and rules about the AI's habits that are watched
 // (by code, or by the reader for the person's own rules) and sent only right after they slipped.
 import { clip } from '../core/text.js';
-import { esc, card, hint, acts, val, pill } from '../ui/kit.js';
+import { esc, card, hint, acts, val, pill, optList, optCard, optWire } from '../ui/kit.js';
 
 // ── scene mode: the first reply of a pinned scene gets "start", the ones after get "going" ──────────────────
 const GOING = 'This scene is already under way: pick up exactly where the last reply stopped and carry it forward. Do not set it up again, re-describe the place or the mood, or wrap it up. Take the next part only; keep the rest for later replies';
@@ -55,10 +55,12 @@ const modeOf = (cfg, r) => cfg.modes?.[r.id] ?? r.mode ?? 'auto';
 export function allRules(cfg) {
     return [...RULES.map((r) => ({ ...r, mode: modeOf(cfg, r) })), ...(Array.isArray(cfg.rules) ? cfg.rules : []).filter((r) => r?.id && r.text).map((r) => ({ ...r, name: clip(r.text, 24), en: clip(r.text, 40), mode: r.mode ?? 'auto', own: true }))];
 }
+const D_BOOST = BOOST.map(([id, name, ai]) => ({ id, icon: '', name, ai }));
+const boostsOf = (cfg) => optList(cfg, 'boost', D_BOOST).map((x) => [x.id, x.name, x.ai]);
 const pickOf = (cfg, k) => OPT[k].find(([id]) => id === cfg.pick?.[k]) ?? OPT[k][0];
 // Lines that go with every story reply: boosters, length, point of view, how far.
 export function styleLines(cfg) {
-    return [pickOf(cfg, 'size')[2], pickOf(cfg, 'pov')[2], pickOf(cfg, 'reach')[2], ...BOOST.filter(([id]) => cfg.boost?.[id]).map(([, , t]) => t)].filter(Boolean);
+    return [pickOf(cfg, 'size')[2], pickOf(cfg, 'pov')[2], pickOf(cfg, 'reach')[2], ...boostsOf(cfg).filter(([id]) => cfg.boost?.[id]).map(([, , t]) => t)].filter(Boolean);
 }
 // Rules that slipped in the last reply: by code (a pattern or a count), or by the reader (the person's own rules).
 export function slipped(cfg, lastText, broke = []) {
@@ -178,7 +180,8 @@ export default {
             const setOn = (x) => JSON.stringify({ size: x.size ?? 'auto', reach: x.reach ?? 'auto', boost: [...(x.boost ?? [])].sort() }) === cur;
             body = `${card('묶음', `<div class="mb4-dir-seg">${SETS.map(([id, n, x]) => `<button class="mb4-btn ghost sm${setOn(x) ? ' on' : ''}" data-act="set" data-v="${id}">${esc(n)}</button>`).join('')}</div>`)}
             ${card('분량 · 시점 · 어디까지', `<div class="mb4-dir-lab">분량</div>${seg('size')}<div class="mb4-dir-lab">시점</div>${seg('pov')}<div class="mb4-dir-lab">어디까지</div>${seg('reach')}`)}
-            ${card('✨ 더하기 (답마다 1줄씩)', `<div class="mb4-dir-seg">${BOOST.map(([id, n]) => `<button class="mb4-btn ghost sm${cfg.boost[id] ? ' on' : ''}" data-act="boost" data-v="${id}">${esc(n)}</button>`).join('')}</div>`)}
+            ${card('✨ 더하기 (답마다 1줄씩)', `<div class="mb4-dir-seg">${boostsOf(cfg).map(([id, n]) => `<button class="mb4-btn ghost sm${cfg.boost[id] ? ' on' : ''}" data-act="boost" data-v="${id}">${esc(n)}</button>`).join('')}</div>`)}
+            ${optCard(cfg, 'boost', D_BOOST, { title: '✨ 더하기 문체', fields: ['name', 'ai'], aiLabel: 'AI에게 하는 문체 지시 (영어로 쓰면 더 잘 알아들어요)' })}
             ${hint('문체는 모든 채팅에 같이 써요. 고른 만큼 답마다 한 줄씩 붙어요.')}`;
         } else if (tab === 'goal') {
             body = `${st.goals.map((g, n) => card(`🧭 방향 ${n + 1}${g.done ? ` ${pill('도착', 'good')}` : shows(g, env.recent?.(1) ?? []) && g.mode !== 'push' ? ` ${pill('⚠ 빨라짐', 'bad')}` : ''}`, `

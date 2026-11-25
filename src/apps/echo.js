@@ -5,7 +5,7 @@
 // same openings. The third generation found that four of these work better sent with every reply; the person can
 // switch each one to "always" here.
 import { sentences } from '../core/text.js';
-import { esc, card, empty, hint, acts } from '../ui/kit.js';
+import { esc, card, empty, hint, acts, optList, optCard, optWire } from '../ui/kit.js';
 
 // ── repeated wording and openings ─────────────────────────────────────────────────────────────────────────
 const N = 4;   // words per phrase
@@ -139,6 +139,8 @@ const pastAsked = (t) => /remember|memor|recall|flashback|기억|회상|과거|�
 const active = (w, id) => (id === 'rep' ? w.rep.length > 0 : id === 'open' ? !!w.open : id === 'nums' ? w.nums.length > 0 : id === 'plain' ? false : !!w[id]);
 function found(env) {
     const w = wornOf(env.recent(6));
+    const okay = optList(env.cfg, 'okay', []).map((x) => x.name.toLowerCase()).filter(Boolean);
+    if (okay.length) w.rep = w.rep.filter((p) => !okay.some((o) => String(p).toLowerCase().includes(o)));
     const on = [];
     for (const k of KINDS) {
         const m = modeOf(env.cfg, k.id);
@@ -161,6 +163,8 @@ export default {
     note(_S, env) {
         const { w, on } = found(env);
         const now = on.map((x) => LINE[x.id](w));
+        const mine = optList(env.cfg, 'mine', []).map((x) => x.name).filter(Boolean);
+        if (mine.length) now.push(`Words and phrases the user wants kept out of every reply: ${mine.map((m) => `"${m}"`).join(', ')}. Do not use them or close variants.`);
         return now.length ? { now } : null;
     },
     hud(_S, env) { const n = found(env).on.filter((x) => x.auto).length; return n ? [`🔁 ${n}`] : []; },
@@ -183,7 +187,10 @@ export default {
         }).join('<hr class="mb4-hr">');
         el.innerHTML = card('🔁 버릇 살피기', rows)
             + hint('최근 답 6개를 코드로만 살펴요(AI 호출 0). 「보일 때만」은 버릇이 보이는 동안만 한 줄을 보내고, 멈추면 저절로 빠져요. 3세대 시험에서는 옛날 얘기 · 재고 세기 · 말싸움 · 설명하는 서술은 「늘」이 더 잘 들었어요.')
-            + (on.length ? '' : empty('🔁', '지금은 되풀이되는 버릇이 없어요', 'AI에 아무것도 안 보내요'));
+            + (on.length ? '' : empty('🔁', '지금은 되풀이되는 버릇이 없어요', 'AI에 아무것도 안 보내요'))
+            + optCard(cfg, 'mine', [], { title: '🚫 내가 막을 말 (늘 보냄)', fields: ['name'] })
+            + optCard(cfg, 'okay', [], { title: '🙆 그냥 둘 말 (되풀이로 안 셈)', fields: ['name'] });
+        optWire(el, cfg, () => { api.save(); api.redraw(); });
         acts(el, { mode: (_v, s) => { cfg.modes[s.dataset.k] = s.value; api.save(); api.redraw(); } });
     },
 };

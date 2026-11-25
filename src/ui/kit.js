@@ -32,3 +32,57 @@ export const val = (el, sel) => String(el.querySelector(sel)?.value ?? '').trim(
 export const TOD = ['dawn', 'morning', 'noon', 'afternoon', 'evening', 'night', 'midnight'];
 export const TOD_KO = { dawn: '새벽', morning: '아침', noon: '낮', afternoon: '오후', evening: '저녁', night: '밤', midnight: '한밤' };
 export const room = (loc) => String(loc ?? '').split('>').map((x) => x.trim()).filter(Boolean).at(-1) ?? '';
+
+// ✏️ One «직접 고치기» card for an app's own saved items. rows: [{ name, i, label, value, rows?, del? }]; extra: html
+// placed under the rows (an add form, buttons). Wire with editors(el, { name: { save(i, text), del(i) } }, after).
+export const editCard = (rows, extra = '', title = '') => `<details class="mb4-card mb4-edcard"><summary>✏️ 직접 고치기${title ? ` <small>${esc(title)}</small>` : ''}</summary>
+    ${rows.map((r) => `<div class="mb4-edrow"><small>${esc(r.label ?? '')}</small><textarea class="mb4-input" rows="${r.rows ?? 1}" data-edv="${esc(`${r.name}|${r.i}`)}">${esc(r.value ?? '')}</textarea><div class="mb4-btnrow tight"><button class="mb4-btn sm" data-eds="${esc(`${r.name}|${r.i}`)}">저장</button>${r.del === false ? '' : `<button class="mb4-btn ghost sm" data-edd="${esc(`${r.name}|${r.i}`)}">🗑 지우기</button>`}</div></div>`).join('') || (extra ? '' : '<p class="mb4-hint">고칠 게 아직 없어요.</p>')}${extra}</details>`;
+export function editors(el, table, after = () => {}) {
+    el.querySelectorAll('[data-eds],[data-edd]').forEach((b) => b.addEventListener('click', (e) => {
+        e.stopPropagation();
+        const key = b.dataset.eds ?? b.dataset.edd, cut = key.lastIndexOf('|'), name = key.slice(0, cut), i = key.slice(cut + 1), h = table[name];
+        if (!h) return;
+        const n = /^-?\d+$/.test(i) ? +i : i;
+        if (b.dataset.eds != null) h.save?.(n, String([...el.querySelectorAll('[data-edv]')].find((x) => x.dataset.edv === key)?.value ?? '').trim());
+        else h.del?.(n);
+        after();
+    }));
+}
+
+// ── option lists the person can change: built-ins can be renamed, re-described or hidden; new ones added ──
+// Saved in the app's cfg (every chat). An item: { id, icon, name, ai } — `ai` is what the AI is told for it.
+export function optList(cfg, key, defaults) {
+    const c = ((cfg.opts ??= {})[key] ??= { edit: {}, hide: {}, add: [] });
+    c.edit ??= {}; c.hide ??= {}; c.add ??= [];
+    const out = defaults.filter((d) => !c.hide[d.id]).map((d) => ({ ...d, ...(c.edit[d.id] ?? {}) }));
+    for (const a of c.add) if (a?.id && a?.name) out.push({ ...a, custom: true });
+    return out;
+}
+// The editing card for one list. fields: which of icon / name / ai are shown; aiLabel: what the AI text is for.
+export function optCard(cfg, key, defaults, { title = '고르는 것', fields = ['icon', 'name', 'ai'], aiLabel = 'AI에게 하는 설명 (영어로 쓰면 더 잘 알아들어요)' } = {}) {
+    const c = ((cfg.opts ??= {})[key] ??= { edit: {}, hide: {}, add: [] });
+    c.edit ??= {}; c.hide ??= {}; c.add ??= [];
+    const box = (it, custom) => {
+        const v = custom ? it : { ...it, ...(c.edit[it.id] ?? {}) }, hidden = !custom && c.hide[it.id], k = `${key}|${it.id}`;
+        return `<div class="mb4-edrow${hidden ? ' mb4-dimrow' : ''}">
+            <div class="mb4-btnrow tight">${fields.includes('icon') ? `<input class="mb4-input mb4-icoin" data-opt="${esc(k)}" data-of="icon" maxlength="4" value="${esc(v.icon ?? '')}">` : ''}${fields.includes('name') ? `<input class="mb4-input" data-opt="${esc(k)}" data-of="name" maxlength="60" value="${esc(v.name ?? '')}">` : ''}</div>
+            ${fields.includes('ai') ? `<textarea class="mb4-input" rows="2" data-opt="${esc(k)}" data-of="ai" maxlength="400" placeholder="${esc(aiLabel)}">${esc(v.ai ?? '')}</textarea>` : ''}
+            <div class="mb4-btnrow tight"><button class="mb4-btn sm" data-opts="${esc(k)}">저장</button>${custom ? `<button class="mb4-btn ghost sm" data-optd="${esc(k)}">🗑 지우기</button>` : `<button class="mb4-btn ghost sm" data-opth="${esc(k)}">${hidden ? '👁 다시 보이기' : '🙈 숨기기'}</button>${c.edit[it.id] ? `<button class="mb4-btn ghost sm" data-optr="${esc(k)}">↩ 원래대로</button>` : ''}`}</div></div>`;
+    };
+    return `<details class="mb4-card mb4-edcard"><summary>✏️ ${esc(title)} 고치기 · 더하기</summary>
+        ${defaults.map((d) => box(d, false)).join('')}${c.add.map((a) => box(a, true)).join('')}
+        <div class="mb4-edrow"><small>＋ 새로 더하기</small><div class="mb4-btnrow tight">${fields.includes('icon') ? `<input class="mb4-input mb4-icoin" data-optn="${esc(key)}" data-of="icon" maxlength="4" placeholder="🙂">` : ''}<input class="mb4-input" data-optn="${esc(key)}" data-of="name" maxlength="60" placeholder="이름"></div>
+            ${fields.includes('ai') ? `<textarea class="mb4-input" rows="2" data-optn="${esc(key)}" data-of="ai" maxlength="400" placeholder="${esc(aiLabel)}"></textarea>` : ''}
+            <div class="mb4-btnrow tight"><button class="mb4-btn sm" data-opta="${esc(key)}">＋ 더하기</button></div></div></details>`;
+}
+export function optWire(el, cfg, save) {
+    const C = (key) => { const c = ((cfg.opts ??= {})[key] ??= { edit: {}, hide: {}, add: [] }); c.edit ??= {}; c.hide ??= {}; c.add ??= []; return c; };
+    const split = (k) => { const i = k.indexOf('|'); return [k.slice(0, i), k.slice(i + 1)]; };
+    const read = (sel) => { const o = {}; el.querySelectorAll(sel).forEach((x) => { o[x.dataset.of] = x.value.trim(); }); return o; };
+    const on = (attr, fn) => el.querySelectorAll(`[${attr}]`).forEach((b) => b.addEventListener('click', (e) => { e.stopPropagation(); fn(b.getAttribute(attr)); save(); }));
+    on('data-opts', (k) => { const [key, id] = split(k), c = C(key), v = read(`[data-opt="${CSS.escape(k)}"]`), a = c.add.find((x) => x.id === id); if (a) Object.assign(a, v); else c.edit[id] = { ...(c.edit[id] ?? {}), ...v }; });
+    on('data-opth', (k) => { const [key, id] = split(k), c = C(key); c.hide[id] = !c.hide[id]; });
+    on('data-optr', (k) => { const [key, id] = split(k); delete C(key).edit[id]; });
+    on('data-optd', (k) => { const [key, id] = split(k), c = C(key); c.add = c.add.filter((x) => x.id !== id); });
+    on('data-opta', (key) => { const v = read(`[data-optn="${CSS.escape(key)}"]`); if (!v.name) return; C(key).add.push({ id: `my${Date.now().toString(36)}`, icon: v.icon || '✨', name: v.name, ai: v.ai || v.name }); });
+}

@@ -4,8 +4,12 @@
 import { clip } from '../core/text.js';
 import { esc, card, hint, acts, val, empty, face } from '../ui/kit.js';
 
-const MOODS = [['', '평소처럼'], ['gossip', '뒷이야기'], ['plan', '작당 모의'], ['fight', '티격태격'], ['night', '새벽 감성']];
-const MOOD_EN = { gossip: 'They gossip about what just happened.', plan: 'They are planning something together.', fight: 'They bicker — petty, in character, no real harm.', night: 'It is late; they are sleepy, honest and a little sentimental.' };
+const MOODS_BASE = [['', '평소처럼'], ['gossip', '뒷이야기'], ['plan', '작당 모의'], ['fight', '티격태격'], ['night', '새벽 감성']];
+const MOOD_EN_BASE = { gossip: 'They gossip about what just happened.', plan: 'They are planning something together.', fight: 'They bicker — petty, in character, no real harm.', night: 'It is late; they are sleepy, honest and a little sentimental.' };
+import { optList as _opt } from '../ui/kit.js';
+const D_MOODS = MOODS_BASE.map(([id, name]) => ({ id: id || 'usual', icon: '', name, ai: MOOD_EN_BASE[id] ?? 'They talk as they normally would, about what is on their minds.' }));
+let MOODS = MOODS_BASE, MOOD_EN = MOOD_EN_BASE;
+const moodsOf = (cfg) => { const L = _opt(cfg, 'moods', D_MOODS); return [L.map((m) => [m.id === 'usual' ? '' : m.id, m.name]), Object.fromEntries(L.map((m) => [m.id === 'usual' ? '' : m.id, m.ai]))]; };
 const everyone = (env) => [...new Set([...(env.peek?.('scene')?.with ?? []), ...Object.values(env.peek?.('people')?.list ?? {}).filter((p) => !p.gone).map((p) => p.name), env.char])].filter((n) => n && n !== env.user);
 function parse(raw, members) {
     const out = [];
@@ -27,6 +31,7 @@ export default {
     widget: (_S, env) => (env.store.log ?? []).slice(-2).map((m) => `<div class="mb4-row"><span class="mb4-row-k">${esc(m.who)}</span><span class="mb4-row-v">${esc(clip(m.t, 50))}</span></div>`).join(''),
     widgetTitle: '단체방',
     render(el, api) {
+        [MOODS, MOOD_EN] = moodsOf(api.cfg);
         const st = api.store, env = api.env, all = everyone(env);
         st.log = Array.isArray(st.log) ? st.log : [];
         st.in = (Array.isArray(st.in) ? st.in : all.slice(0, 4)).filter((n) => all.includes(n));
@@ -37,8 +42,10 @@ export default {
             <div class="mb4-btnrow"><input class="mb4-input" data-f="msg" maxlength="200" placeholder="내가 한마디 (비워도 돼요)"><button class="mb4-btn" data-act="go" ${st.in.length >= 2 || (st.in.length === 1) ? '' : 'disabled'}>💬 떠들게 하기</button></div>`)}
         <label class="mb4-sw"><span><b>이야기에 알리기</b><small>방금 나눈 말을 다음 답에서 본편 AI가 한 번 알아요</small></span><input type="checkbox" data-act="tell" ${st.tell ? 'checked' : ''}><i></i></label>
         <div class="mb4-btnrow"><button class="mb4-btn ghost sm" data-act="clear" ${st.log.length ? '' : 'disabled'}>🧹 방 비우기</button></div>
+        ${api.kit.optCard(api.cfg, 'moods', D_MOODS, { title: '분위기', fields: ['name', 'ai'], aiLabel: '어떤 분위기로 떠드는지 (예: They are planning a surprise party.)' })}
         ${hint('「떠들게 하기」를 누를 때만 AI를 1번 불러요. 본편에는 「이야기에 알리기」를 켰을 때만 가요.')}`;
         const room = el.querySelector('.mbx-room'); if (room) room.scrollTop = room.scrollHeight;
+        api.kit.optWire(el, api.cfg, () => { api.save(); api.redraw(); });
         acts(el, {
             who: (n) => { st.in = st.in.includes(n) ? st.in.filter((x) => x !== n) : [...st.in, n].slice(0, 6); api.save(); api.redraw(); },
             mood: (v) => { st.mood = v; api.save(); api.redraw(); },
