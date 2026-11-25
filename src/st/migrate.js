@@ -64,6 +64,20 @@ function fromV3(md, user) {
         const L = evs.flatMap((e) => { try { return v3Line(e, user); } catch (x) { return []; } });
         records[fp.slice(2)] = { t: Date.now(), L, src: 'v3' };   // "a.<name>.<text>.<length>" -> our "<name>.<text>.<length>"
     }
+    // relationship events were kept apart, in md.rel (same fingerprints): dealings, feelings, the official relationship
+    const MV = ['closer', 'back', 'wavering', 'crack', 'clash', 'same'], TEX = ['attraction', 'desire', 'lingering', 'love-hate', 'forbidden pull', 'resentment', 'bond', 'none'];
+    for (const [fp0, evs] of Object.entries(md?.rel ?? {})) {
+        if (!Array.isArray(evs) || !evs.length) continue;
+        const fp = fp0.startsWith('a.') ? fp0.slice(2) : fp0;
+        const L = evs.flatMap((e) => {
+            if (!e?.a || !e?.b || e.a === e.b) return [];
+            if (e.k === 'mv' && MV[e.mv]) return [['move', `${e.a}>${e.b}=${MV[e.mv]} / ${String(e.inner ?? '').trim() || '-'}`, e.q ?? '']];
+            if (e.k === 'tex' && TEX[e.t]) return [['feel', `${e.a}>${e.b}=${TEX[e.t]}`, e.q ?? '']];
+            if (e.k === 'tie' && e.v) return [['tie', `${e.a}-${e.b}=${e.v}`, e.q ?? '']];
+            return [];
+        });
+        if (L.length) (records[fp] ??= { t: Date.now(), L: [], src: 'v3' }).L.push(...L);
+    }
     const apps = { ...v3Settings(md) }, sec = v3Secrets(md);
     if (sec) {
         apps.secrets = { list: sec.list };
