@@ -6,7 +6,7 @@ import { resolve } from '../core/names.js';
 
 // seating/position: only while two or more people share a place (fails open when the scene app is off)
 const shared = (_S, env) => { const w = env?.peek?.('scene')?.with; return !Array.isArray(w) || w.length >= 1; };
-import { esc, card, person, empty, hint, row } from '../ui/kit.js';
+import { esc, card, person, empty, hint, row, acts } from '../ui/kit.js';
 
 const split = (v) => { const i = v.indexOf('='); return i < 0 ? null : [v.slice(0, i).trim(), v.slice(i + 1).trim()]; };
 const HEALED = /^(healed|fine|recovered|sober|rested)\b/i;
@@ -57,7 +57,30 @@ export default {
     widgetTitle: '몸 상태',
     render(el, api) {
         const L = Object.values(api.state().who).sort((a, b) => b.i - a.i);
-        el.innerHTML = L.length ? L.map((p) => card('', `${person(p.name)}${row('👕', '옷', esc(p.wear || '아직 몰라요'))}${row('🩹', '몸', esc(p.body || '괜찮아요'))}${p.marks?.length ? row('✒', '흔적', esc(p.marks.join(', '))) : ''}${p.carry?.length ? row('🎒', '지닌 것', esc(p.carry.join(', '))) : ''}${p.pos ? row('🪑', '자리 · 자세', esc(p.pos)) : ''}`)).join('') + hint('옷이나 몸 상태가 글에 나오면 저절로 바뀌어요.')
-            : empty('👕', '아직 적힌 차림새가 없어요', '옷이나 상처가 묘사되면 여기 쌓여요');
+        const f = (n, k) => `[data-f="${k}"][data-n="${CSS.escape(n)}"]`;
+        const drawer = (p) => `<details class="mb4-card" style="margin-top:8px"><summary>✏️ 직접 고치기</summary>
+            <label class="mb4-label">옷<input class="mb4-input" data-f="wear" data-n="${esc(p.name)}" maxlength="120" value="${esc(p.wear ?? '')}" placeholder="지금 입은 것"></label>
+            <label class="mb4-label">몸 상태<input class="mb4-input" data-f="body" data-n="${esc(p.name)}" maxlength="80" value="${esc(p.body ?? '')}" placeholder="예: hurt, 발목을 삠"></label>
+            <label class="mb4-label">자세 · 위치<input class="mb4-input" data-f="pos" data-n="${esc(p.name)}" maxlength="80" value="${esc(p.pos ?? '')}" placeholder="예: 창가에 앉아 있음"></label>
+            <div class="mb4-btnrow"><input class="mb4-input" data-f="mark" data-n="${esc(p.name)}" maxlength="60" placeholder="흔적 더하기 (흉터 · 문신)"><input class="mb4-input" data-f="carry" data-n="${esc(p.name)}" maxlength="40" placeholder="든 물건 더하기"></div>
+            ${p.carry?.length ? `<div class="mb4-chips">${p.carry.map((c) => `<button class="mb4-btn ghost sm" data-act="drop" data-v="${esc(`${p.name}|${c}`)}">🎒 ${esc(c)} ✕</button>`).join('')}</div>` : ''}
+            <div class="mb4-btnrow"><button class="mb4-btn" data-act="save" data-v="${esc(p.name)}">고치기</button>${p.body ? `<button class="mb4-btn ghost" data-act="heal" data-v="${esc(p.name)}">🩹 다 나았어요</button>` : ''}</div></details>`;
+        el.innerHTML = `${L.length ? L.map((p) => card('', `${person(p.name)}${row('👕', '옷', esc(p.wear || '아직 몰라요'))}${row('🩹', '몸', esc(p.body || '괜찮아요'))}${p.marks?.length ? row('✒', '흔적', esc(p.marks.join(', '))) : ''}${p.carry?.length ? row('🎒', '든 것', esc(p.carry.join(', '))) : ''}${p.pos ? row('🪑', '자세', esc(p.pos)) : ''}${drawer(p)}`)).join('')
+            : empty('👕', '아직 적힌 차림새가 없어요', '옷이나 상처가 묘사되면 여기 쌓여요')}
+        ${card('＋ 사람 더하기', `<div class="mb4-btnrow"><input class="mb4-input" data-f="newname" maxlength="40" placeholder="이름"><input class="mb4-input" data-f="newwear" maxlength="120" placeholder="입은 것"><button class="mb4-btn ghost" data-act="add">넣기</button></div>`)}
+        ${hint('고친 값은 마지막 답에 붙어요. 📒 기록에서 되돌릴 수 있어요.')}`;
+        const v = (n, k) => String(el.querySelector(f(n, k))?.value ?? '').trim();
+        acts(el, {
+            save: (n) => {
+                const p = api.state().who[n] ?? {}; let did = 0;
+                for (const k of ['wear', 'body', 'pos']) { const x = v(n, k); if (x && x !== (p[k] ?? '')) did += api.fix(k, `${n}=${x}`) ? 1 : 0; }
+                const m = v(n, 'mark'); if (m) did += api.fix('mark', `${n}=${m}`) ? 1 : 0;
+                const c = v(n, 'carry'); if (c) did += api.fix('carry', `${n}=${c}`) ? 1 : 0;
+                if (did) api.toast('고쳤어요.');
+            },
+            heal: (n) => { api.fix('body', `${n}=healed`); },
+            drop: (x) => { const [n, c] = x.split('|'); api.fix('carry', `${n}=-${c}`); },
+            add: () => { const n = String(el.querySelector('[data-f="newname"]')?.value ?? '').trim(), w = String(el.querySelector('[data-f="newwear"]')?.value ?? '').trim(); if (n && w) api.fix('wear', `${n}=${w}`); else api.toast('이름과 입은 것을 적어 주세요.'); },
+        });
     },
 };

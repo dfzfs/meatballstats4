@@ -17,6 +17,7 @@ export const BUILTIN = [
     { id: 'wallet', icon: '💰', name: '지갑', tab: '지갑', color: '#f4a261', cost: 'low', desc: '돈과 물건을 코드가 세어서, 없는 돈을 쓰거나 잃은 물건이 다시 나오지 않게 해요.' },
     { id: 'life', icon: '🧸', name: '생활', tab: '생활', color: '#f4978e', cost: 'low', desc: '시간이 흐르면 허기 · 졸림 · 청결 · 사람이 저절로 줄어요. 먹고 자고 씻고 누굴 만나면 다시 차요.' },
     // 지시
+    { id: 'helper', icon: '😼', name: '도우미', color: '#f2a65a', cost: 'tap', desc: '미트볼 고양이에게 말로 시켜요. 고칠 걸 말하면 먼저 보여 주고 확인하면 고쳐요. 기능 질문에도 답해요.' },
     { id: 'director', icon: '🎬', name: '지시', color: '#264653', cost: 'low', desc: '채팅에 남지 않는 지시를 적어요. 다음 답 한 번 · 이 장면 동안 · 계속 중에서 골라요.' },
     { id: 'echo', icon: '🔁', name: '되풀이 막기', color: '#2a9d8f', cost: 'zero', desc: '같은 표현 · 같은 첫머리가 답마다 되풀이되면, 되풀이되는 동안만 살짝 말려요.' },
     { id: 'todo', icon: '📌', name: '약속', color: '#e76f51', cost: 'low', desc: '이야기 속 약속 · 할 일을 적어 두고, AI가 잊지 않게 열린 것만 알려 줘요.' },
@@ -50,6 +51,7 @@ export const SHELVES = [
         { id: 'me', front: true, icon: '🙋', name: '나', color: '#ff6b6b', desc: '내 수치 · 지갑 · 생활 · 내가 만든 칸을 한 장에', apps: ['stats', 'wallet', 'life', 'custom'] },
     ] },
     { id: 'direct', icon: '🎬', name: '지시', hint: '이야기를 내 뜻대로', entries: [
+        { id: 'helper', apps: ['helper'] },
         { id: 'director', apps: ['director'] },
         { id: 'echo', apps: ['echo'] },
         { id: 'todo', apps: ['todo'] },
@@ -74,8 +76,8 @@ export const GROUPS = SHELVES.map((s) => ({ id: s.id, name: s.name, hint: s.hint
 
 // First-run question: 「어떤 롤플을 해요?」
 export const PRESETS = [
-    { id: 'story', icon: '📖', name: '이야기만 편하게', desc: '가장 가볍게. 상황 요약만 적어 두고 되풀이를 막아요.', apps: ['scene', 'people', 'echo', 'record'] },
-    { id: 'romance', icon: '💕', name: '연애 · 관계 중심', desc: '천천히 가까워지고, 비밀은 지켜요.', apps: ['scene', 'people', 'bonds', 'secrets', 'look', 'mind', 'echo', 'record'] },
-    { id: 'sim', icon: '🎒', name: '생활 · 모험 시뮬', desc: '돈 · 수치 · 생활 · 약속을 세고, 판정은 주사위로.', apps: ['scene', 'people', 'wallet', 'stats', 'life', 'todo', 'calendar', 'map', 'dice', 'record'] },
-    { id: 'direct', icon: '🎬', name: '내가 감독', desc: '몰래 지시를 넣고, 선택지 · 장치로 이야기를 굴려요.', apps: ['director', 'memo', 'secrets', 'echo', 'scene', 'choices', 'twist', 'record'] },
+    { id: 'story', icon: '📖', name: '이야기만 편하게', desc: '가장 가볍게. 상황 요약만 적어 두고 되풀이를 막아요.', apps: ['scene', 'people', 'echo', 'record', 'helper'] },
+    { id: 'romance', icon: '💕', name: '연애 · 관계 중심', desc: '천천히 가까워지고, 비밀은 지켜요.', apps: ['scene', 'people', 'bonds', 'secrets', 'look', 'mind', 'echo', 'record', 'helper'] },
+    { id: 'sim', icon: '🎒', name: '생활 · 모험 시뮬', desc: '돈 · 수치 · 생활 · 약속을 세고, 판정은 주사위로.', apps: ['scene', 'people', 'wallet', 'stats', 'life', 'todo', 'calendar', 'map', 'dice', 'record', 'helper'] },
+    { id: 'direct', icon: '🎬', name: '내가 감독', desc: '몰래 지시를 넣고, 선택지 · 장치로 이야기를 굴려요.', apps: ['director', 'memo', 'secrets', 'echo', 'scene', 'choices', 'twist', 'record', 'helper'] },
 ];

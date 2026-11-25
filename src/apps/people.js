@@ -114,7 +114,16 @@ export default {
             ${Object.entries(S.lies ?? {}).filter(([d]) => d.startsWith(`${p.name}>`)).map(([d, L]) => `<div class="mb4-row"><span class="mb4-row-k">🤥 ${esc(d.split('>')[1])}에게 숨김</span><span class="mb4-row-v">${esc(L.map((x) => x.v).join(' · '))}</span></div>`).join('')}
             ${Object.entries(S.owes ?? {}).filter(([d]) => d.startsWith(`${p.name}>`)).map(([d, L]) => `<div class="mb4-row"><span class="mb4-row-k">🧾 ${esc(d.split('>')[1])}에게 빚 · 은혜</span><span class="mb4-row-v">${esc(L.map((x) => x.v).join(' · '))}</span></div>`).join('')}
             ${calls(p.name) ? `<div class="mb4-chips" style="margin:6px 0">${calls(p.name)}</div>` : ''}
-            <input class="mb4-input" data-act="memo" data-v="${esc(p.name)}" maxlength="120" placeholder="내 메모 (AI도 같이 봐요)" value="${esc(st.notes[p.name] ?? '')}">`)).join('') : empty('👥', '아직 만난 사람이 없어요', '새 인물이 나오면 여기 생겨요'))
+            <input class="mb4-input" data-act="memo" data-v="${esc(p.name)}" maxlength="120" placeholder="내 메모 (AI도 같이 봐요)" value="${esc(st.notes[p.name] ?? '')}">
+            <details class="mb4-card" style="margin-top:8px"><summary>✏️ 직접 고치기</summary>
+                <label class="mb4-label">소개<input class="mb4-input" data-pf="about" data-n="${esc(p.name)}" maxlength="100" value="${esc(p.about ?? '')}"></label>
+                <label class="mb4-label">직위 · 신분<input class="mb4-input" data-pf="role" data-n="${esc(p.name)}" maxlength="60" value="${esc(S.roles?.[p.name]?.v ?? '')}"></label>
+                <label class="mb4-label">취향 · 버릇 더하기<input class="mb4-input" data-pf="seed" data-n="${esc(p.name)}" maxlength="80" placeholder="예: 단 걸 싫어함"></label>
+                <label class="mb4-label">다른 이름 더하기<input class="mb4-input" data-pf="alias" data-n="${esc(p.name)}" maxlength="40" placeholder="별명 · 본명"></label>
+                <div class="mb4-btnrow"><input class="mb4-input" data-pf="callto" data-n="${esc(p.name)}" maxlength="40" placeholder="누구를"><input class="mb4-input" data-pf="callas" data-n="${esc(p.name)}" maxlength="40" placeholder="뭐라고 부르나"></div>
+                <div class="mb4-btnrow"><button class="mb4-btn" data-act="pfix" data-v="${esc(p.name)}">고치기</button><button class="mb4-btn ghost" data-act="gone" data-v="${esc(p.name)}">${p.gone ? '↩ 돌아왔어요' : '👋 이야기에서 떠남'}</button></div>
+            </details>`)).join('') : empty('👥', '아직 만난 사람이 없어요', '새 인물이 나오면 여기 생겨요'))
+            + card('＋ 사람 더하기', `<div class="mb4-btnrow"><input class="mb4-input" data-f="nname" maxlength="40" placeholder="이름"><input class="mb4-input" data-f="nabout" maxlength="100" placeholder="어떤 사람"><button class="mb4-btn ghost" data-act="padd">넣기</button></div>`)
             + card('🔀 이름 합치기', `${Object.keys(st.alias).length ? Object.entries(st.alias).map(([k, v]) => `<div class="mb4-row"><span class="mb4-row-v">${esc(k)} → ${esc(v)}</span><button class="mb4-x" data-act="unalias" data-v="${esc(k)}" aria-label="풀기">✕</button></div>`).join('') : ''}
                 <div class="mb4-btnrow"><input class="mb4-input" data-f="from" maxlength="40" placeholder="다른 이름 (예: 별명)"><input class="mb4-input" data-f="to" maxlength="40" placeholder="원래 이름"><button class="mb4-btn ghost" data-act="alias">합치기</button></div>`)
             + hint('소개는 AI 답에서 읽어 와요. 대소문자 · 조사 · 「간호사 벨」=「벨」처럼 같은 사람은 저절로 합쳐요. 한 글자만 다른 이름은 위에서 물어봐요.');
@@ -124,6 +133,18 @@ export default {
             merge: (v) => { const [from, to] = v.split('|'); st.alias[from.toLowerCase()] = to; save(); },
             alias: () => { const from = (el.querySelector('[data-f="from"]').value ?? '').trim(), to = (el.querySelector('[data-f="to"]').value ?? '').trim(); if (from && to && from !== to) { st.alias[from.toLowerCase()] = to; save(); } },
             unalias: (k) => { delete st.alias[k]; save(); },
+            pfix: (n) => {
+                const g = (k) => String(el.querySelector(`[data-pf="${k}"][data-n="${CSS.escape(n)}"]`)?.value ?? '').trim(), P = S.list[n] ?? {};
+                let did = 0;
+                if (g('about') && g('about') !== (P.about ?? '')) did += api.fix('npc', `${n}=${g('about')}`) ? 1 : 0;
+                if (g('role') && g('role') !== (S.roles?.[n]?.v ?? '')) did += api.fix('role', `${n}=${g('role')}`) ? 1 : 0;
+                if (g('seed')) did += api.fix('seed', `${n}=${g('seed')}`) ? 1 : 0;
+                if (g('alias')) did += api.fix('alias', `${n}=${g('alias')}`) ? 1 : 0;
+                if (g('callto') && g('callas')) did += api.fix('call', `${n}>${g('callto')}=${g('callas')}`) ? 1 : 0;
+                if (did) api.toast('고쳤어요.');
+            },
+            gone: (n) => { if (S.list[n]?.gone) api.fix('npc', `${n}=${S.list[n].about || 'back in the story'}`); else api.fix('gone', `${n}=left the story for good`); },
+            padd: () => { const n = String(el.querySelector('[data-f="nname"]')?.value ?? '').trim(), a = String(el.querySelector('[data-f="nabout"]')?.value ?? '').trim(); if (n && a) api.fix('npc', `${n}=${a}`); else api.toast('이름과 어떤 사람인지 적어 주세요.'); },
         });
     },
 };

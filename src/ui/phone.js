@@ -371,6 +371,14 @@ function mountApp(body, id) {
                 // note lines another app held back or changed on the way out (shown in the self-check)
                 screened: (() => { try { return (E.note().screened ?? []).map((x) => ({ app: x.app, by: x.by, held: !x.to, line: x.to ?? '' })); } catch (e) { return []; } })() }),
             ownerOf: (k) => E.reg.ownerOf(k)?.id ?? '' },
+        ...(id === 'helper' ? { helper: {
+            appsOn: () => E.reg.list().filter((a) => a.id !== 'helper').map((a) => ({ id: a.id, name: meta(a.id)?.name ?? a.name ?? a.id, icon: meta(a.id)?.icon ?? a.icon ?? '', desc: meta(a.id)?.desc ?? a.desc ?? '' })),
+            keys: () => E.reg.keys().map((k) => ({ id: k.id, line: k.line, app: k.app })),
+            chip: (k, v) => { const a = E.reg.ownerOf(k); try { return a?.chip ? String(a.chip({ k, v, q: '' }, E.envOf(a.id)) ?? '') : ''; } catch (e) { return ''; } },
+            fix: (k, v) => E.fix(k, v),
+            storeOf: (other) => (E.reg.has(other) ? E.envOf(other).store : null),
+            cardOf: (other) => (E.reg.has(other) ? E.envOf(other).card : null),
+        } } : {}),
     };
     body.innerHTML = `<div class="mb4-app mb4-app-${esc(id)}"></div>`;
     try { def.render(body.firstElementChild, api); }
