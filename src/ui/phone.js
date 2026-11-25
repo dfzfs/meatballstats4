@@ -180,7 +180,9 @@ const trOn = () => { const m = cfg().tr?.mode; return m === 'free' || m === 'ai'
 // The time shown in the status bar: the story's, when the Scene app knows it.
 function clock() {
     const S = R.engine.reg.has('scene') && hasChat() ? R.engine.state('scene') : null;
-    if (S) return `${S.day}일째${S.tod ? ` ${TOD_KO[S.tod]}` : ''}`;
+    const T = R.engine.reg.has('touch') && hasChat() ? R.engine.envOf('touch').store : null;
+    if (S) return `${T?.title ? `${T.title} · ` : ''}${S.day}일째${S.tod ? ` ${TOD_KO[S.tod]}` : ''}`;
+    if (T?.title) return T.title;
     const d = new Date();
     return `${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`;
 }
@@ -237,6 +239,13 @@ const TIPS = [
     '📖 설정집은 그 말이 나온 답에만 골라서 보내요. 길게 적어도 부담이 늘지 않아요.',
     '⚙️ 설정의 「💾 백업」으로 이 채팅의 미트볼 기록을 파일로 남겨 둘 수 있어요.',
 ];
+// 💌 what the lover left on the home screen (read from the touch app; nothing here is sent anywhere)
+function loveNote() {
+    if (!R.engine.reg.has('touch')) return '';
+    const T = R.engine.envOf('touch').store, n = T?.note;
+    const hearts = (T?.log ?? []).length ? `<div class="mb4-hearts" aria-hidden="true">${['💗', '💕', '💖', '💗', '💞'].map((h, k) => `<i style="--k:${k}">${h}</i>`).join('')}</div>` : '';
+    return `${hearts}${n?.text ? `<div class="mb4-sticky"><span>📝 ${esc(n.text)}</span><button class="mb4-x" data-unnote aria-label="떼기">✕</button></div>` : ''}`;
+}
 let shelfId = '';
 function drawHome(body) {
     const E = R.engine, chat = hasChat(), S = chat ? E.states() : {};
@@ -257,6 +266,7 @@ function drawHome(body) {
     body.innerHTML = `${hero()}
         ${E.paused() ? '<div class="mb4-banner">⏸ 멈춤 중이에요. AI에 아무것도 보내지 않아요.</div>' : ''}
         ${chat ? catchUp() : ''}
+        ${chat ? loveNote() : ''}
         <div class="mb4-shelves" role="tablist">${SHELVES.map((sh) => `<button class="mb4-shelf${sh.id === shelfId ? ' on' : ''}" data-shelf="${sh.id}" role="tab"><span>${sh.icon}</span><b>${sh.name}</b><small>${nOn(sh)}</small></button>`).join('')}</div>
         <p class="mb4-lead">${esc(shelf.hint)} · 켠 것만 일해요.</p>
         <div class="mb4-ents">${shelf.entries.map(entry).join('')}</div>
@@ -265,6 +275,7 @@ function drawHome(body) {
         <div class="mb4-load" data-go="set"><span>${keys ? `📖 ${every > 1 ? `답 ${every}개마다` : '답마다'} 읽기 1번 · 항목 ${keys}개` : '🍃 AI를 따로 부르지 않아요'}</span><span>⚙️ 설정 ›</span></div>`;
     body.querySelectorAll('[data-shelf]').forEach((b) => b.addEventListener('click', (e) => { e.stopPropagation(); shelfId = b.dataset.shelf; cfg().shelf = shelfId; saveCfg(); draw(true); }));
     body.querySelectorAll('[data-stop]').forEach((el) => el.addEventListener('click', (e) => e.stopPropagation()));
+    body.querySelector('[data-unnote]')?.addEventListener('click', (e) => { e.stopPropagation(); const T = R.engine.envOf('touch').store; T.note = null; saveChat(); draw(true); });
     wireSwitches(body);
 }
 // Every [data-app] checkbox switches that app on or off.

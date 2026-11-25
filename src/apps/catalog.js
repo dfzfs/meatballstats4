@@ -35,6 +35,7 @@ export const BUILTIN = [
     { id: 'music', icon: '🎵', name: '추천 음악', color: '#ff8fab', cost: 'tap', desc: '누르면 지금 장면에 어울리는 실제 곡을 하나 골라 줘요.' },
     { id: 'twist', icon: '🌀', name: '이야기 장치', tab: '장치', color: '#118ab2', cost: 'zero', desc: '이야기가 알아서 조금씩 출렁이게 하는 장치 열 가지. AI를 따로 부르지 않아요.' },
     { id: 'album', icon: '🏆', name: '앨범', tab: '앨범', color: '#ffb703', cost: 'zero', desc: '이야기에서 이룬 것(업적)이 저절로 모이고, 마음에 드는 장면을 눌러서 남겨요.' },
+    { id: 'touch', icon: '💌', name: '연인의 손길', tab: '연인의 손길', color: '#ff5d8f', cost: 'zero', desc: '연인(한 명만)이 가끔 내 폰을 몰래 만져요. 연락처 이름 · 달력 · 쪽지 · 돈 · 물건 · 약속까지. 티 나게, AI 호출 없이.' },
     { id: 'news', icon: '📰', name: '소식', tab: '소식', color: '#6c7a89', cost: 'tap', desc: '누르면 이야기 속 세상의 소식 몇 줄을 만들어 줘요. 원하면 소문으로 이야기에 흘려 넣어요.' },
 ];
 
@@ -58,7 +59,7 @@ export const SHELVES = [
     ] },
     { id: 'fun', icon: '🎡', name: '재미', hint: '누를 때만 움직여요', entries: [
         { id: 'dice', apps: ['dice'] },
-        { id: 'contacts', icon: '📞', name: '연락', color: '#34c759', desc: '인물과 문자, 인물들끼리의 단체방, 세상 소식', apps: ['contacts', 'group', 'news'] },
+        { id: 'contacts', icon: '📞', name: '연락', color: '#34c759', desc: '인물과 문자, 단체방, 세상 소식, 연인이 몰래 만진 폰', apps: ['contacts', 'group', 'news', 'touch'] },
         { id: 'fortune', icon: '🔮', name: '점집', color: '#9b5de5', desc: '오늘의 운세와 점괘, 그리고 운명의 카드', apps: ['fortune', 'fate'] },
         { id: 'music', apps: ['music'] },
         { id: 'twist', icon: '🌀', name: '이야기 장치', color: '#118ab2', desc: '이야기를 저절로 출렁이게 하는 장치들과, 인물에게 거는 암시', apps: ['twist', 'hypno'] },

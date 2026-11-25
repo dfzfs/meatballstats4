@@ -64,6 +64,8 @@ export class Engine {
             // read-only copy of another app's ledger state (null when that app is off, or while the ledger is being rebuilt)
             peek: (other) => (this.folding || other === id || !this.reg.has(other) ? null : this.state(other)),
             // read-only copy of another app's own saved data for this chat (null when that app is off)
+            // a hand correction on the newest reply, as if the person had made it (same checks; gone if that reply is swiped away)
+            fix: (k, v) => this.fix(k, v),
             peekStore: (other) => { if (other === id || !this.reg.has(other)) return null; try { return JSON.parse(JSON.stringify(st?.apps?.[other] ?? {})); } catch (e) { return null; } },
         };
     };

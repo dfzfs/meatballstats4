@@ -72,6 +72,8 @@ export default {
         const st = api.store, cfg = api.cfg, k = api.kit, T = threads(st), env = api.env, user = env.user || 'me';
         const known = [...new Set([...(env.peek('scene')?.with ?? []), ...Object.keys(env.peek('people')?.list ?? {}), ...Object.keys(T)])].filter((n) => n && n !== env.user);
         st.who = known.includes(st.who) ? st.who : known[0] ?? '';
+        const nick = (n) => env.peekStore?.('touch')?.names?.[n] ?? '';
+        const nameOf = (n) => (nick(n) ? `${esc(nick(n))} <small>${esc(n)}</small>` : esc(n));
         const inCount = (n) => (T[n] ?? []).filter((m) => !m.me && (!m.letter || (env.peek('scene')?.day ?? -1) >= m.arrive)).length;
         if (st.who) per(st, st.who).seen = inCount(st.who);
         const who = st.who, L = T[who] ?? [], P = who ? per(st, who) : {}, away = who ? awayOf(env, who, P) : null, day = env.peek('scene')?.day;
@@ -80,8 +82,8 @@ export default {
         const W = env.peek('wallet');
         const shown = L.filter((m) => !m.letter || m.me || (day != null && day >= m.arrive)).slice(-14);
         const waiting = L.some((m) => m.me && m.wait);
-        el.innerHTML = `${k.card('누구에게', `${known.length ? `<div class="mb4-chips">${known.map((n) => `<button class="mb4-opt${n === who ? ' on' : ''}" data-act="who" data-v="${esc(n)}">${k.face(n)} ${esc(n)}${per(st, n).dnd ? ' 🔕' : ''}${n !== who && inCount(n) > (per(st, n).seen ?? 0) ? ' 🔴' : ''}</button>`).join('')}</div>` : ''}<div class="mb4-btnrow"><input class="mb4-input" data-f="new" maxlength="40" placeholder="이름 직접 적기"><button class="mb4-btn ghost" data-act="add">추가</button></div>`)}
-        ${who ? k.card(`${k.face(who)} ${esc(who)}${away ? ` <span class="mb4-pill">${away.sleep ? '😴 자는 중' : `🔕 ${esc(away.why)}`}</span>` : ''}`, `
+        el.innerHTML = `${k.card('누구에게', `${known.length ? `<div class="mb4-chips">${known.map((n) => `<button class="mb4-opt${n === who ? ' on' : ''}" data-act="who" data-v="${esc(n)}">${k.face(n)} ${nameOf(n)}${per(st, n).dnd ? ' 🔕' : ''}${n !== who && inCount(n) > (per(st, n).seen ?? 0) ? ' 🔴' : ''}</button>`).join('')}</div>` : ''}<div class="mb4-btnrow"><input class="mb4-input" data-f="new" maxlength="40" placeholder="이름 직접 적기"><button class="mb4-btn ghost" data-act="add">추가</button></div>`)}
+        ${who ? k.card(`${k.face(who)} ${nameOf(who)}${away ? ` <span class="mb4-pill">${away.sleep ? '😴 자는 중' : `🔕 ${esc(away.why)}`}</span>` : ''}`, `
             ${P.sum ? `<p class="mb4-hint">🧠 ${esc(P.sum)}</p>` : ''}
             <div class="mbx-thread">${shown.map((m) => `<div class="mbx-bubble ${m.me ? 'me' : ''}${m.letter ? ' letter' : ''}">${m.letter ? '✉️ ' : ''}${esc(m.text)}${m.att ? `<small>${esc(m.att)}</small>` : ''}${m.me && m.read ? '<small>읽음</small>' : ''}</div>`).join('') || k.hint('아직 주고받은 문자가 없어요.')}${L.some((m) => m.letter && !m.me && day != null && day < m.arrive) ? `<div class="mb4-hint">✉️ 답장이 오는 중이에요 (${Math.min(...L.filter((m) => m.letter && !m.me && day < m.arrive).map((m) => m.arrive)) - day}일 뒤)</div>` : ''}</div>
             <div class="mb4-btnrow"><input class="mb4-input" data-f="msg" maxlength="300" placeholder="${away ? '보내 두면 깼을 때 답장해요' : '문자 쓰기'}"><button class="mb4-btn" data-act="send">보내기</button></div>
