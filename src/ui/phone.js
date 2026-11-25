@@ -243,8 +243,7 @@ const TIPS = [
 function loveNote() {
     if (!R.engine.reg.has('touch')) return '';
     const T = R.engine.envOf('touch').store, n = T?.note;
-    const hearts = (T?.log ?? []).length ? `<div class="mb4-hearts" aria-hidden="true">${['💗', '💕', '💖', '💗', '💞'].map((h, k) => `<i style="--k:${k}">${h}</i>`).join('')}</div>` : '';
-    return `${hearts}${n?.text ? `<div class="mb4-sticky"><span>📝 ${esc(n.text)}</span><button class="mb4-x" data-unnote aria-label="떼기">✕</button></div>` : ''}`;
+    return `${n?.text ? `<div class="mb4-sticky"><span>📝 ${esc(n.text)}</span><button class="mb4-x" data-unnote aria-label="떼기">✕</button></div>` : ''}`;
 }
 let shelfId = '';
 function drawHome(body) {
