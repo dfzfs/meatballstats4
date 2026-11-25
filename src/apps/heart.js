@@ -64,7 +64,11 @@ export default {
         void me;
     },
     // ✏️ 애정 · 신뢰 set by hand: kept as a difference per pair, laid over what the story adds up to
-    adjust(S, env) { for (const [k, x] of Object.entries(env.store?.adj ?? {})) { const d = S.d[k]; if (!d) continue; if (x.a) d.a = clampN(d.a + x.a); if (x.t) d.t = clampN(d.t + x.t); } },
+    adjust(S, env) {
+        // 🗑 removed by hand: gone until a newer reply moves the score again
+        const hp = env.peekStore?.('people')?.hide ?? {};
+        for (const [k, d] of Object.entries(S.d ?? {})) { const last = d.hist?.at(-1)?.i ?? -1, at = env.store?.hide?.[k]; if ((at != null && last <= at) || k.split('>').some((n) => hp[n] != null && last <= hp[n])) delete S.d[k]; }
+        for (const [k, x] of Object.entries(env.store?.adj ?? {})) { const d = S.d[k]; if (!d) continue; if (x.a) d.a = clampN(d.a + x.a); if (x.t) d.t = clampN(d.t + x.t); } },
     note(S, env) {
         const me = env.user, st = env.store, now = [], state = [];
         // a card the person answered: the outcome rides with the next reply once
@@ -104,11 +108,13 @@ export default {
         ${toMe.length ? toMe.map(one).join('') : empty('💗', '아직 셈할 게 없어요', '누군가와 주고받는 일이 생기면 점수가 움직여요')}
         ${others.length ? card('인물끼리', others.map(([k, d]) => `<div class="mb4-row"><span class="mb4-row-k">${esc(k.replace('>', ' → '))}</span><span class="mb4-row-v">💗 ${d.a} · 🤝 ${d.t}${d.j >= 30 ? ' · 🔥' : ''}</span></div>`).join('')) : ''}
         ${S.jl.length ? card('🔥 질투가 일었던 때', S.jl.slice(-4).reverse().map((x) => `<div class="mb4-row"><span class="mb4-row-v">${esc(x.who)}: ${esc(x.of)}이(가) ${esc(x.with)}와(과) 가까워지는 걸 봄</span></div>`).join('')) : ''}
+        ${card('👥 목록에 올릴 애정', `<div class="mb4-seg">${[20, 30, 40, 50, 60].map((v) => `<button class="${(Number(st.showAt) || 30) === v ? 'on' : ''}" data-act="showat" data-v="${v}">${v === 20 ? '모두' : v}</button>`).join('')}</div>${hint('인물 · 연락 목록에는 지금 같이 있는 사람과 나를 향한 애정이 이만큼 오른 사람만 보여요. 나머지는 접혀 있어요. 점수는 20에서 시작해요.')}`)}
         <label class="mb4-sw"><span><b>점수를 AI에게도 알려 주기</b><small>같이 있는 사람의 애정 · 신뢰와 질투 한 줄. 끄면 화면에만 보여요.</small></span><input type="checkbox" data-act="tell" ${cfg.tell !== false ? 'checked' : ''}><i></i></label>
         ${hint('점수는 💞 관계가 적은 줄(다가감 +4 · 물러남 −3 · 부딪힘 −3 · 스킨십 · 거절 · 받아 줌)로 코드가 셈해요. 고백 · 청혼의 답은 애정과 신뢰로 정한 확률로 주사위를 굴려요.')}`;
-        api.kit.editMore(el, api, [{ name: 'love', list: toMe, del: false, label: ([n]) => `${n}: 애정 | 신뢰 (0~100)`, get: ([, d]) => `${d.a} | ${d.t}`, set: ([n, d], t) => { const [a, b] = api.kit.two(t).map((x) => Math.round(+x)); const x = ((api.store.adj ??= {})[`${n}>${me}`] ??= {}); if (Number.isFinite(a) && api.kit.two(t)[0] !== '') x.a = (x.a ?? 0) + clampN(a) - d.a; if (Number.isFinite(b) && api.kit.two(t)[1] !== '') x.t = (x.t ?? 0) + clampN(b) - d.t; } }]);
+        api.kit.editMore(el, api, [{ name: 'love', list: toMe, remove: ([n, d]) => { (api.store.hide ??= {})[`${n}>${me}`] = Math.max(api.env.last ?? 0, d.hist?.at(-1)?.i ?? 0); if (api.store.adj) delete api.store.adj[`${n}>${me}`]; }, label: ([n]) => `${n}: 애정 | 신뢰 (0~100)`, get: ([, d]) => `${d.a} | ${d.t}`, set: ([n, d], t) => { const [a, b] = api.kit.two(t).map((x) => Math.round(+x)); const x = ((api.store.adj ??= {})[`${n}>${me}`] ??= {}); if (Number.isFinite(a) && api.kit.two(t)[0] !== '') x.a = (x.a ?? 0) + clampN(a) - d.a; if (Number.isFinite(b) && api.kit.two(t)[1] !== '') x.t = (x.t ?? 0) + clampN(b) - d.t; } }]);
         acts(el, {
             tell: (_v, b) => { cfg.tell = b.checked; api.save(); },
+            showat: (v) => { st.showAt = +v; api.save(); api.redraw(); },
             uncard: () => { st.card = null; api.save(); api.redraw(); },
             card: (v) => {
                 const [kind, who] = v.split('|'), d = S.d[`${who}>${me}`] ?? START;

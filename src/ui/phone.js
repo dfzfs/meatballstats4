@@ -544,7 +544,7 @@ function castOverview(box, e) {
     box.innerHTML = `${offRow(off)}
         ${me && L?.who?.[me] ? one(me, true) : ''}
         ${inScene.length ? `<h5 class="mb4-sec">지금 같이 있는 사람 <small>${inScene.length}명</small></h5>${inScene.map((n) => one(n)).join('')}` : ''}
-        ${rest.length ? `<h5 class="mb4-sec">그 밖의 사람 <small>${rest.length}명 · 가까운 순</small></h5>${kit.foldRest(rest.map((n) => one(n)))}` : ''}
+        ${rest.length ? `<h5 class="mb4-sec">그 밖의 사람 <small>${rest.length}명 · 가까운 순</small></h5>${(() => { const at = Number(E.reg.has('heart') ? E.envOf('heart').store.showAt : 0) || kit.SHOW_AT, sp = kit.byHeart(rest, HT, me, [], at); return sp ? kit.foldUnder(sp.shown.map((n) => one(n)), sp.rest.map((n) => one(n)), at) : kit.foldRest(rest.map((n) => one(n))); })()}` : ''}
         ${order.length ? kit.hint('줄을 누르면 그 탭으로 가요. 꺼 둔 기능의 줄은 나오지 않아요.') : kit.empty('👥', '아직 만난 사람이 없어요', '이야기가 진행되면 사람마다 한 장씩 생겨요')}`;
     box.querySelectorAll('[data-mind]').forEach((b) => b.addEventListener('click', (ev) => { ev.stopPropagation(); const ms = E.envOf('mind').store; ms.mode = 'cast'; ms.who = b.dataset.mind; saveChat(); go('page:cast:mind'); }));
 }

@@ -5,7 +5,7 @@
 import { clip } from '../core/text.js';
 import { resolve, lookalikes } from '../core/names.js';
 import { cueOr, slow } from '../core/cadence.js';
-import { esc, card, person, empty, hint, acts, pill, closeness, foldRest } from '../ui/kit.js';
+import { esc, card, person, empty, hint, acts, pill, closeness, foldRest, byHeart, foldUnder, SHOW_AT } from '../ui/kit.js';
 
 const split = (v) => { const i = v.indexOf('='); return i < 0 ? [v.trim(), ''] : [v.slice(0, i).trim(), v.slice(i + 1).trim()]; };
 
@@ -89,6 +89,17 @@ export default {
         }
         else P.gone = clip(rest || 'gone', 40);
     },
+    // 🗑 people the person removed by hand stay away until a newer reply names them again
+    adjust(S, env) {
+        for (const [n, at] of Object.entries(env.store?.hide ?? {})) {
+            const P = S.list[n];
+            if (!P || (P.i ?? -1) > at) continue;
+            delete S.list[n];
+            const has = (d) => d.split('>').includes(n);
+            for (const f of ['calls', 'lies', 'owes']) for (const d of Object.keys(S[f] ?? {})) if (has(d)) delete S[f][d];
+            for (const f of ['knows', 'seeds', 'roles']) if (S[f]) delete S[f][n];
+        }
+    },
     stateLines: (S) => { const L = Object.values(S.list).filter((p) => !p.gone); return [`known people: ${L.length ? L.map((p) => p.name).join(', ') : '(none recorded)'}`]; },
     note(S, env) {
         const here = env.peek('scene')?.with ?? null;
@@ -120,11 +131,14 @@ export default {
         st.notes ??= {};
         st.alias = st.alias && typeof st.alias === 'object' ? st.alias : {};
         const near = closeness(api.env.peek('bonds'), api.env.peek('heart'), api.env.user);
+        const showAt = Number(api.env.peekStore?.('heart')?.showAt) || SHOW_AT;
+        // only people who matter: in the scene now, or 💗 애정 at the bar (the rest folded); without 💗 the closest 8
+        const listOf = (rows) => { const sp = byHeart(rows.map(([n]) => n), api.env.peek('heart'), api.env.user, here, showAt); if (!sp) return foldRest(rows.map(([, h]) => h)); const H = Object.fromEntries(rows); return foldUnder(sp.shown.map((n) => H[n]), sp.rest.map((n) => H[n]), showAt); };
         const L = Object.values(S.list).sort((a, b) => (here.includes(b.name) - here.includes(a.name)) || (near(b.name) - near(a.name)) || b.i - a.i);
         const calls = (n) => Object.entries(S.calls ?? {}).filter(([d]) => d.startsWith(`${n}>`) || d.endsWith(`>${n}`)).map(([d, c]) => `<span class="mb4-chip">${esc(d.replace('>', ' → '))} 「${esc(c.v)}」</span>`).join('');
         const merge = lookalikes(L.map((p) => p.name)).filter(([a, b]) => !st.alias[b.toLowerCase()] && !st.alias[a.toLowerCase()]);
         el.innerHTML = (merge.length ? card('🔀 같은 사람인가요?', merge.slice(0, 4).map(([a, b]) => `<div class="mb4-row"><span class="mb4-row-v">${esc(a)} · ${esc(b)}</span><button class="mb4-btn ghost sm" data-act="merge" data-v="${esc(`${b}|${a}`)}">하나로</button></div>`).join(''), 'warn') : '')
-            + (L.length ? foldRest(L.map((p) => card('', `
+            + (L.length ? listOf(L.map((p) => [p.name, card('', `
             ${person(p.name, p.about || '아직 소개가 없어요', `${here.includes(p.name) ? pill('지금 여기', 'good') : ''}${p.gone ? pill('떠남', 'bad') : ''}`)}
             ${p.seen?.length ? `<p class="mb4-hint">다르게 적힌 이름: ${esc(p.seen.join(', '))}</p>` : ''}
             ${(p.facts ?? []).length > 1 ? `<div class="mb4-row"><span class="mb4-row-k">📜 전에 적힌 것</span><span class="mb4-row-v">${esc(p.facts.slice(0, -1).reverse().join(' · '))}</span></div>` : ''}
@@ -142,8 +156,9 @@ export default {
                 <label class="mb4-label">취향 · 버릇 더하기<input class="mb4-input" data-pf="seed" data-n="${esc(p.name)}" maxlength="80" placeholder="예: 단 걸 싫어함"></label>
                 <label class="mb4-label">다른 이름 더하기<input class="mb4-input" data-pf="alias" data-n="${esc(p.name)}" maxlength="40" placeholder="별명 · 본명"></label>
                 <div class="mb4-btnrow"><input class="mb4-input" data-pf="callto" data-n="${esc(p.name)}" maxlength="40" placeholder="누구를"><input class="mb4-input" data-pf="callas" data-n="${esc(p.name)}" maxlength="40" placeholder="뭐라고 부르나"></div>
-                <div class="mb4-btnrow"><button class="mb4-btn" data-act="pfix" data-v="${esc(p.name)}">고치기</button><button class="mb4-btn ghost" data-act="gone" data-v="${esc(p.name)}">${p.gone ? '↩ 돌아왔어요' : '👋 이야기에서 떠남'}</button></div>
-            </details>`))) : empty('👥', '아직 만난 사람이 없어요', '새 인물이 나오면 여기 생겨요'))
+                <div class="mb4-btnrow"><button class="mb4-btn" data-act="pfix" data-v="${esc(p.name)}">고치기</button><button class="mb4-btn ghost" data-act="hide" data-v="${esc(p.name)}">🗑 지우기</button><button class="mb4-btn ghost" data-act="gone" data-v="${esc(p.name)}">${p.gone ? '↩ 돌아왔어요' : '👋 이야기에서 떠남'}</button></div>
+            </details>`)])) : empty('👥', '아직 만난 사람이 없어요', '새 인물이 나오면 여기 생겨요'))
+            + (Object.keys(st.hide ?? {}).length ? card('🗑 지운 사람', `<div class="mb4-chips">${Object.keys(st.hide).map((n) => `<button class="mb4-btn ghost sm" data-act="unhide" data-v="${esc(n)}">↩ ${esc(n)}</button>`).join('')}</div>${hint('누르면 되살아나요. 이야기에 다시 나와도 저절로 돌아와요.')}`) : '')
             + card('＋ 사람 더하기', `<div class="mb4-btnrow"><input class="mb4-input" data-f="nname" maxlength="40" placeholder="이름"><input class="mb4-input" data-f="nabout" maxlength="100" placeholder="어떤 사람"><button class="mb4-btn ghost" data-act="padd">넣기</button></div>`)
             + card('🔀 이름 합치기', `${Object.keys(st.alias).length ? Object.entries(st.alias).map(([k, v]) => `<div class="mb4-row"><span class="mb4-row-v">${esc(k)} → ${esc(v)}</span><button class="mb4-x" data-act="unalias" data-v="${esc(k)}" aria-label="풀기">✕</button></div>`).join('') : ''}
                 <div class="mb4-btnrow"><input class="mb4-input" data-f="from" maxlength="40" placeholder="다른 이름 (예: 별명)"><input class="mb4-input" data-f="to" maxlength="40" placeholder="원래 이름"><button class="mb4-btn ghost" data-act="alias">합치기</button></div>`)
@@ -154,6 +169,8 @@ export default {
             merge: (v) => { const [from, to] = v.split('|'); st.alias[from.toLowerCase()] = to; save(); },
             alias: () => { const from = (el.querySelector('[data-f="from"]').value ?? '').trim(), to = (el.querySelector('[data-f="to"]').value ?? '').trim(); if (from && to && from !== to) { st.alias[from.toLowerCase()] = to; save(); } },
             unalias: (k) => { delete st.alias[k]; save(); },
+            hide: (n) => { (st.hide ??= {})[n] = Math.max(api.env.last ?? 0, S.list[n]?.i ?? 0); api.toast(`${n}을(를) 목록에서 지웠어요.`); save(); },
+            unhide: (n) => { if (st.hide) delete st.hide[n]; save(); },
             pfix: (n) => {
                 const g = (k) => String(el.querySelector(`[data-pf="${k}"][data-n="${CSS.escape(n)}"]`)?.value ?? '').trim(), P = S.list[n] ?? {};
                 let did = 0;

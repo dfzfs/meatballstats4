@@ -92,7 +92,7 @@ export default {
             };
             el.innerHTML = `<div class="mb4-list mbx-list">
                 <button class="mbx-row" data-act="group"><span class="mb4-face mbx-gface">💬</span><span class="mbx-row-t"><b>단체방</b><small>${groupOn ? (gl ? `${esc(gl.me ? '나' : gl.who)}: ${esc(clip(gl.t, 50))}` : '인물들끼리 떠드는 방') : '꺼져 있어요 · 눌러서 켜기'}</small></span></button>
-                ${k.foldRest(known.map(row))}</div>
+                ${(() => { const at = Number(env.peekStore?.('heart')?.showAt) || k.SHOW_AT, sp = k.byHeart(known, env.peek('heart'), env.user, env.peek('scene')?.with ?? [], at, (n) => (T[n] ?? []).length > 0); return sp ? k.foldUnder(sp.shown.map(row), sp.rest.map(row), at) : k.foldRest(known.map(row)); })()}</div>
                 ${known.length ? '' : k.hint('이야기에 인물이 나오면 여기 떠요. 이름을 직접 적어 추가할 수도 있어요.')}
                 <div class="mb4-btnrow"><input class="mb4-input" data-f="new" maxlength="40" placeholder="＋ 이름 직접 적어 추가"><button class="mb4-btn ghost" data-act="add">추가</button></div>
                 ${st._panel === 'cfg' ? settings() : ''}`;

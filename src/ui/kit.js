@@ -126,3 +126,15 @@ export function closeness(bonds, heart, me) {
 }
 // The first `keep` rows as they are, the rest folded under «나머지 n명».
 export const foldRest = (rows, keep = 8) => (rows.length <= keep ? rows.join('') : `${rows.slice(0, keep).join('')}<details class="mb4-more"><summary>나머지 ${rows.length - keep}명</summary>${rows.slice(keep).join('')}</details>`);
+
+// 💗 Who is worth listing: someone in the scene now, someone the caller keeps (`keep`), or someone whose 애정 toward
+// the person's character has reached the bar set in 💗 호감 (default 30; scores start at 20). The rest are folded.
+// Returns null when 💗 호감 is off (no score to go by).
+export const SHOW_AT = 30;
+export function byHeart(names, heart, me, here = [], at = SHOW_AT, keep = () => false) {
+    if (!heart?.d) return null;
+    if (at <= 20) return { shown: names, rest: [] };   // «모두»
+    const ok = (n) => here.includes(n) || keep(n) || (Number(heart.d[`${n}>${me}`]?.a) || 0) >= at;
+    return { shown: names.filter(ok), rest: names.filter((n) => !ok(n)) };
+}
+export const foldUnder = (shown, rest, at = SHOW_AT) => `${shown.join('')}${rest.length ? `<details class="mb4-more"><summary>애정 ${at} 아래 ${rest.length}명</summary>${rest.join('')}</details>` : ''}`;

@@ -290,6 +290,14 @@ export default {
 .mb4-bd-at label { display: flex; flex-direction: column; font-size: 11.5px; color: var(--sub); }
 .mb4-bd-at input { width: 58px; }
 `,
+    // 🗑 a pair the person removed by hand stays away until a newer reply touches it again
+    adjust(S, env) {
+        const hidePeople = env.peekStore?.('people')?.hide ?? {};
+        for (const [key, P] of Object.entries(S.pairs ?? {})) {
+            const at = env.store?.hide?.[key];
+            if ((at != null && P.i <= at) || [P.a, P.b].some((n) => hidePeople[n] != null && P.i <= hidePeople[n])) delete S.pairs[key];
+        }
+    },
     render(el, api) {
         const S = api.state() ?? { pairs: {}, leads: [] }, st = api.store, env = api.env;
         st.friend = st.friend && typeof st.friend === 'object' ? st.friend : {};
@@ -330,6 +338,7 @@ export default {
                         <div class="mb4-btnrow tight"><select class="mb4-input" data-act="bsel" data-k="feel" data-n="${esc(`${a}>${b}`)}"><option value="">💭 마음의 결…</option>${FEELS.map((x) => `<option value="${x}">${esc(FEEL_KO[x] ?? x)}</option>`).join('')}</select>
                         <select class="mb4-input" data-act="bsel" data-k="touch" data-n="${esc(`${a}>${b}`)}"><option value="">🤝 스킨십…</option>${[['brush', '스침'], ['hand', '손'], ['hug', '포옹'], ['kiss', '입맞춤'], ['more', '그 이상']].map(([x, n]) => `<option value="${x}">${n}</option>`).join('')}</select></div></div>`).join('')}
                     <p class="mb4-hint">고친 값은 마지막 답에 붙어요. 📒 기록에서 되돌릴 수 있어요.</p>
+                    <div class="mb4-btnrow"><button class="mb4-btn ghost sm" data-act="bdel" data-v="${esc(keyOf(P.a, P.b))}|${P.i}">🗑 이 사이 지우기</button></div>
                 </details>
                 <details class="mb4-card" style="margin-top:10px"><summary>🎬 다음 답 한 번만</summary>
                     <div class="mb4-btnrow">${btn('lead', '먼저 나서게')}${btn('refuse', '거절하게')}${btn('give', '넘어가 주게')}${btn('burst', '참던 게 터지게')}</div>
@@ -343,6 +352,7 @@ export default {
         el.innerHTML = (L.length ? L.map(pairCard).join('') : empty('💞', '아직 기록된 사이가 없어요', '이야기가 진행되면 여기 쌓여요'))
             + settings + hint('단계는 글에 실제로 나온 만큼만 올라가요. AI에는 「한 번에 한 걸음」만 알려 줘요.');
         const save = () => { api.save(); api.redraw(); };
+        el.querySelectorAll('[data-act="bdel"]').forEach((b) => b.addEventListener('click', (e) => { e.stopPropagation(); const [key, i] = b.dataset.v.split('|'); (st.hide ??= {})[key] = Math.max(env.last ?? 0, +i || 0); api.toast('지웠어요. 이야기에서 다시 얽히면 돌아와요.'); save(); }));
         acts(el, {
             bfix: (v) => { const i = v.indexOf('|'); if (api.fix(v.slice(0, i), v.slice(i + 1))) api.toast('고쳤어요.'); },
             btie: (k) => { const t = String(el.querySelector(`[data-bf="tie"][data-n="${CSS.escape(k)}"]`)?.value ?? '').trim(); if (t && api.fix('tie', `${k}=${t}`)) api.toast('고쳤어요.'); },
