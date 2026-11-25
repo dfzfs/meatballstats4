@@ -1,6 +1,7 @@
 // Meatball — entry point. Kept tiny on purpose: with the master switch off, this file and the settings row are
 // all that runs. The engine (src/st/runtime.js) and the phone (src/ui/phone.js) are imported only when needed.
 import { ctx, cfg, saveCfg, toast } from './src/st/host.js';
+import { paint } from './src/st/look.js';
 
 let runtime = null, phone = null;
 const loadRuntime = async () => (runtime ??= await import('./src/st/runtime.js'));
@@ -50,7 +51,7 @@ function mountLauncher() {
         const ready = async () => {
             if (done) return;
             done = true;
-            mountSettings(); mountLauncher();
+            mountSettings(); mountLauncher(); paint();
             if (!cfg().on) return;
             await (await loadRuntime()).boot();
             if (!cfg().asked) toast('🪄 메뉴의 「😼 미트볼」을 눌러 쓸 기능을 골라 주세요.');

@@ -4,6 +4,7 @@ import { ctx, cfg, saveCfg, store, saveChat, hasChat, profiles, names, toast, VE
 import { BUILTIN, PRESETS, COST, SHELVES, entryOf, homeOf } from '../apps/catalog.js';
 import { esc } from '../core/text.js';
 import * as kit from './kit.js';
+import { ACCENTS, fonts, fontOf, loadFonts, paint, isDark } from '../st/look.js';
 import { trCfg, CATS as TR_CATS, ENGINES as TR_ENGINES, LANGS as TR_LANGS } from '../core/tr.js';
 const { TOD_KO, room } = kit;
 
@@ -45,8 +46,6 @@ export const WALLS = [
     ['mint', '민트', 'linear-gradient(160deg,#e3f5e6 0%,#c4e8cf 50%,#fbf8e8 100%)', '#d6efdc'],
     ['night', '밤', 'linear-gradient(180deg,#25253f 0%,#4b4e6d 55%,#9a8c98 100%)', '#34344f'],
 ];
-const ACCENTS = [['', '코랄', '#e2725b'], ['pink', '분홍', '#e0567f'], ['violet', '보라', '#7c5cff'], ['blue', '파랑', '#3a8ee6'], ['green', '초록', '#2f9e7a'], ['ink', '먹색', '#3d3a4b']];
-const FONTS = [['', '기본'], ["'OngleipParkDahyeon', sans-serif", '온글잎 박다현체']];
 const WALL_KEY = 'meatball4-wall';
 let wallUrl = null, wallLoading = null;
 const lf = () => globalThis.SillyTavern?.libs?.localforage ?? null;
@@ -77,11 +76,11 @@ function shrink(file, max = 900) {
 }
 export function applyLook() {
     if (!root) return;
-    const L = looks(), acc = ACCENTS.find((a) => a[0] === (L.accent ?? '')) ?? ACCENTS[0];
-    root.classList.toggle('mb4-dark', L.mode === 'dark' || (L.mode !== 'light' && L.wall === 'night'));
+    const L = looks(), { acc, font } = paint();   // the strip above the input box and the labels follow too
+    root.classList.toggle('mb4-dark', isDark(L));
     root.style.setProperty('--a', acc[2]);
     root.style.setProperty('--a-soft', `${acc[2]}24`);
-    root.style.fontFamily = FONTS.some((f) => f[0] === L.font) ? L.font || '' : '';
+    root.style.fontFamily = font.family ? `${font.family}, sans-serif` : '';
     const wall = WALLS.find((w) => w[0] === L.wall);
     let bg = wall?.[2] ?? '';
     const tint = L.wall === 'img' ? L.tint : wall?.[3];
@@ -91,22 +90,36 @@ export function applyLook() {
     root.classList.toggle('mb4-photo', L.wall === 'img' && !!wallUrl);
 }
 function drawLook(body) {
-    const L = looks();
+    const L = looks(), F = fonts(), cur = fontOf(L.font);
+    loadFonts(F.filter((f) => f.url));   // show every font in its own face while choosing
     const thumb = (bg) => (bg ? `style="background:${bg}"` : '');
     body.innerHTML = `${kit.card('🖼 배경화면', `<div class="mb4-walls">${WALLS.map(([id, n, bg]) => `<button class="mb4-wall${(L.wall ?? '') === id ? ' on' : ''}" data-wall="${id}" ${thumb(bg || 'linear-gradient(160deg,#fff8f1,#ffe9e1)')}><span>${n}</span></button>`).join('')}
             <label class="mb4-wall up${L.wall === 'img' ? ' on' : ''}" ${wallUrl ? `style="background:url('${wallUrl}') center/cover"` : ''}><span>🖼 내 사진</span><input type="file" accept="image/*" data-photo hidden></label></div>
             ${kit.hint('사진은 이 브라우저 안에만 저장돼요(설정 파일에 안 들어가요). 크면 저절로 줄여요.')}`)}
         ${kit.card('🎨 테마 색', `<div class="mb4-chips">${ACCENTS.map(([id, n, c]) => `<button class="mb4-opt${(L.accent ?? '') === id ? ' on' : ''}" data-accent="${id}"><i class="mb4-dot" style="background:${c}"></i> ${n}</button>`).join('')}</div>`)}
         ${kit.card('🌗 밝기', `<div class="mb4-seg">${[['', '배경 따라'], ['light', '밝게'], ['dark', '어둡게']].map(([id, n]) => `<button class="${(L.mode ?? '') === id ? 'on' : ''}" data-mode="${id}">${n}</button>`).join('')}</div>`)}
-        ${kit.card('🔤 글꼴', `<div class="mb4-seg">${FONTS.map(([id, n]) => `<button class="${(FONTS.some((f) => f[0] === L.font) ? L.font : '') === id ? 'on' : ''}" data-font="${esc(id)}" style="font-family:${id ? esc(id) : 'inherit'}">${n}</button>`).join('')}</div>`)}
+        ${kit.card('🔤 글꼴', `<div class="mb4-chips">${F.map((f) => `<button class="mb4-opt${cur.id === f.id ? ' on' : ''}" data-font="${esc(f.id)}" style="font-family:${f.family ? esc(f.family) : 'inherit'}">${esc(f.name)}${f.mine ? ` <i class="mb4-x" data-fontdel="${esc(f.id)}" role="button" aria-label="빼기">✕</i>` : ''}</button>`).join('')}</div>
+            <details class="mb4-fontadd"><summary class="mb4-hint">＋ 글꼴 더하기</summary>
+                <input class="mb4-input" data-fn maxlength="40" placeholder="이름 (컴퓨터에 깔린 글꼴이면 그 이름 그대로)">
+                <input class="mb4-input" data-fu maxlength="300" placeholder="글꼴 파일 주소 https://….woff2 (깔린 글꼴이면 비워요)">
+                <div class="mb4-btnrow"><button class="mb4-btn sm" data-fontadd>더하기</button></div>
+                ${kit.hint('눈누 같은 곳의 @font-face 안 url(…) 주소를 넣으면 돼요. 고른 글꼴은 입력창 위 상태 줄 · 답 밑 딱지에도 써요.')}</details>`)}
         <button class="mb4-btn ghost wide" data-lookreset>처음대로 되돌리기</button>
         ${kit.hint('폰 모양만 바뀌어요. AI에 보내는 건 없어요.')}`;
     const set = (k, v) => { looks()[k] = v; saveCfg(); applyLook(); draw(true); };
     body.querySelectorAll('[data-wall]').forEach((b) => b.addEventListener('click', () => set('wall', b.dataset.wall)));
     body.querySelectorAll('[data-accent]').forEach((b) => b.addEventListener('click', () => set('accent', b.dataset.accent)));
     body.querySelectorAll('[data-mode]').forEach((b) => b.addEventListener('click', () => set('mode', b.dataset.mode)));
-    body.querySelectorAll('[data-font]').forEach((b) => b.addEventListener('click', () => set('font', b.dataset.font)));
-    body.querySelector('[data-lookreset]').addEventListener('click', () => { cfg().look = {}; saveCfg(); applyLook(); draw(true); });
+    body.querySelectorAll('[data-font]').forEach((b) => b.addEventListener('click', (e) => { if (e.target.closest('[data-fontdel]')) return; set('font', b.dataset.font); }));
+    body.querySelectorAll('[data-fontdel]').forEach((x) => x.addEventListener('click', (e) => { e.stopPropagation(); const L2 = looks(); L2.fonts = (L2.fonts ?? []).filter((f) => f.id !== x.dataset.fontdel); if (L2.font === x.dataset.fontdel) L2.font = ''; saveCfg(); applyLook(); draw(true); }));
+    body.querySelector('[data-fontadd]')?.addEventListener('click', () => {
+        const name = String(body.querySelector('[data-fn]').value).trim(), url = String(body.querySelector('[data-fu]').value).trim();
+        if (!name) { toast('이름을 적어 주세요.', 'warning'); return; }
+        if (url && !/^https:\/\/[^\s"'()\\<>]+$/i.test(url)) { toast('https:// 로 시작하는 글꼴 파일 주소를 넣어 주세요.', 'warning'); return; }
+        const L2 = looks(), id = `my${Date.now().toString(36)}`;
+        (L2.fonts ??= []).push({ id, name: name.slice(0, 40), url }); L2.font = id; saveCfg(); applyLook(); draw(true); toast('글꼴을 더했어요.');
+    });
+    body.querySelector('[data-lookreset]').addEventListener('click', () => { cfg().look = { fonts: looks().fonts ?? [] }; saveCfg(); applyLook(); draw(true); });
     body.querySelector('[data-photo]').addEventListener('change', async (e) => {
         const f = e.target.files?.[0]; if (!f) return;
         try { const data = await shrink(f); if (await wallSave(data)) { looks().tint = await tintOf(data); saveCfg(); applyLook(); draw(true); toast('배경화면을 바꿨어요.'); } } catch (x) { toast('그림을 읽지 못했어요.', 'warning'); }
