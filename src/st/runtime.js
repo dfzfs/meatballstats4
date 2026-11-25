@@ -36,7 +36,7 @@ let listening = false;
 
 const host = {
     chat: () => ctx().chat ?? [],
-    store, cfg, saveChat, saveCfg, names, cardKey,
+    store, cfg, saveChat, saveCfg, names, cardKey, toast,
     put(slot, text) { const s = SLOT[slot]; try { ctx().setExtensionPrompt(s.key, text || '', IN_CHAT, s.depth, false, SYSTEM); } catch (e) { console.warn('[meatball] could not place the note', e); } },
     changed() { try { document.dispatchEvent(new CustomEvent('mb4:update')); } catch (e) { /* no page */ } },
     gen: () => Q.gen ?? '',

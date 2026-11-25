@@ -286,7 +286,12 @@ export class Engine {
     async ask(prompt, max = 400) {
         if (this.paused()) return '';
         this.stats.taps = (this.stats.taps ?? 0) + 1;
-        try { return String(await this.host.ask(prompt, max) ?? '').trim(); } catch (e) { this.stats.status = `error: ${e?.message ?? e}`; return ''; }
+        try {
+            const out = String(await this.host.ask(prompt, max) ?? '').trim();
+            // a proxy or the API sometimes sends its error as if it were the answer («[upstream 524] … error code: 524»): never shown as a message
+            if (/^\[?\s*upstream\s*\d{3}\b|^error code:?\s*\d{3}\b|^(?:proxy[\s-]?error|upstream (?:error|timeout)|bad gateway|gateway time-?out|service unavailable)\b/i.test(out) || /\berror code:?\s*5\d\d\b/i.test(out.slice(0, 120))) { this.stats.status = `error: ${out.slice(0, 80)}`; this.host.toast?.('AI 연결이 실패했어요 (중계 서버 시간 초과). 잠시 뒤 다시 눌러 주세요.', 'warning'); return ''; }
+            return out;
+        } catch (e) { this.stats.status = `error: ${e?.message ?? e}`; return ''; }
     }
 
     // A new reply arrived: one-time things are spent, then the note is rebuilt.

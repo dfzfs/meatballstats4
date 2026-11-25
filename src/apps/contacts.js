@@ -1,6 +1,7 @@
 // Built into Meatball 4 (was a separately installed app). Fetched only when switched on.
 const esc = (s) => String(s ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
 const clip = (s, n) => { const t = String(s ?? '').trim(); return t.length > n ? t.slice(0, n) : t; };
+import { cycleOn } from './calendar.js';
 const one = (t) => String(t ?? '').replace(/\s*\n+\s*/g, ' ').trim();
 
 // 📞 Contacts: text a character from the phone. One model call per tap, never on its own.
@@ -27,16 +28,19 @@ function awayOf(env, who, p) {
     return null;
 }
 const nowMark = (env) => { const sc = env.peek?.('scene'); return sc ? sc.day * 24 + (sc.hrs ?? 0) : env.last ?? 0; };
-const TAG = /[\[(【]\s*(읽씹|안\s*읽음|잠수|선물|송금|약속|위치|사진|영상|yes|no)\s*[:：]?\s*([^\])】\n]*)[\])】]/gi;
+const TAG = /[\[(【]\s*(읽씹|안\s*읽음|잠수|선물|송금|약속|위치|사진|영상|입력\s*중|스크린샷|캡처|차단\s*해제|차단|꺼짐|서비스\s*불가|yes|no)\s*[:：]?\s*([^\])】\n]*)[\])】]/gi;
 // Reply text -> { lines, seen (left on read), unread, quiet: { why, hours }, gift, money, answer: 'yes'|'no'|'' }
 function parseReply(raw) {
-    const o = { lines: [], seen: false, unread: false, quiet: null, gift: '', money: 0, answer: '', promise: '', place: '', media: [] };
+    const o = { lines: [], seen: false, unread: false, quiet: null, gift: '', money: 0, answer: '', promise: '', place: '', media: [], typed: false, shot: false, block: '', off: null };
     const s = String(raw ?? '').replace(/<think(?:ing)?>[\s\S]*?<\/think(?:ing)?>/gi, '');
     for (const m of s.matchAll(TAG)) {
         const k = m[1].replace(/\s/g, '').toLowerCase(), v = m[2].trim();
         if (k === '읽씹') o.seen = true; else if (k === '안읽음') o.unread = true;
         else if (k === '잠수') { const [why, h] = v.split('|').map((x) => x.trim()); o.quiet = { why: clip(why, 30), hours: Math.max(1, Math.min(12, +String(h ?? '').replace(/\D/g, '') || 3)) }; }
         else if (k === '선물') o.gift = clip(v, 40); else if (k === '송금') o.money = Math.max(0, +v.replace(/[^\d]/g, '') || 0);
+        else if (k === '입력중') o.typed = true; else if (k === '스크린샷' || k === '캡처') o.shot = true;
+        else if (k === '차단해제') o.block = 'off'; else if (k === '차단') o.block = 'on';
+        else if (k === '꺼짐' || k === '서비스불가') { const [why, h] = v.split('|').map((x) => x.trim()); o.off = { why: why || (k === '꺼짐' ? '전화가 꺼져 있어요' : '서비스 지역이 아니에요'), hours: Math.max(1, Math.min(24, +String(h ?? '').replace(/\D/g, '') || 3)) }; }
         else if (k === '약속') o.promise = v; else if (k === '위치') o.place = v;
         else if (k === '사진' || k === '영상') { if (v) o.media.push({ kind: k, v }); }
         else if (k === 'yes' || k === 'no') o.answer = k;
@@ -128,14 +132,17 @@ export default {
             : st._panel === 'promise' ? k.card('📌 약속', `<input class="mb4-input" data-f="prom" placeholder="무엇을 · 언제 (예: 금요일에 같이 장 보기)"><div class="mb4-btnrow"><button class="mb4-btn" data-act="prom" data-v="me">내가 할게</button><button class="mb4-btn ghost" data-act="prom" data-v="them">해 달라고</button></div>`)
             : st._panel === 'loc' ? k.card('📍 위치 보내기', `<div class="mb4-btnrow"><input class="mb4-input" data-f="loc" value="${esc(env.peek('scene')?.loc ?? '')}" placeholder="어디"><button class="mb4-btn" data-act="loc">보내기</button></div>`)
             : st._panel === 'pic' || st._panel === 'vid' ? k.card(st._panel === 'pic' ? '📷 사진 보내기' : '🎬 영상 보내기', `<textarea class="mb4-input" rows="2" data-f="media" placeholder="어떤 ${st._panel === 'pic' ? '사진' : '영상'}인지 글로 (예: 창밖 노을)"></textarea><div class="mb4-btnrow"><button class="mb4-btn" data-act="media" data-v="${st._panel}">보내기</button></div>`)
+            : st._panel === 'rule' ? k.card(`📝 ${esc(who)}에게만 지시`, `<textarea class="mb4-input" rows="3" data-f="rule" placeholder="예: 존댓말로, 장난스럽게, 내 컨디션을 먼저 물어봐">${esc(P.rule ?? '')}</textarea><div class="mb4-btnrow"><button class="mb4-btn sm" data-act="ruleSave">저장</button><button class="mb4-btn ghost sm" data-act="panel" data-v="">닫기</button></div>`)
             : st._panel === 'cfg' ? settings() : '';
         el.innerHTML = `${prof}${P.sum ? `<button class="mbx-sum" data-act="panel" data-v="sum">🧠 ${esc(P.sum)}</button>` : ''}
             ${away ? `<div class="mbx-away">${away.sleep ? '😴 자는 시간이에요. 보내 두면 깬 뒤 「답장 받기」로 받아요.' : `💤 ${esc(away.why)} — 지금은 연락이 안 돼요.`}</div>` : ''}
-            ${['sum', 'cfg'].includes(st._panel) ? panel : ''}
-            <div class="mbx-thread">${idx.map(([m]) => `<div class="mbx-b ${m.me ? 'me' : 'them'}">${m.me ? (m.wait && !m.read ? '<em class="mbx-one">1</em>' : '') : `<span class="mb4-face mbx-av">${k.face(who)}</span>`}<div class="mbx-bubble${m.letter ? ' letter' : ''}">${m.letter ? '✉️ ' : ''}${esc(m.text)}${m.att ? `<small>${esc(m.att)}</small>` : ''}</div></div>`).join('') || `<p class="mb4-hint mb4-center">${esc(who)}에게 첫 문자를 보내 보세요.</p>`}
+            ${['sum', 'cfg', 'rule'].includes(st._panel) ? panel : ''}
+            <div class="mbx-thread">${idx.map(([m]) => m.sys ? `<p class="mbx-sys">${esc(m.text)}</p>` : `<div class="mbx-b ${m.me ? 'me' : 'them'}">${m.fail ? '<em class="mbx-fail">!</em>' : ''}${m.me ? (m.wait && !m.read ? '<em class="mbx-one">1</em>' : '') : `<span class="mb4-face mbx-av">${k.face(who)}</span>`}<div class="mbx-bubble${m.letter ? ' letter' : ''}">${m.letter ? '✉️ ' : ''}${esc(m.text)}${m.att ? `<small>${esc(m.att)}</small>` : ''}</div></div>`).join('') || `<p class="mb4-hint mb4-center">${esc(who)}에게 첫 문자를 보내 보세요.</p>`}
+                ${st._typing === who ? `<div class="mbx-b them"><span class="mb4-face mbx-av">${k.face(who)}</span><div class="mbx-bubble mbx-typing"><i></i><i></i><i></i></div></div>` : ''}
+                ${P.blocked ? '<p class="mbx-sys">🚫 차단된 상태예요. 보내도 전해지지 않아요.</p>' : P.off && nowMark(env) < P.off.until ? `<p class="mbx-sys">📵 ${esc(P.off.why)}</p>` : ''}
                 ${coming.length ? `<p class="mb4-hint mb4-center">✉️ 답장 편지가 오는 중 (${Math.min(...coming.map((m) => m.arrive)) - day}일 뒤)</p>` : ''}
                 ${waiting && !away ? `<div class="mbx-retry"><span>${P.note === 'seen' ? '읽고 답이 없어요.' : P.note === 'unread' ? '아직 안 읽었어요.' : '아직 답장이 없어요.'}</span><button class="mb4-btn ghost sm" data-act="reply">답장 받기</button></div>` : ''}</div>
-            ${['sum', 'cfg'].includes(st._panel) ? '' : panel}<div class="mbx-dock"><button class="mb4-btn ghost mbx-plus${st._panel === 'att' ? ' on' : ''}" data-act="panel" data-v="att" aria-label="첨부">${st._panel === 'att' ? '✕' : '＋'}</button><textarea class="mb4-input mbx-in" data-f="msg" rows="1" placeholder="${away ? '보내 두면 깼을 때 답장해요' : '문자 보내기'}">${esc(st._draft?.[who] ?? '')}</textarea><button class="mb4-btn mbx-go" data-act="send">보내기</button></div>
+            ${['sum', 'cfg', 'rule'].includes(st._panel) ? '' : panel}<div class="mbx-dock"><button class="mb4-btn ghost mbx-plus${st._panel === 'att' ? ' on' : ''}" data-act="panel" data-v="att" aria-label="첨부">${st._panel === 'att' ? '✕' : '＋'}</button><textarea class="mb4-input mbx-in" data-f="msg" rows="1" placeholder="${away ? '보내 두면 깼을 때 답장해요' : '문자 보내기'}">${esc(st._draft?.[who] ?? '')}</textarea><button class="mb4-btn mbx-go" data-act="send">보내기</button></div>
             ${edit([...(P.sum != null ? [{ name: 'sum', i: 0, label: '🧠 한 줄 요약', value: P.sum, rows: 2 }] : []), ...idx.map(([m, i]) => ({ name: 'msg', i, label: `${m.me ? '나' : who}${m.letter ? ' · 편지' : ''}`, value: m.text, rows: 2 }))])}`;
         api.menu([
             { icon: '📨', label: '먼저 연락 오게', sub: 'AI 1회', disabled: !!P.dnd, act: () => run('first') },
@@ -144,6 +151,8 @@ export default {
             ...(askKind ? [{ icon: askKind === 'confess' ? '💌' : '💍', label: askKind === 'confess' ? '문자로 고백하기' : '문자로 청혼하기', sub: 'AI 1회', act: () => run('ask', askKind) }] : []),
             { icon: P.dnd ? '🔔' : '🔕', label: P.dnd ? '방해 금지 풀기' : '방해 금지', sub: '켜면 먼저 연락하지 않아요', act: () => { P.dnd = !P.dnd; api.save(); api.redraw(); } },
             { icon: '🧠', label: '한 줄 요약', sub: P.sum ? '보기 · 고치기' : '적어 두면 오래된 일도 기억해요', act: () => { st._panel = 'sum'; api.redraw(); } },
+            { icon: '📝', label: '이 사람에게만 지시', sub: P.rule ? P.rule : '말투 · 하지 말 것 · 챙길 것', act: () => { st._panel = 'rule'; api.redraw(); } },
+            ...(P.blocked ? [{ icon: '✅', label: '차단이 풀렸어요', sub: '이야기 속에서 풀렸을 때', act: () => { delete P.blocked; api.save(); api.redraw(); } }] : []),
             { icon: '⚙️', label: '연락 설정', act: () => { st._panel = 'cfg'; api.redraw(); } },
         ]);
         const box = el.querySelector('.mbx-thread'); if (box) setTimeout(() => el.querySelector('.mbx-dock')?.scrollIntoView({ block: 'nearest' }), 0);
@@ -161,7 +170,8 @@ export default {
             return k.card('⚙️ 연락 설정', `<label class="mb4-sw"><span><b>다음 답에 알리기</b><small>주고받은 문자를 본편 AI가 한 번 알아요</small></span><input type="checkbox" data-act="tell" ${st.tell !== false ? 'checked' : ''}><i></i></label>
                 <label class="mb4-sw"><span><b>연락이 끊길 때도 있게</b><small>밤엔 자고, 가끔 잠수도 타요</small></span><input type="checkbox" data-act="cut" ${cfg.cut !== false ? 'checked' : ''}><i></i></label>
                 <label class="mb4-label" style="margin:8px 0 6px">기억 분량</label><div class="mb4-seg">${[['short', '짧게'], ['mid', '보통'], ['long', '길게']].map(([v, n]) => `<button class="${(cfg.recall ?? 'mid') === v ? 'on' : ''}" data-act="recall" data-v="${v}">${n}</button>`).join('')}</div>
-                ${k.hint('보내기 · 답장 받기 · 먼저 연락 · 요약은 누를 때마다 AI를 1번 불러요. 그 밖엔 0이에요.')}
+                <label class="mb4-label" style="margin:10px 0 6px">📝 문자 지시 (모든 사람)</label><textarea class="mb4-input" rows="3" data-f="crule" placeholder="예: 이모티콘 많이, 생리 중이면 챙겨 주기, 다정하게">${esc(cfg.rule ?? '')}</textarea><div class="mb4-btnrow"><button class="mb4-btn sm" data-act="cruleSave">저장</button></div>
+                ${k.hint('보내기 · 답장 받기 · 먼저 연락 · 요약은 누를 때마다 AI를 1번 불러요. 그 밖엔 0이에요. 호감 · 생리 주기 · 다가오는 달력 일정은 켜져 있으면 저절로 알려 줘요.')}
                 <div class="mb4-btnrow"><button class="mb4-btn ghost sm" data-act="panel" data-v="">닫기</button></div>`);
         }
         var handlers;
@@ -170,13 +180,23 @@ export default {
             const about = () => { const a = env.peek('people')?.list?.[st.who]?.about ?? ''; return a ? ` (${a})` : ''; };
             const w = st.who, PP = w ? per(st, w) : {};
             const bd = w ? Object.values(env.peek('bonds')?.pairs ?? {}).find((x) => (x.a === w && x.b === env.user) || (x.b === w && x.a === env.user)) : null;
-            const tone = bd ? `\n[Where they stand]\nRelationship: ${bd.tie || 'not named yet'}; how close they have physically got so far: ${bd.lvl ?? 0} of 5. Keep the warmth of the texts at exactly that level.\n` : '';
+            const PP_rule = (n) => String(per(st, n).rule ?? '').trim();
+            const hdW = w ? env.peek('heart')?.d?.[`${w}>${user}`] : null, cal = env.peekStore?.('calendar') ?? {}, scD = env.peek('scene')?.day;
+            const cyc = cal.cycle?.on && scD != null ? (() => { const c = cycleOn(cal.cycle, scD); return c ? `${user}'s period: day ${c} of the cycle${(cal.cycle.starts ?? []).some((x) => scD >= x && scD < x + (cal.cycle.dur ?? 5)) ? ' (on her period now)' : ''}.` : ''; })() : '';
+            const soon = Array.isArray(cal.marks) && cal.start ? cal.marks.map((m) => ({ m, d: Math.round((Date.parse(`${m.date}T00:00:00Z`) - Date.parse(`${cal.start}T00:00:00Z`)) / 86400000) + 1 - (scD ?? 1) })).filter((x) => x.d >= 0 && x.d <= 7).map((x) => `${x.m.label} ${x.d === 0 ? 'today' : `in ${x.d} day(s)`}`) : [];
+            const aware = [hdW ? `How ${w} feels about ${user} (0-100): affection ${hdW.a}, trust ${hdW.t}${hdW.j >= 30 ? ', jealous' : ''}. Let it show in the texts.` : '', cyc, soon.length ? `Dates coming up: ${soon.join('; ')}.` : '',
+                cfg.rule ? `How texts should go (from ${user}): ${cfg.rule}` : '', w && PP_rule(w) ? `For ${w} in particular: ${PP_rule(w)}` : ''].filter(Boolean);
+            const tone = (bd ? `\n[Where they stand]\nRelationship: ${bd.tie || 'not named yet'}; how close they have physically got so far: ${bd.lvl ?? 0} of 5. Keep the warmth of the texts at exactly that level.\n` : '') + (aware.length ? `\n[Also keep in mind]\n${aware.join('\n')}\n` : '');
             const story = () => clip(env.recent(1)[0] ?? '', 1500);
-            const replyPrompt = (extra = '') => `[TASK] Do NOT continue the story and do not narrate. Write ONLY ${w}'s text-message reply to ${user}'s latest texts, as ${w}${about()} would type it on a phone right now.\n\n[What is known]\n${facts()}\n${PP.sum ? `Summary of their earlier texts: ${PP.sum}\n` : ''}\n[The story so far, latest part]\n${story()}\n\n[Texts, oldest first]\n${memory(w, user, T[w] ?? [], cfg.recall)}\n${tone}${extra}\nShort, like real texts: one text per line (usually 1 to 3), same language as the texts, no name tag, no quotes, no narration.\nOnly if the relationship is bad, ${w} is upset or busy, ${w} may not answer: then output exactly [읽씹] or [안읽음] and nothing else.${cfg.cut !== false ? `\nIf ${w} will be unreachable for a while after this (going to sleep, working, upset), add a last line [잠수: short reason | hours 1-12].` : ''}\nIf ${w} sends ${user} a gift or money in this reply, add a last line [선물: item] or [송금: number]; without that line nothing arrives.\nIf ${w} makes a promise or plan with ${user}, add [약속: what, when]. If ${w} shares where they are, add [위치: place]. If ${w} sends a photo or a video, add [사진: what it shows] or [영상: what it shows] (described in words).\nOutput only the messages and tags.`;
+            const replyPrompt = (extra = '') => `[TASK] Do NOT continue the story and do not narrate. Write ONLY ${w}'s text-message reply to ${user}'s latest texts, as ${w}${about()} would type it on a phone right now.\n\n[What is known]\n${facts()}\n${PP.sum ? `Summary of their earlier texts: ${PP.sum}\n` : ''}\n[The story so far, latest part]\n${story()}\n\n[Texts, oldest first]\n${memory(w, user, T[w] ?? [], cfg.recall)}\n${tone}${extra}\nShort, like real texts: one text per line (usually 1 to 3), same language as the texts, no name tag, no quotes, no narration.\nOnly if the relationship is bad, ${w} is upset or busy, ${w} may not answer: then output exactly [읽씹] or [안읽음] and nothing else.${cfg.cut !== false ? `\nIf ${w} will be unreachable for a while after this (going to sleep, working, upset), add a last line [잠수: short reason | hours 1-12].` : ''}\nIf ${w} sends ${user} a gift or money in this reply, add a last line [선물: item] or [송금: number]; without that line nothing arrives.\nIf ${w} makes a promise or plan with ${user}, add [약속: what, when]. If ${w} shares where they are, add [위치: place]. If ${w} sends a photo or a video, add [사진: what it shows] or [영상: what it shows] (described in words).\n\nTexting manners: a real back-and-forth. Do NOT nag, lecture, scold, threaten or give orders; do NOT announce coming over or tell ${user} to open the door / wait up; do NOT end, cut short or walk away from the conversation (no «go to sleep», «talk later», «I'm hanging up») unless ${user} ends it. Answer what ${user} said and leave room to keep talking.\nStatus tags, only when they truly happen: [입력중] (${w} started typing, then stopped and sent nothing), [스크린샷] (${w} screenshotted the chat), [차단] / [차단해제] (${w} blocks / unblocks ${user}), [꺼짐: why | hours] or [서비스불가: why | hours] (the phone cannot be reached).\nOutput only the messages and tags.`;
             const take = (raw, opts = {}) => {
                 const r = parseReply(raw), mine = (T[w] ??= []).filter((m) => m.me && m.wait);
                 for (const m of mine) { if (r.lines.length) delete m.wait; m.read = !r.unread; }
                 PP.note = r.unread ? 'unread' : r.seen ? 'seen' : '';
+                const sys = (t) => (T[w] ??= []).push({ me: false, sys: true, text: t });
+                if (r.block === 'on') { PP.blocked = true; sys(`🚫 ${w}님이 차단했어요`); } else if (r.block === 'off') { delete PP.blocked; sys(`✅ ${w}님이 차단을 풀었어요`); }
+                if (r.off) { PP.off = { why: r.off.why, until: nowMark(env) + (env.peek('scene') ? r.off.hours : r.off.hours * 2) }; sys(`📵 ${r.off.why}`); }
+                if (r.typed) sys(`✍️ ${w}님이 입력하다 멈췄어요`);
                 if (r.quiet) PP.quiet = { why: r.quiet.why, until: nowMark(env) + (env.peek('scene') ? r.quiet.hours : r.quiet.hours * 2) };
                 if (!r.lines.length) { api.toast(r.unread ? '안 읽었어요.' : r.seen ? '읽고 답이 없어요.' : '답장을 받지 못했어요.'); return r; }
                 for (const t of r.lines) T[w].push({ me: false, text: t, ...(opts.letter ? { letter: true, arrive: opts.arrive } : {}) });
@@ -186,11 +206,14 @@ export default {
                 for (const x of r.media) T[w].push({ me: false, text: `${x.kind === '사진' ? '📷' : '🎬'} ${x.v}`, media: x.kind });
                 if (r.place) T[w].push({ me: false, text: `📍 ${r.place}`, media: '위치' });
                 if (r.promise) { T[w].push({ me: false, text: `📌 ${r.promise}`, media: '약속' }); api.fix('promise', `${w}>${user}=${r.promise}`); }
+                if (r.shot) sys(`📸 ${w}님이 대화를 캡처했어요`);
                 if (!opts.letter) st.fresh = { who: w, me: mine.map((m) => m.text).join(' / ') || '(texted first)', them: r.lines.join(' / ') };
                 if (T[w].length > 200) T[w].splice(0, T[w].length - 200);
                 bump(w);
                 return r;
             };
+            // 「입력 중…」 while the reply is being written
+            const call = async (prompt) => { st._typing = w; api.redraw(); try { return await api.ask(prompt); } finally { st._typing = ''; } };
             const busy = (b, t) => { if (b) { b.disabled = true; b.textContent = t; } api.toast(t); };
             const msg = () => k.val(el, '[data-f="msg"]');
             const clear = () => { if (st._draft) delete st._draft[w]; };
@@ -206,16 +229,17 @@ export default {
                 send: async (_v, b) => {
                     const text = msg(); if (!text || !w) return;
                     (T[w] ??= []).push({ me: true, text, wait: true }); clear(); bump(w);
+                    if (PP.blocked || (PP.off && nowMark(env) < PP.off.until)) { T[w].at(-1).fail = true; delete T[w].at(-1).wait; api.toast(PP.blocked ? '차단돼서 보내지지 않았어요.' : PP.off.why); api.save(); api.redraw(); return; }
                     const aw = awayOf(env, w, PP);
                     if (aw) { api.toast(aw.sleep ? '자는 중이에요. 깨면 답장해요.' : `${aw.why} 중이에요.`); api.save(); api.redraw(); return; }
                     api.save(); api.redraw(); busy(null, '답장 기다리는 중…');
-                    take(await api.ask(replyPrompt(), 300));
+                    take(await call(replyPrompt()));
                     api.save(); api.redraw();
                 },
-                reply: async (_v, b) => { busy(b, '받는 중…'); take(await api.ask(replyPrompt(), 300)); api.save(); api.redraw(); },
+                reply: async (_v, b) => { busy(b, '받는 중…'); take(await call(replyPrompt())); api.save(); api.redraw(); },
                 first: async () => {
                     busy(null, `${w}의 연락을 기다리는 중…`);
-                    const raw = await api.ask(`[TASK] Do NOT continue the story and do not narrate. ${w}${about()} texts ${user} first, unprompted, right now. Write ONLY that text message, fitting ${w} and the moment.\n\n[What is known]\n${facts()}\n\n[The story so far, latest part]\n${story()}\n\n[Earlier texts]\n${memory(w, user, T[w] ?? [], cfg.recall) || '(none)'}\n\nShort, one text per line, at most 3 lines, in the language of the story. Output only the messages.`, 250);
+                    const raw = await call(`[TASK] Do NOT continue the story and do not narrate. ${w}${about()} texts ${user} first, unprompted, right now. Write ONLY that text message, fitting ${w} and the moment.\n\n[What is known]\n${facts()}\n\n[The story so far, latest part]\n${story()}\n\n[Earlier texts]\n${memory(w, user, T[w] ?? [], cfg.recall) || '(none)'}\n${tone}\nTexting manners: a real back-and-forth. Do NOT nag, lecture, scold, threaten or give orders; do NOT announce coming over or tell ${user} to open the door / wait up; do NOT end, cut short or walk away from the conversation (no «go to sleep», «talk later», «I'm hanging up») unless ${user} ends it. Answer what ${user} said and leave room to keep talking.\nShort, one text per line (usually 1 to 3), in the language of the story. Output only the messages.`, 250);
                     take(raw); api.save(); api.redraw();
                 },
                 letter: async () => {
@@ -229,6 +253,8 @@ export default {
                     else api.toast('답장을 받지 못했어요.');
                     api.save(); api.redraw();
                 },
+                ruleSave: () => { const t = k.val(el, '[data-f="rule"]'); if (t) PP.rule = t; else delete PP.rule; st._panel = ''; api.save(); api.redraw(); },
+                cruleSave: () => { const t = k.val(el, '[data-f="crule"]'); if (t) cfg.rule = t; else delete cfg.rule; api.toast('저장했어요.'); api.save(); },
                 pay: () => {
                     const n = Math.round(+String(k.val(el, '[data-f="pay"]')).replace(/[^\d]/g, '')); if (!n) return;
                     if (W && n > (W.cash ?? 0)) { api.toast('돈이 모자라요.'); return; }
@@ -248,7 +274,7 @@ export default {
                 ask: async (kind) => {
                     busy(null, '보내는 중…');
                     (T[w] ??= []).push({ me: true, text: ASK_TEXT[kind], wait: true });
-                    const r = take(await api.ask(replyPrompt(`${user} just ${kind === 'confess' ? 'confessed their feelings and asked to date' : 'proposed marriage'}. ${w} answers honestly, as ${w} feels right now. Add a last line [yes] if ${w} accepts or [no] if ${w} turns it down.`), 300));
+                    const r = take(await call(replyPrompt(`${user} just ${kind === 'confess' ? 'confessed their feelings and asked to date' : 'proposed marriage'}. ${w} answers honestly, as ${w} feels right now. Add a last line [yes] if ${w} accepts or [no] if ${w} turns it down.`), 300));
                     if (r.answer === 'yes' && api.fix('tie', `${user}-${w}=${kind === 'confess' ? 'lovers' : 'engaged'}`)) api.toast(kind === 'confess' ? `💗 ${w}와(과) 연인이 됐어요` : `💍 ${w}와(과) 약혼했어요`);
                     else if (r.answer === 'no') api.toast(`${w}이(가) 거절했어요.`);
                     api.save(); api.redraw();
@@ -269,5 +295,5 @@ export default {
 .mbx-thread{display:flex;flex-direction:column;gap:5px;padding:4px 0 10px;min-height:120px}.mbx-b{display:flex;align-items:flex-end;gap:6px}.mbx-b.me{justify-content:flex-end}.mbx-av{width:28px!important;height:28px!important;font-size:15px!important}
 .mbx-bubble{max-width:76%;padding:8px 12px;border-radius:18px;background:var(--card);box-shadow:0 .5px 0 var(--line);overflow-wrap:anywhere;white-space:pre-wrap;line-height:1.45}.mbx-b.them .mbx-bubble{border-bottom-left-radius:6px}.mbx-b.me .mbx-bubble{background:#34c759;color:#fff;border-bottom-right-radius:6px;box-shadow:none}.mbx-bubble small{display:block;font-size:11px;opacity:.75;color:inherit}.mbx-bubble.letter{border-radius:6px;background:#fff7e6;color:#4a3b2a;font-family:serif}.mbx-b.me .mbx-bubble.letter{background:#e8f6ec;color:#234}.mbx-one{font-style:normal;font-size:11px;font-weight:800;color:#f5a623}
 .mbx-retry{display:flex;align-items:center;gap:8px;padding:4px 0 0 34px;font-size:12.5px;color:var(--sub)}
-.mbx-dock{position:sticky;bottom:-26px;display:flex;align-items:flex-end;gap:8px;margin:0 -16px;padding:8px 16px 12px;background:var(--glass);-webkit-backdrop-filter:blur(22px) saturate(1.6);backdrop-filter:blur(22px) saturate(1.6);border-top:.5px solid var(--line);z-index:2}.mb4-phone .mbx-in{flex:1;margin:0;min-height:38px;max-height:120px;resize:none;border-radius:19px!important;field-sizing:content}.mbx-go{border-radius:19px!important;min-height:38px}.mbx-plus{flex:none;width:40px;height:40px;padding:0;border-radius:50%;font-size:20px;line-height:1}.mbx-att{display:grid;grid-template-columns:repeat(6,1fr);gap:6px;margin:0 0 8px}.mbx-att button{display:flex;flex-direction:column;align-items:center;gap:3px;padding:8px 0;border:0;border-radius:14px;background:var(--fill);color:inherit;font:inherit;cursor:pointer}.mbx-att i{font-style:normal;font-size:20px}.mbx-att small{font-size:11px;color:var(--sub)}.mbx-prof{margin:0 0 8px;padding:8px 12px;border-radius:12px;background:var(--fill);font-size:13px}.mbx-prof summary{cursor:pointer;color:var(--sub);list-style:none}.mbx-prof summary::-webkit-details-marker{display:none}.mbx-prof div{display:flex;gap:8px;margin-top:6px}.mbx-prof div span:first-child{flex:none}`,
+.mbx-dock{position:sticky;bottom:-26px;display:flex;align-items:flex-end;gap:8px;margin:0 -16px;padding:8px 16px 12px;background:var(--glass);-webkit-backdrop-filter:blur(22px) saturate(1.6);backdrop-filter:blur(22px) saturate(1.6);border-top:.5px solid var(--line);z-index:2}.mb4-phone .mbx-in{flex:1;margin:0;min-height:38px;max-height:120px;resize:none;border-radius:19px!important;field-sizing:content}.mbx-go{border-radius:19px!important;min-height:38px}.mbx-plus{flex:none;width:40px;height:40px;padding:0;border-radius:50%;font-size:20px;line-height:1}.mbx-att{display:grid;grid-template-columns:repeat(6,1fr);gap:6px;margin:0 0 8px}.mbx-att button{display:flex;flex-direction:column;align-items:center;gap:3px;padding:8px 0;border:0;border-radius:14px;background:var(--fill);color:inherit;font:inherit;cursor:pointer}.mbx-att i{font-style:normal;font-size:20px}.mbx-att small{font-size:11px;color:var(--sub)}.mbx-prof{margin:0 0 8px;padding:8px 12px;border-radius:12px;background:var(--fill);font-size:13px}.mbx-prof summary{cursor:pointer;color:var(--sub);list-style:none}.mbx-prof summary::-webkit-details-marker{display:none}.mbx-prof div{display:flex;gap:8px;margin-top:6px}.mbx-prof div span:first-child{flex:none}.mbx-sys{align-self:center;margin:4px auto;padding:3px 10px;border-radius:10px;background:var(--fill);font-size:12px;color:var(--sub);text-align:center;width:fit-content;max-width:90%}.mbx-fail{font-style:normal;font-weight:800;color:#ff3b30;margin-right:2px}.mbx-typing{display:flex;gap:4px;padding:12px 14px}.mbx-typing i{width:7px;height:7px;border-radius:50%;background:var(--sub);opacity:.4;animation:mbxdot 1.2s infinite}.mbx-typing i:nth-child(2){animation-delay:.2s}.mbx-typing i:nth-child(3){animation-delay:.4s}@keyframes mbxdot{0%,60%,100%{opacity:.25;transform:none}30%{opacity:.9;transform:translateY(-3px)}}`,
 };
