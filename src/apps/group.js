@@ -1,0 +1,61 @@
+// 👥 Group room: the characters' own group chat. On a tap the model writes a few lines of them talking among
+// themselves (one call per tap, never on its own). The person may drop a line in first. Kept per chat; told to the
+// main model only if the person asks («이야기에 알리기»), once.
+import { clip } from '../core/text.js';
+import { esc, card, hint, acts, val, empty, face } from '../ui/kit.js';
+
+const MOODS = [['', '평소처럼'], ['gossip', '뒷이야기'], ['plan', '작당 모의'], ['fight', '티격태격'], ['night', '새벽 감성']];
+const MOOD_EN = { gossip: 'They gossip about what just happened.', plan: 'They are planning something together.', fight: 'They bicker — petty, in character, no real harm.', night: 'It is late; they are sleepy, honest and a little sentimental.' };
+const everyone = (env) => [...new Set([...(env.peek?.('scene')?.with ?? []), ...Object.values(env.peek?.('people')?.list ?? {}).filter((p) => !p.gone).map((p) => p.name), env.char])].filter((n) => n && n !== env.user);
+function parse(raw, members) {
+    const out = [];
+    for (const l of String(raw ?? '').split(/\r?\n/)) {
+        const m = l.match(/^\s*[-*]?\s*\**([^:：*]{1,40})\**\s*[:：]\s*(.+)$/);
+        if (!m) continue;
+        const who = members.find((n) => n.toLowerCase() === m[1].trim().toLowerCase()) ?? m[1].trim();
+        out.push({ who, t: clip(m[2].replace(/^["“]|["”]$/g, ''), 300) });
+    }
+    return out.slice(0, 12);
+}
+
+export default {
+    api: 1, id: 'group', name: '단체방', icon: '💬', color: '#00b4d8', cost: 'tap',
+    desc: '인물들끼리의 단체 대화방. 누르면 자기들끼리 떠드는 몇 줄을 받아요. 내가 한마디 끼어들 수도 있어요.',
+    note(_S, env) { const f = env.store.fresh; return f && env.store.tell ? { now: [`Off the page, in their group chat, this was just said — ${f}. The ones who took part know it; it may colour this reply without being quoted.`] } : null; },
+    onReply(env) { if (env.store.fresh) { env.store.fresh = ''; return true; } return false; },
+    hud: (_S, env) => (env.store.fresh && env.store.tell ? ['💬 단체방'] : []),
+    widget: (_S, env) => (env.store.log ?? []).slice(-2).map((m) => `<div class="mb4-row"><span class="mb4-row-k">${esc(m.who)}</span><span class="mb4-row-v">${esc(clip(m.t, 50))}</span></div>`).join(''),
+    widgetTitle: '단체방',
+    render(el, api) {
+        const st = api.store, env = api.env, all = everyone(env);
+        st.log = Array.isArray(st.log) ? st.log : [];
+        st.in = (Array.isArray(st.in) ? st.in : all.slice(0, 4)).filter((n) => all.includes(n));
+        const mood = MOODS.some((m) => m[0] === st.mood) ? st.mood : '';
+        el.innerHTML = `${card('방에 있는 사람', all.length ? `<div class="mb4-chips">${all.map((n) => `<button class="mb4-opt${st.in.includes(n) ? ' on' : ''}" data-act="who" data-v="${esc(n)}">${face(n)} ${esc(n)}</button>`).join('')}</div>` : hint('아직 아는 사람이 없어요. 👥 인물이나 🧭 장면을 켜면 여기 나와요.'))}
+        ${card('', `<div class="mbx-room">${st.log.slice(-30).map((m) => `<div class="mbx-gl${m.me ? ' me' : ''}"><b>${m.me ? '나' : `${face(m.who)} ${esc(m.who)}`}</b><span>${esc(m.t)}</span></div>`).join('') || '<p class="mb4-hint">아직 조용해요.</p>'}</div>
+            <div class="mb4-chips" style="margin:8px 0">${MOODS.map(([id, n]) => `<button class="mb4-opt${mood === id ? ' on' : ''}" data-act="mood" data-v="${id}">${n}</button>`).join('')}</div>
+            <div class="mb4-btnrow"><input class="mb4-input" data-f="msg" maxlength="200" placeholder="내가 한마디 (비워도 돼요)"><button class="mb4-btn" data-act="go" ${st.in.length >= 2 || (st.in.length === 1) ? '' : 'disabled'}>💬 떠들게 하기</button></div>`)}
+        <label class="mb4-sw"><span><b>이야기에 알리기</b><small>방금 나눈 말을 다음 답에서 본편 AI가 한 번 알아요</small></span><input type="checkbox" data-act="tell" ${st.tell ? 'checked' : ''}><i></i></label>
+        <div class="mb4-btnrow"><button class="mb4-btn ghost sm" data-act="clear" ${st.log.length ? '' : 'disabled'}>🧹 방 비우기</button></div>
+        ${hint('「떠들게 하기」를 누를 때만 AI를 1번 불러요. 본편에는 「이야기에 알리기」를 켰을 때만 가요.')}`;
+        const room = el.querySelector('.mbx-room'); if (room) room.scrollTop = room.scrollHeight;
+        acts(el, {
+            who: (n) => { st.in = st.in.includes(n) ? st.in.filter((x) => x !== n) : [...st.in, n].slice(0, 6); api.save(); api.redraw(); },
+            mood: (v) => { st.mood = v; api.save(); api.redraw(); },
+            tell: (_v, b) => { st.tell = b.checked; api.save(); },
+            clear: () => { st.log = []; st.fresh = ''; api.save(); api.redraw(); },
+            go: async (_v, b) => {
+                const mine = val(el, '[data-f="msg"]');
+                if (mine) st.log.push({ me: true, who: env.user || 'me', t: clip(mine, 200) });
+                b.disabled = true; b.textContent = '떠드는 중…';
+                const P = env.peek('people')?.list ?? {};
+                const raw = await api.ask(`[TASK] Do NOT continue the story and do not narrate. Write the next lines of a phone group chat between these characters: ${st.in.map((n) => `${n}${P[n]?.about ? ` (${P[n].about})` : ''}`).join('; ')}.${mine ? ` ${env.user} is in the room too and just wrote the last line; they react to it.` : ` ${env.user} is not reading right now.`} ${MOOD_EN[mood] ?? 'They talk as they normally would, about what is on their minds.'}\n\n[What is known]\n${api.facts() || '(nothing recorded)'}\n\n[Latest part of the story]\n${clip(env.recent(1)[0] ?? '', 1500)}\n\n[Group chat so far]\n${st.log.slice(-12).map((m) => `${m.who}: ${m.t}`).join('\n') || '(empty)'}\n\nWrite 4 to 7 short chat lines, each exactly "Name: message", every voice distinct, in the language of the story. Nobody says what they could not know. Output only those lines.`, 500);
+                const L = parse(raw, st.in);
+                if (L.length) { st.log.push(...L); if (st.log.length > 120) st.log.splice(0, st.log.length - 120); st.fresh = L.slice(-4).map((m) => `${m.who}: "${m.t}"`).join(' / '); }
+                else api.toast('받지 못했어요. 잠시 뒤 다시 해 보세요.');
+                api.save(); api.redraw();
+            },
+        });
+    },
+    css: '.mbx-room{display:flex;flex-direction:column;gap:6px;max-height:320px;overflow-y:auto}.mbx-gl{align-self:flex-start;max-width:86%;padding:6px 10px;border-radius:14px 14px 14px 4px;background:rgba(70,45,35,.07);overflow-wrap:anywhere}.mbx-gl b{display:block;font-size:11.5px;color:var(--sub)}.mbx-gl.me{align-self:flex-end;border-radius:14px 14px 4px 14px;background:#00b4d8;color:#fff}.mbx-gl.me b{color:rgba(255,255,255,.8)}',
+};

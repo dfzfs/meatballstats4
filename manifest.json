@@ -1,0 +1,12 @@
+{
+    "display_name": "미트볼 (Meatball)",
+    "loading_order": 40,
+    "requires": [],
+    "optional": [],
+    "js": "index.js",
+    "css": "style.css",
+    "author": "Meatball",
+    "version": "4.1.0",
+    "homePage": "https://github.com/dfzfs/meatballstats4",
+    "auto_update": false
+}
