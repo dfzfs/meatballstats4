@@ -80,6 +80,8 @@ export default {
             return;
         }
         const [raw, rest] = split(v), name = canon(raw);
+        // the person's own character is never a person in this list (older records may still name them)
+        if ((k === 'npc' || k === 'gone') && env?.user && name.toLowerCase() === String(env.user).trim().toLowerCase()) return;
         const P = (S.list[name] ??= { name, about: '', first: i, i, gone: '', seen: [] });
         if (raw.trim() !== name && !P.seen.includes(raw.trim())) P.seen.push(raw.trim());   // other spellings, kept for the screen
         P.i = i;

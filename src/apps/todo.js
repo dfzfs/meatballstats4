@@ -2,7 +2,7 @@
 // (the story time 🧭 Scene records is watched, not asked again) and works out what is due or overdue; the main model
 // only gets the open ones, with «due today» / «overdue» when it matters.
 import { clip } from '../core/text.js';
-import { applyTime } from '../core/clock.js';
+import { applyTime, dayKo } from '../core/clock.js';
 import { esc, card, hint, acts, val, empty, pill } from '../ui/kit.js';
 
 // time words say WHEN, not WHAT: two different promises both «by tomorrow evening» are not the same promise
@@ -81,7 +81,7 @@ export default {
         const dueTxt = (p) => (p.due == null ? '' : p.due < day ? pill(`⏰ ${day - p.due}일 지남`, 'bad') : p.due === day ? pill('오늘까지', 'bad') : pill(`${p.due - day}일 남음`));
         const open = S.open.slice().sort((a, b) => (a.due ?? 1e9) - (b.due ?? 1e9));
         const kept = S.closed.filter((p) => (p.st ?? 'kept') === 'kept').length, broken = S.closed.filter((p) => p.st === 'broken').length;
-        el.innerHTML = `${open.length ? open.map((p) => card('', `<div class="mb4-quote"><b>${esc(who(p.what))}</b> ${esc(what(p.what))} ${dueTxt(p)}${p.q ? `<q>${esc(p.q)}</q>` : ''}<small class="mb4-dim">${p.day ?? 1}일째에 한 약속</small></div>
+        el.innerHTML = `${open.length ? open.map((p) => card('', `<div class="mb4-quote"><b>${esc(who(p.what))}</b> ${esc(what(p.what))} ${dueTxt(p)}${p.q ? `<q>${esc(p.q)}</q>` : ''}${dayKo(api.env.peek('scene'), p.day ?? 1, api.env.peekStore?.('calendar')?.start) ? `<small class="mb4-dim">${dayKo(api.env.peek('scene'), p.day ?? 1, api.env.peekStore?.('calendar')?.start)}에 한 약속</small>` : ''}</div>
             <div class="mb4-btnrow tight"><button class="mb4-btn ghost sm" data-act="done" data-v="${esc(p.what)}|kept">✅ 지켰어요</button><button class="mb4-btn ghost sm" data-act="done" data-v="${esc(p.what)}|broken">❌ 어겼어요</button><button class="mb4-btn ghost sm" data-act="done" data-v="${esc(p.what)}|cancelled">🚫 취소</button></div>`)).join('') : empty('📌', '열린 약속이 없어요', '이야기에서 약속이 생기면 여기 쌓여요')}
         ${card('직접 넣기', `<input class="mb4-input" data-f="new" maxlength="120" placeholder="누가 누구에게 무엇을 (예: 나 > 친구 = 책 돌려주기)">
             <div class="mb4-btnrow"><select class="mb4-input" data-f="when">${WHEN.map(([v, n]) => `<option value="${v}">${n}</option>`).join('')}</select><button class="mb4-btn" data-act="add">넣기</button></div>`)}

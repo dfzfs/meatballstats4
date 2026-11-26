@@ -1,0 +1,12 @@
+{
+  "name": "meatballstats4",
+  "private": true,
+  "type": "module",
+  "description": "Tests only. SillyTavern loads the extension from manifest.json; nothing here is needed to run it.",
+  "scripts": {
+    "test": "node --test tests/*.test.mjs"
+  },
+  "devDependencies": {
+    "jsdom": "^26.1.0"
+  }
+}
