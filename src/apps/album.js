@@ -3,6 +3,7 @@
 // stays (the day it was earned is kept); a swiped-away reply does not take it back.
 import { clip, cleanText } from '../core/text.js';
 import { esc, card, hint, acts, empty } from '../ui/kit.js';
+import { dayKo } from '../core/clock.js';
 
 // id, icon, name, how to get it (shown), test(ctx) -> true when earned
 const ACH = [
@@ -45,17 +46,18 @@ export default {
     widget: (_s, env) => { const got = env.store.got ?? {}; const n = Object.keys(got).length; return `<div class="mb4-row"><span class="mb4-row-k">🏆 업적</span><span class="mb4-row-v">${n} / ${ACH.length}${env.store.news?.length ? ` · 새로 ${env.store.news.length}개` : ''}</span></div>${(env.store.shots ?? []).length ? `<div class="mb4-row"><span class="mb4-row-k">📸 추억</span><span class="mb4-row-v">${env.store.shots.length}장</span></div>` : ''}`; },
     render(el, api) {
         const st = api.store, env = api.env;
+        const dk = (d) => (Number.isFinite(d) ? dayKo(env.peek('scene'), d, env.peekStore?.('calendar')?.start) : '');
         check(env);
         const got = st.got ?? {}, news = new Set(st.news ?? []);
         st.shots = Array.isArray(st.shots) ? st.shots : [];
         const tab = st._tab === 'shots' ? 'shots' : 'ach';
         const sc = env.peek('scene');
         el.innerHTML = `<div class="mb4-btnrow tight" style="margin-bottom:10px"><button class="mb4-btn ${tab === 'ach' ? '' : 'ghost '}sm" data-act="tab" data-v="ach">🏆 업적 ${Object.keys(got).length}/${ACH.length}</button><button class="mb4-btn ${tab === 'shots' ? '' : 'ghost '}sm" data-act="tab" data-v="shots">📸 추억 ${st.shots.length}</button></div>
-        ${tab === 'ach' ? `<div class="mbx-ach">${ACH.map(([id, ic, name, how]) => `<div class="mbx-a${got[id] ? ' on' : ''}${news.has(id) ? ' new' : ''}"><span>${got[id] ? ic : '🔒'}</span><b>${esc(name)}</b><small>${got[id] ? '달성' : esc(how)}</small></div>`).join('')}</div>
+        ${tab === 'ach' ? `<div class="mbx-ach">${ACH.map(([id, ic, name, how]) => `<div class="mbx-a${got[id] ? ' on' : ''}${news.has(id) ? ' new' : ''}"><span>${got[id] ? ic : '🔒'}</span><b>${esc(name)}</b><small>${got[id] ? (dk(got[id].day) ? `${dk(got[id].day)} 달성` : '달성') : esc(how)}</small></div>`).join('')}</div>
             ${hint('다른 앱이 이미 아는 것으로만 셈해요. 꺼 둔 앱의 업적은 그 앱을 켜야 열려요.')}`
         : `<button class="mb4-btn wide" data-act="shot">📸 방금 장면 남기기</button>
             <input class="mb4-input" data-f="cap" maxlength="60" placeholder="한 줄 제목 (비워도 돼요)" style="margin-top:6px">
-            ${st.shots.length ? st.shots.slice().reverse().map((x, n) => card(`${esc(x.cap || '남긴 장면')}${x.loc ? ` <small>📍 ${esc(x.loc)}</small>` : ''}`, `<p class="mbx-shot">${esc(x.text)}</p><div class="mb4-btnrow tight"><small class="mb4-dim" style="flex:1">${x.with?.length ? `👥 ${esc(x.with.join(', '))}` : ''}</small><button class="mb4-x" data-act="del" data-v="${st.shots.length - 1 - n}" aria-label="지우기">✕</button></div>`)).join('') : empty('📸', '아직 남긴 장면이 없어요', '마음에 드는 답이 오면 눌러서 남겨요')}`}`;
+            ${st.shots.length ? st.shots.slice().reverse().map((x, n) => card(`${esc(x.cap || '남긴 장면')}${x.loc ? ` <small>📍 ${esc(x.loc)}</small>` : ''}`, `<p class="mbx-shot">${esc(x.text)}</p><div class="mb4-btnrow tight"><small class="mb4-dim" style="flex:1">${dk(x.day) ? `${dk(x.day)} ` : ''}${x.with?.length ? `👥 ${esc(x.with.join(', '))}` : ''}</small><button class="mb4-x" data-act="del" data-v="${st.shots.length - 1 - n}" aria-label="지우기">✕</button></div>`)).join('') : empty('📸', '아직 남긴 장면이 없어요', '마음에 드는 답이 오면 눌러서 남겨요')}`}`;
         if (news.size) { st.news = []; api.save(); }
         if (tab === 'shots') api.kit.editMore(el, api, [
             { name: 'cap', list: st.shots, label: (x) => '제목', get: (x) => x.cap || '', set: (x, t) => { x.cap = t.slice(0, 60); } },

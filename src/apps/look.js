@@ -39,7 +39,11 @@ export default {
         else if (k === 'mark') { const m = clip(rest, 60); if (!P.marks.some((x) => x.toLowerCase() === m.toLowerCase())) P.marks.push(m); if (P.marks.length > 6) P.marks.shift(); }
         else if (k === 'carry') {
             const off = /^[-−]/.test(rest), t = clip(rest.replace(/^[-−]\s*/, ''), 40), low = t.toLowerCase();
-            P.carry = P.carry.filter((x) => !(x.toLowerCase() === low || x.toLowerCase().includes(low) || low.includes(x.toLowerCase())));
+            // the same thing named again replaces it; a loose match takes out ONE thing at most, by whole words ("key" is not "keyring")
+            const exact = P.carry.findIndex((x) => x.toLowerCase() === low);
+            const word = (a, b) => (/^[\x00-\x7f]+$/.test(a + b) ? new RegExp(`(^|[^a-z0-9])${b.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}($|[^a-z0-9])`).test(a) : a.includes(b));
+            const at = exact >= 0 || !low ? exact : P.carry.findIndex((x) => word(x.toLowerCase(), low) || word(low, x.toLowerCase()));
+            if (at >= 0) P.carry.splice(at, 1);
             if (!off) { P.carry.push(t); if (P.carry.length > 8) P.carry.shift(); }
         }
     },

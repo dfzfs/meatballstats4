@@ -108,24 +108,28 @@ export default {
         <details class="mb4-card mb4-edcard"><summary>✏️ 틀린 곳 직접 고치기</summary>
             <label class="mb4-label">장소<input class="mb4-input" data-f="loc" maxlength="120" placeholder="큰 곳 > 작은 곳 > 방" value="${esc(S.loc)}"></label>
             <label class="mb4-label">때<select class="mb4-input" data-f="tod"><option value="">그대로</option>${TOD.map((t) => `<option value="${t}" ${t === S.tod ? 'selected' : ''}>${TOD_KO[t]}</option>`).join('')}</select></label>
+            <label class="mb4-label">며칠째 (앞으로만 넘길 수 있어요)<input class="mb4-input mb4-short" data-f="day" type="number" min="${S.day}" max="${S.day + 3650}" value="${S.day}"></label>
             <label class="mb4-label">날짜 · 요일 · 계절<input class="mb4-input" data-f="date" maxlength="60" placeholder="예: 3월 2일 월요일" value="${esc(S.date)}"></label>
             <label class="mb4-label">날씨<input class="mb4-input" data-f="weather" maxlength="60" value="${esc(S.weather)}"></label>
             <label class="mb4-label">분위기 · 기분<input class="mb4-input" data-f="mood" maxlength="60" value="${esc(S.mood ?? '')}"></label>
             <label class="mb4-label">같이 있는 사람 (쉼표로)<input class="mb4-input" data-f="with" value="${esc(S.with.join(', '))}"></label>
-            <div class="mb4-btnrow"><button class="mb4-btn" data-act="save">고치기</button><button class="mb4-btn ghost" data-act="day">하루 넘기기</button></div>
             <label class="mb4-label">요약 한 줄<input class="mb4-input" data-f="gist" maxlength="220" value="${esc(S.gist)}"></label>
+            <div class="mb4-btnrow"><button class="mb4-btn" data-act="save">고치기</button><button class="mb4-btn ghost" data-act="day">하루 넘기기</button></div>
             ${hint('고친 값은 마지막 답에 붙어요. 그 답을 다시 뽑으면 같이 사라져요.')}
         </details>
-        <label class="mb4-sw"><span><b>요약을 AI에게도 알려 주기</b><small>지난 흐름 세 줄을 쪽지에 넣어요. 긴 이야기에서 앞일을 덜 잊어요. 끄면 화면에만 보여요.</small></span><input type="checkbox" data-act="recap" ${api.cfg.recap ? 'checked' : ''}><i></i></label>`;
+        <label class="mb4-sw"><span><b>요약을 AI에게도 알려 주기</b><small>지난 흐름 세 줄을 쪽지에 넣어요. 긴 이야기에서 앞일을 덜 잊어요. 끄면 화면에만 보여요.</small></span><input type="checkbox" data-act="recap" ${api.cfg.recap ? 'checked' : ''}><i></i></label>
+        <label class="mb4-sw"><span><b>내 글의 시간 건너뛰기 알아보기</b><small>내 메시지에 「다음 날」 「일주일 뒤」가 있으면 답이 그 뒤에서 시작하게 해요.</small></span><input type="checkbox" data-act="skips" ${api.cfg.skips !== false ? 'checked' : ''}><i></i></label>`;
         acts(el, {
             out: (n) => { api.fix('with', `-${n}`); },
             recap: (_v, b) => { api.cfg.recap = b.checked; api.save(); },
+            skips: (_v, b) => { api.cfg.skips = b.checked; api.save(); },
             day: () => { api.fix('time', '+1d morning'); },
             save: () => {
                 const loc = val(el, '[data-f="loc"]'), tod = val(el, '[data-f="tod"]'), w = val(el, '[data-f="with"]');
                 if (loc && loc !== S.loc) api.fix('loc', loc);
                 if (tod && tod !== S.tod) api.fix('time', tod);
                 if (w !== S.with.join(', ')) api.fix('with', `=${w}`);
+                const dn = Math.round(Number(val(el, '[data-f="day"]'))); if (Number.isFinite(dn) && dn > S.day) api.fix('time', `+${Math.min(dn - S.day, 3650)}d`);
                 for (const f of ['date', 'weather', 'mood']) { const x = val(el, `[data-f="${f}"]`); if (x && x !== (S[f] ?? '')) api.fix(f, x); }
                 const g = val(el, '[data-f="gist"]'); if (g && g !== S.gist) api.fix('gist', g);
                 api.toast('고쳤어요.');

@@ -4,6 +4,7 @@
 // Everything is counted from quoted records, folded per reply; only plain "may" lines go to the main model.
 import { clip, quoteOk } from '../core/text.js';
 import { twoPeople } from '../core/cadence.js';
+import { plain, spendPlain, stamped, spendStamped } from '../core/once.js';
 import { esc, card, steps, bar, empty, hint, face, pill, acts } from '../ui/kit.js';
 
 const LEVELS = ['none', 'brush', 'hand', 'hug', 'kiss', 'more'];
@@ -208,7 +209,7 @@ export default {
         const recent = Object.values(S.pairs).filter((P) => last - P.i <= 12 || (here && present(P))).sort((x, y) => y.i - x.i).slice(0, 3);
         const state = [], now = [], top = [], special = [];
         // the person's own button for this reply (one-shot)
-        const pr = st.press && st.press.at === last ? st.press : null;
+        const pr = stamped(st, 'press', env);
         if (pr && T.press[pr.kind]) top.push(fill(T.press[pr.kind], { a: pr.a, b: pr.b }));
         for (const P of recent) {
             const fr = isFriend(P), lvl = fr ? Math.min(P.lvl, 2) : P.lvl;
@@ -260,7 +261,7 @@ export default {
         const out = { state: [...new Set(state)].slice(0, 3), now: [...new Set([...top, ...now, ...special.slice(0, top.length ? 0 : 1)])].slice(0, 5) };
         return out.state.length || out.now.length ? out : null;
     },
-    onReply(env) { if (env.store?.press && (env.last ?? 0) > env.store.press.at) { delete env.store.press; return true; } return false; },
+    onReply(env) { return spendStamped(env.store ?? {}, 'press', env); },
     chip({ k, v }) {
         if (k === 'lead') return `🧭 ${clip(v, 16)} 주도`;
         const [lhs, rhs] = split(v) ?? ['', v], p = pair(lhs, k === 'tie' ? '-' : '>');
@@ -323,7 +324,7 @@ export default {
                 <div class="mb4-big mb4-center">${esc(P.a)} · ${esc(P.b)}</div>
                 <div class="mb4-center">${P.tie ? pill(P.tie) : ''} ${stg ? pill(stg.ko, 'good') : ''} ${fr ? pill('친구로만', '') : ''}</div>
                 ${steps(LEVEL_KO.slice(0, fr ? 3 : 6), Math.min(P.lvl, fr ? 2 : 5))}
-                <svg class="mb4-bd-dist" viewBox="0 0 300 56" preserveAspectRatio="none" aria-label="거리">${spark(D.pts)}</svg>
+                <svg class="mb4-bd-dist" viewBox="0 0 300 56" preserveAspectRatio="none" aria-label="거리">${spark(D.pts, P)}</svg>
                 <div class="mb4-row"><span class="mb4-row-k">${D.d <= 30 ? '🫶 가까움' : D.d >= 70 ? '🧊 멀어짐' : '🙂 그럭저럭'}</span><span class="mb4-row-v mb4-dim">이야기에서 일어난 일로만 그린 그림이에요</span></div>
                 ${Object.entries(P.feel).map(([d, f]) => `<div class="mb4-row"><span class="mb4-row-k">💭 ${esc(d.replace('>', ' → '))}</span><span class="mb4-row-v">${esc(FEEL_KO[f.t] ?? f.t)}</span></div>`).join('')}
                 ${[[P.a, P.b], [P.b, P.a]].map(([a, b]) => { const n = P.inner?.[`${a}>${b}`], t = trend(P, a); return n || t ? `<div class="mb4-row"><span class="mb4-row-k">🫀 ${esc(a)} → ${esc(b)}</span><span class="mb4-row-v">${[t && ({ closer: '다가가는 중', back: '물러나는 중', waver: '흔들리는 중' }[t]), n && `「${esc(n.v)}」`].filter(Boolean).join(' · ')}</span></div>` : ''; }).join('')}
@@ -385,10 +386,13 @@ export function distance(P) {
     }
     return { d, pts };
 }
-function spark(pts) {
+function spark(pts, P = null) {
     if (pts.length < 2) return '<line x1="0" y1="28" x2="300" y2="28"/>';
     const n = pts.length - 1, xy = pts.map((p, k) => [Math.round((k / n) * 296) + 2, Math.round((p.d / 100) * 52) + 2]);
-    return `<line x1="0" y1="28" x2="300" y2="28"/><polyline points="${xy.map((p) => p.join(',')).join(' ')}"/><circle cx="${xy.at(-1)[0]}" cy="${xy.at(-1)[1]}" r="3.5"/>`;
+    // hover a point: what happened between them there (the quote the reader kept)
+    const said = (i) => { const m = (P?.moves ?? []).find((x) => x.i === i); return m ? `#${i} ${m.who} ${MOVE_KO[m.mv] ?? m.mv}${m.q ? ` — ${m.q}` : ''}` : `#${i}`; };
+    const dots = pts.map((p, k) => `<circle cx="${xy[k][0]}" cy="${xy[k][1]}" r="${k === n ? 3.5 : 2}"><title>${esc(said(p.i))}</title></circle>`).join('');
+    return `<line x1="0" y1="28" x2="300" y2="28"/><polyline points="${xy.map((p) => p.join(',')).join(' ')}"/>${dots}`;
 }
 export function timeline(P) {
     const out = [];

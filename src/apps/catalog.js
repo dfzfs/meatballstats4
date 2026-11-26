@@ -61,7 +61,8 @@ export const SHELVES = [
     ] },
     { id: 'fun', icon: '🎡', name: '재미', hint: '누를 때만 움직여요', entries: [
         { id: 'dice', apps: ['dice'] },
-        { id: 'contacts', icon: '📞', name: '연락', color: '#34c759', desc: '인물과 문자, 단체방, 세상 소식, 연인이 몰래 만진 폰', apps: ['contacts', 'group', 'news', 'touch'] },
+        { id: 'contacts', icon: '📞', name: '연락', color: '#34c759', desc: '인물과 문자, 단체방, 연인이 몰래 만진 폰', apps: ['contacts', 'group', 'touch'] },
+        { id: 'news', apps: ['news'] },
         { id: 'fortune', icon: '🔮', name: '점집', color: '#9b5de5', desc: '오늘의 운세와 점괘, 그리고 운명의 카드', apps: ['fortune', 'fate'] },
         { id: 'music', apps: ['music'] },
         { id: 'twist', icon: '🌀', name: '이야기 장치', color: '#118ab2', desc: '이야기를 저절로 출렁이게 하는 장치들과, 인물에게 거는 암시', apps: ['twist', 'hypno'] },

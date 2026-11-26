@@ -3,6 +3,7 @@
 // 💞 Bonds already records (move · touch · feel · refuse · yield · tie) and from who is present (🧭 Scene's «with»).
 // Scores are per direction (what A feels toward B), so two people can differ.
 import { clip } from '../core/text.js';
+import { plain, spendPlain, stamped, spendStamped } from '../core/once.js';
 import { esc, card, bar, hint, acts, empty, pill, face } from '../ui/kit.js';
 
 const START = { a: 20, t: 20 };
@@ -72,8 +73,8 @@ export default {
     note(S, env) {
         const me = env.user, st = env.store, now = [], state = [];
         // a card the person answered: the outcome rides with the next reply once
-        const c = st.card;
-        if (c && c.at === env.last) now.push(c.kind === 'breakup' ? `${me} tells ${c.who} it is over between them. ${c.who} takes it as ${c.who} would (${c.yes ? 'with quiet acceptance' : 'badly — refusing to accept it at first'}); from this reply on they are no longer together.`
+        const c = stamped(st, 'card', env);   // a reroll of that reply gets the same answer
+        if (c) now.push(c.kind === 'breakup' ? `${me} tells ${c.who} it is over between them. ${c.who} takes it as ${c.who} would (${c.yes ? 'with quiet acceptance' : 'badly — refusing to accept it at first'}); from this reply on they are no longer together.`
             : `${me} ${c.kind === 'confess' ? 'confesses their feelings to' : 'proposes to'} ${c.who}. ${c.who} ${c.yes ? 'ACCEPTS — warmly, in their own way' : 'DECLINES — kindly or awkwardly, in their own way; it does not end what is between them'}. Write that outcome; do not reverse it.`);
         if (env.cfg.tell !== false) {
             const here = new Set(env.peek?.('scene')?.with ?? S.here);
@@ -84,7 +85,7 @@ export default {
         }
         return now.length || state.length ? { state, now } : null;
     },
-    onReply(env) { const c = env.store.card; if (c && (env.last ?? 0) > c.at) { env.store.card = null; return true; } return false; },
+    onReply(env) { return spendStamped(env.store, 'card', env); },
     hud(S, env) { const me = env.user, top = Object.entries(S.d).filter(([k]) => k.endsWith(`>${me}`)).sort((a, b) => b[1].a - a[1].a)[0]; return top && top[1].hist.length ? [`💗 ${top[0].split('>')[0]} ${top[1].a}`] : []; },
     widget(S, env) { const me = env.user; return Object.entries(S.d).filter(([k, d]) => k.endsWith(`>${me}`) && d.hist.length).sort((a, b) => b[1].a - a[1].a).slice(0, 3).map(([k, d]) => `<div class="mb4-gauge"><span>${face(k.split('>')[0])} ${esc(k.split('>')[0])}</span><span class="mb4-meter"><i class="good" style="width:${d.a}%"></i></span><b>${d.a}</b></div>`).join(''); },
     widgetTitle: '호감',
@@ -101,7 +102,7 @@ export default {
                 <div class="mb4-gauges one"><div class="mb4-gauge"><span>💗 애정</span>${bar(d.a, 'good')}<b>${d.a}</b></div><div class="mb4-gauge"><span>🤝 신뢰</span>${bar(d.t, 'mid')}<b>${d.t}</b></div>${d.j ? `<div class="mb4-gauge"><span>🔥 질투</span>${bar(d.j, 'bad')}<b>${d.j}</b></div>` : ''}</div>
                 ${mine ? `<small class="mb4-dim">내가 이 사람에게: 애정 ${mine.a} · 신뢰 ${mine.t}</small>` : ''}
                 ${d.hist.length ? `<div class="mb4-chips" style="margin-top:6px">${d.hist.slice(-5).reverse().map((h) => `<span class="mb4-chip">${esc(h.why)} ${h.da > 0 ? `+${h.da}` : h.da < 0 ? h.da : '±0'}</span>`).join('')}</div>` : ''}
-                <div class="mb4-btnrow tight">${kind ? `<button class="mb4-btn ghost sm" data-act="card" data-v="${kind}|${esc(n)}">${kind === 'confess' ? '💌 고백' : '💍 청혼'} <small>${yesChance(d, kind)}%</small></button>` : ''}${lover ? `<button class="mb4-btn ghost sm" data-act="card" data-v="breakup|${esc(n)}">💔 이별</button>` : ''}</div>`);
+                <div class="mb4-btnrow tight">${kind ? `<button class="mb4-btn ghost sm" data-act="card" data-v="${kind}|${esc(n)}">${kind === 'confess' ? '💌 고백' : '💍 청혼'} <small>${yesChance(d, kind) ? `${yesChance(d, kind)}%` : '아직 일러요'}</small></button>` : ''}${lover ? `<button class="mb4-btn ghost sm" data-act="card" data-v="breakup|${esc(n)}">💔 이별</button>` : ''}</div>`);
         };
         el.innerHTML = `${st.card ? card('', `<b>${{ confess: '💌 고백', propose: '💍 청혼', breakup: '💔 이별' }[st.card.kind]}</b> → ${esc(st.card.who)}: <b class="${st.card.yes ? 'mb4-good' : 'mb4-bad'}">${st.card.kind === 'breakup' ? (st.card.yes ? '받아들여요' : '쉽게 못 받아들여요') : st.card.yes ? '받아 줘요' : '거절해요'}</b><br><small>다음 답에 이 결과가 그대로 쓰여요.</small><div class="mb4-btnrow"><button class="mb4-btn ghost sm" data-act="uncard">없던 일로</button></div>`, 'warn') : ''}
         ${toMe.length > 1 ? card('🏁 누가 가장 가까운가', toMe.slice(0, 6).map(([n, d], ix) => `<div class="mb4-gauge"><span>${ix + 1}. ${esc(n)}</span>${bar(d.a, ix ? 'mid' : 'good')}<b>${d.a}</b></div>`).join('')) : ''}
@@ -118,7 +119,10 @@ export default {
             uncard: () => { st.card = null; api.save(); api.redraw(); },
             card: (v) => {
                 const [kind, who] = v.split('|'), d = S.d[`${who}>${me}`] ?? START;
-                const yes = kind === 'breakup' ? (d.a ?? 0) < 60 : Math.random() * 100 < yesChance(d, kind);
+                // asked again about the same reply (after 「없던 일로」): the same answer, not a new roll
+                const prev = st.asked && st.asked.at === (env.last ?? 0) && st.asked.kind === kind && st.asked.who === who ? st.asked : null;
+                const yes = prev ? prev.yes : kind === 'breakup' ? (d.a ?? 0) < 60 : Math.random() * 100 < yesChance(d, kind);
+                st.asked = { kind, who, yes, at: env.last ?? 0 };
                 st.card = { kind, who, yes, at: env.last ?? 0 };
                 if (kind === 'breakup') api.fix('tie', `${me}-${who}=broke up`);
                 else if (yes) api.fix('tie', `${me}-${who}=${kind === 'confess' ? 'lovers' : 'engaged'}`);

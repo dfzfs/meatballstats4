@@ -30,6 +30,48 @@ export function repeated(texts, max = 3) {
         out.push(h.p);
         if (out.length >= max) break;
     }
+    for (const p of koRepeated(texts, max)) { if (out.length >= max) break; if (!out.some((o) => o.includes(p) || p.includes(o))) out.push(p); }
+    return out;
+}
+// Korean glues endings onto words, so four whole words rarely repeat even when a reply keeps writing the same thing
+// («입술을 깨물었다», «작게 웃음을 터뜨렸다»). Here: the same run of 6+ letters (spaces ignored) in two replies, grown
+// to its full length, kept only when it holds a verb or adjective ending — a repeated name alone is not a habit.
+const KO = /[가-힣]/;
+// plain grammar that every Korean text repeats is not a habit
+const COMMON_KO = /^.{0,2}(고있었다|고있다|것이었다|것같았다|수없었다|수있었다|지않았다|하고있었다|이었다|였다)$/;
+const ENDING = /(었다|았다|였다|했다|ㅆ다|렸다|졌다|냈다|웠다|았고|었고|하며|면서|듯이|듯한|처럼)/;
+export function koRepeated(texts, max = 3, L = 6) {
+    const ko = (texts ?? []).filter((t) => (String(t).match(/[가-힣]/g) ?? []).length > 40);
+    if (ko.length < 2) return [];
+    const seen = new Map();
+    ko.forEach((t, n) => {
+        for (const sen of sentences(t)) {
+            const c = String(sen).replace(/["“”'‘’*_()[\]…—-]/g, '').replace(/\s+/g, ' ').trim();
+            const flat = c.replace(/ /g, '');
+            for (let i = 0; i + L <= flat.length; i++) { const w = flat.slice(i, i + L); if (!KO.test(w[0])) continue; (seen.get(w) ?? seen.set(w, new Set()).get(w)).add(n); }
+        }
+    });
+    const rep = new Set([...seen].filter(([, set]) => set.size >= 2).map(([w]) => w));
+    if (!rep.size) return [];
+    // join overlapping windows into whole stretches, then show them with their spaces back (from the first reply)
+    const out = [];
+    for (const sen of ko.flatMap((t) => sentences(t))) {
+        const c = String(sen).replace(/["“”'‘’*_()[\]…—-]/g, '').replace(/\s+/g, ' ').trim(), flat = c.replace(/ /g, '');
+        let i = 0;
+        while (i + L <= flat.length) {
+            if (!rep.has(flat.slice(i, i + L))) { i++; continue; }
+            let j = i + L; while (j < flat.length && rep.has(flat.slice(j - L + 1, j + 1))) j++;
+            const piece = flat.slice(i, j);
+            // put the spaces back: walk the sentence until `piece` is covered
+            let a = -1, b = -1, k = 0;
+            for (let x = 0, f = 0; x < c.length && b < 0; x++) { if (c[x] === ' ') continue; if (f === i) a = x; f++; if (f === j) b = x + 1; k = f; }
+            const shown = a >= 0 && b > a ? c.slice(a, b).trim() : piece;
+            if (ENDING.test(piece) && !COMMON_KO.test(piece) && !out.some((o) => o.replace(/ /g, '').includes(piece) || piece.includes(o.replace(/ /g, '')))) out.push(shown);
+            if (out.length >= max) return out;
+            i = j;
+        }
+    }
+    void L;
     return out;
 }
 export function sameOpening(texts) {
@@ -116,7 +158,7 @@ export function wornOf(texts) {
 }
 
 export const KINDS = [
-    { id: 'rep', ko: '같은 표현', icon: '🔁', always: false, hint: '네 낱말이 똑같이 되풀이될 때' },
+    { id: 'rep', ko: '같은 표현', icon: '🔁', always: false, hint: '같은 말(영어는 네 낱말, 한국어는 여섯 글자 넘게)이 되풀이될 때' },
     { id: 'open', ko: '같은 첫머리', icon: '↩️', always: false, hint: '답이 같은 말로 시작할 때' },
     { id: 'nums', ko: '같은 숫자', icon: '🔢', always: false, hint: '「몇 년」 「몇 층」 같은 숫자가 계속 나올 때' },
     { id: 'recall', ko: '자꾸 옛날 얘기', icon: '🕰', always: true, hint: '회상 · 「그때」 · 「몇 년 전」이 쌓일 때' },

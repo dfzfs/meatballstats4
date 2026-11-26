@@ -2,6 +2,7 @@
 const esc = (s) => String(s ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
 const clip = (s, n) => { const t = String(s ?? '').trim(); return t.length > n ? t.slice(0, n) : t; };
 import { cycleOn } from './calendar.js';
+import { plain, spendPlain, stamped, spendStamped, isReroll, sameReply } from '../core/once.js';
 const one = (t) => String(t ?? '').replace(/\s*\n+\s*/g, ' ').trim();
 
 // 📞 Contacts: text a character from the phone. One model call per tap, never on its own.
@@ -57,18 +58,18 @@ export default {
     desc: '이야기 속 인물에게 문자를 보내고 답장을 받아요. 주고받은 문자는 다음 답에 한 번 알려 줘요.',
     // Told to the main model once, by the next reply, then spent.
     note(_s, env) {
-        const f = env.store.fresh, st = env.store, now = [];
+        const st = env.store, f = plain(st, 'fresh', env), now = [];
         if (f && st.tell !== false) now.push(f.letter ? `A letter from ${f.who} has reached ${env.user}: "${clip(f.them, 300)}". ${env.user} has read it.` : `Since the last reply, ${env.user} and ${f.who} exchanged text messages. ${env.user}: "${clip(f.me, 200)}" — ${f.who}: "${clip(f.them, 300)}". The characters know this happened.`);
         // letters that arrived with the story's days (no call: the reply was written when it was sent, and waits)
         const day = env.peek?.('scene')?.day;
-        for (const [who, L] of Object.entries(st.threads ?? {})) for (const m of L) if (m.letter && !m.me && !m.told && day != null && day >= m.arrive && st.tell !== false) now.push(`A letter from ${who} has arrived for ${env.user} today. It says: "${clip(m.text, 300)}".`);
+        for (const [who, L] of Object.entries(st.threads ?? {})) for (const m of L) if (m.letter && !m.me && (!m.told || (isReroll(env) && typeof m.told === 'number' && sameReply(m.told, env))) && day != null && day >= m.arrive && st.tell !== false) now.push(`A letter from ${who} has arrived for ${env.user} today. It says: "${clip(m.text, 300)}".`);
         return now.length ? { now: now.slice(0, 2) } : null;
     },
     onReply(env) {
         const st = env.store, day = env.peek?.('scene')?.day;
         let ch = false;
-        if (st.fresh) { st.fresh = null; ch = true; }
-        for (const L of Object.values(st.threads ?? {})) for (const m of L) if (m.letter && !m.me && !m.told && day != null && day >= m.arrive) { m.told = true; ch = true; }
+        if (spendPlain(st, 'fresh', env)) ch = true;
+        for (const L of Object.values(st.threads ?? {})) for (const m of L) if (m.letter && !m.me && !m.told && day != null && day >= m.arrive) { m.told = env.last ?? true; ch = true; }   // the reply it was told in (a reroll of it hears it again)
         return ch;
     },
     hud: (_s, env) => { const day = env.peek?.('scene')?.day; const mail = day != null && Object.values(env.store.threads ?? {}).some((L) => L.some((m) => m.letter && !m.me && !m.told && day >= m.arrive)); return [...(env.store.fresh ? ['📞 새 문자'] : []), ...(mail ? ['✉️ 편지 도착'] : [])]; },
@@ -97,7 +98,7 @@ export default {
                 return `<button class="mbx-row" data-act="open" data-v="${esc(n)}"><span class="mb4-face">${k.face(n)}</span><span class="mbx-row-t"><b>${nameOf(n)}${P.dnd ? ' <i>🔕</i>' : ''}${away ? ` <i>${away.sleep ? '😴' : '💤'}</i>` : ''}</b><small>${last ? `${last.me ? '나: ' : ''}${last.letter ? '✉️ ' : ''}${esc(clip(one(last.text), 60))}` : '아직 문자가 없어요'}</small></span>${dot ? '<em class="mbx-new"></em>' : ''}</button>`;
             };
             el.innerHTML = `<div class="mb4-list mbx-list">
-                ${''/* the group room lives on its own screen (⋯ › 단체방), not in this list */}
+                <button class="mbx-row" data-act="group"><span class="mb4-face mbx-gface">💬</span><span class="mbx-row-t"><b>단체방${groupOn ? '' : ' <i>꺼짐</i>'}</b><small>${groupOn ? (gl ? `${esc(gl.who ?? '')}: ${esc(clip(one(String(gl.t ?? '')), 60))}` : '아직 대화가 없어요') : '누르면 켤 수 있어요'}</small></span></button>
                 ${(() => { const at = Number(env.peekStore?.('heart')?.showAt) || k.SHOW_AT, sp = k.byHeart(known, env.peek('heart'), env.user, env.peek('scene')?.with ?? [], at, (n) => (T[n] ?? []).length > 0); return sp ? k.foldUnder(sp.shown.map(row), sp.rest.map(row), at) : k.foldRest(known.map(row)); })()}</div>
                 ${known.length ? '' : k.hint('이야기에 인물이 나오면 여기 떠요. ⋯에서 직접 더할 수도 있어요.')}
                 ${st._panel === 'new' ? `<div class="mb4-btnrow"><input class="mb4-input" data-f="new" maxlength="40" placeholder="누구에게 보낼까요"><button class="mb4-btn ghost" data-act="add">추가</button></div>` : ''}

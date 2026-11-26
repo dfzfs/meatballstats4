@@ -27,6 +27,9 @@
     color: #4a3b36; background: color-mix(in srgb, var(--mb4-a, #e2725b) 12%, #fff); border: 1px solid color-mix(in srgb, var(--mb4-a, #e2725b) 26%, transparent);
     max-width: 100%; overflow-wrap: anywhere;
 }
+.mb4-msg .mb4-mc-x { display: none; }
+.mb4-msg.mb4-msg-open .mb4-mc-x { display: inline-flex; }
+.mb4-msg.mb4-msg-open .mb4-mc-more { display: none; }
 .mb4-mc-warn { background: rgba(255, 224, 170, .95); border-color: rgba(200, 140, 30, .4); }
 
 /* 🌗 the phone's night look reaches the strip and the labels too */

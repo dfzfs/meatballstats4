@@ -5,6 +5,7 @@
 import { clip, hash } from '../core/text.js';
 import { esc, card, hint, acts, val, ring } from '../ui/kit.js';
 import { todayLuck } from '../core/luck.js';
+import { plain, spendPlain, stamped, spendStamped } from '../core/once.js';
 import { optList, optCard, optWire } from '../ui/kit.js';
 
 const LEVELS_BASE = [['쉬움', 8], ['보통', 12], ['어려움', 15], ['매우 어려움', 18], ['극한', 22]];
@@ -47,11 +48,11 @@ export default {
     cost: 'tap',
     desc: '판정이 필요할 때 눌러서 굴려요. 결과는 다음 답에 한 번만 반영돼요.',
     note(_S, env) {
-        const r = env.store.roll;
+        const r = plain(env.store, 'roll', env);   // a reroll of the reply it was for gets the same verdict
         if (!r) return null;
         return { now: [`A die decided the outcome of ${r.what ? `"${clip(r.what, 120)}"` : 'the action the user is attempting'}: ${verdict(r.n, r.mod, r.target)[1]}. Write the outcome to match it. Do not mention the die or any number.`] };
     },
-    onReply(env) { if (env.store.roll) { env.store.roll = null; return true; } return false; },
+    onReply(env) { return spendPlain(env.store, 'roll', env); },
     hud: (_S, env) => (env.store.roll ? [`🎲 ${verdict(env.store.roll.n, env.store.roll.mod, env.store.roll.target)[0]}`] : []),
     widget(_S, env) {
         const r = env.store.roll ?? (env.store.hist ?? []).at(-1);

@@ -1,4 +1,5 @@
 // Built into Meatball 4 (was a separately installed app). Fetched only when switched on.
+import { applyTime } from '../core/clock.js';
 //
 // 🗺 Map — the second generation's map, carried over: places are stations, the ways between them are lines
 // (coloured, bent at 45°), people are pins, a tapped place shows the way there, who is there, its rooms as a
@@ -28,17 +29,7 @@ const KIND_RE = [
 const guessKind = (name) => KIND_RE.find(([, re]) => re.test(name))?.[0] ?? 'other';
 
 // ───── story time (the same counting 🧭 Scene uses, so "today" means the same day) ─────
-function tick(S, v) {
-    const t = String(v).toLowerCase();
-    const d = t.match(/\+\s*(\d+)\s*d/), w = t.match(/\+\s*(\d+)\s*w/), h = t.match(/\+\s*(\d+)\s*h/), mi = t.match(/\+\s*(\d+)\s*m(?:in)?\b/), mo = t.match(/\+\s*(\d+)\s*mo/);
-    if (mo) S.day += Math.min(+mo[1], 120) * 30;
-    if (w) S.day += Math.min(+w[1], 520) * 7;
-    if (d) S.day += Math.min(+d[1], 3650);
-    if (h || mi) { S.hrs += (h ? Math.min(+h[1], 240) : 0) + (mi ? Math.min(+mi[1], 6000) / 60 : 0); while (S.hrs >= 24) { S.hrs -= 24; S.day += 1; } }
-    const fz = t.match(/\+\s*\?\s*(d|w|mo|y)?/);
-    if (fz) S.day += { d: 2, w: 7, mo: 30, y: 365 }[fz[1] || 'd'];
-    if (d || w || mo) S.hrs = 0;
-}
+function tick(S, v) { applyTime(S, v); }
 
 // ───── which station a "big place > smaller place > room" line means ─────
 // three or more parts: the second is the station, the first its district, the rest a room inside.
@@ -67,6 +58,15 @@ function unsee(S, who, i) {
     S.seen[who] = s.was;
 }
 
+// the map is full: the least visited place, longest ago, makes room (never where we are now)
+function evict(S) {
+    const out = Object.entries(S.P).filter(([k]) => k !== S.cur).sort((a, b) => (a[1].n - b[1].n) || ((a[1].i ?? 0) - (b[1].i ?? 0)))[0]?.[0];
+    if (!out) return;
+    delete S.P[out];
+    for (const e of Object.keys(S.E)) if (e.split('|').includes(out)) delete S.E[e];
+    S.route.list = S.route.list.filter((k) => k !== out);
+    for (const [who, x] of Object.entries(S.seen)) if (x.at === out) delete S.seen[who];
+}
 function reduce(S, { k, v, i }) {
     if (k === 'time') { tick(S, v); return; }
     if (k === 'mood') { const P = S.P[S.cur]; if (P) P.mood = clip(v, 40); return; }
@@ -74,7 +74,7 @@ function reduce(S, { k, v, i }) {
         const st = stationOf(S, v); if (!st) return;
         const key = norm(st.name);
         let P = S.P[key];
-        if (!P) { if (Object.keys(S.P).length >= MAX_PLACES) return; P = S.P[key] = { name: clip(st.name, 60), area: clip(st.area, 60), n: 0, first: S.day, last: S.day, i, rooms: {}, ppl: {} }; }
+        if (!P) { if (Object.keys(S.P).length >= MAX_PLACES) evict(S); P = S.P[key] = { name: clip(st.name, 60), area: clip(st.area, 60), n: 0, first: S.day, last: S.day, i, rooms: {}, ppl: {} }; }
         if (st.area && !P.area) P.area = clip(st.area, 60);
         if (S.cur !== key) {
             P.n += 1;
@@ -425,6 +425,7 @@ export default {
     widgetTitle: '오늘 다닌 길',
     render(el, api) {
         const st = api.store, env = { peek: api.env.peek, kit: api.kit, face: api.kit.face };
+        if (ui.st !== st) Object.assign(ui, { st, sel: '', edit: '', pinpick: false, add: false });   // another chat: start fresh
         const keyOf = (name) => norm(name);
         const save = () => { api.save(); paint(); };
         const paint = () => {

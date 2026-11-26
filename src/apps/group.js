@@ -2,6 +2,7 @@
 // themselves (one call per tap, never on its own). The person may drop a line in first. Kept per chat; told to the
 // main model only if the person asks («이야기에 알리기»), once.
 import { clip } from '../core/text.js';
+import { plain, spendPlain, stamped, spendStamped } from '../core/once.js';
 import { esc, card, hint, acts, val, empty, face } from '../ui/kit.js';
 
 const MOODS_BASE = [['', '평소처럼'], ['gossip', '뒷이야기'], ['plan', '작당 모의'], ['fight', '티격태격'], ['night', '새벽 감성']];
@@ -25,8 +26,8 @@ function parse(raw, members) {
 export default {
     api: 1, id: 'group', chat: true, name: '단체방', icon: '💬', color: '#00b4d8', cost: 'tap',
     desc: '인물들끼리의 단체 대화방. 누르면 자기들끼리 떠드는 몇 줄을 받아요. 내가 한마디 끼어들 수도 있어요.',
-    note(_S, env) { const f = env.store.fresh; return f && env.store.tell ? { now: [`Off the page, in their group chat, this was just said — ${f}. The ones who took part know it; it may colour this reply without being quoted.`] } : null; },
-    onReply(env) { if (env.store.fresh) { env.store.fresh = ''; return true; } return false; },
+    note(_S, env) { const f = plain(env.store, 'fresh', env); return f && env.store.tell ? { now: [`Off the page, in their group chat, this was just said — ${f}. The ones who took part know it; it may colour this reply without being quoted.`] } : null; },
+    onReply(env) { return spendPlain(env.store, 'fresh', env); },
     hud: (_S, env) => (env.store.fresh && env.store.tell ? ['💬 단체방'] : []),
     widget: (_S, env) => (env.store.log ?? []).slice(-2).map((m) => `<div class="mb4-row"><span class="mb4-row-k">${esc(m.who)}</span><span class="mb4-row-v">${esc(clip(m.t, 50))}</span></div>`).join(''),
     widgetTitle: '단체방',

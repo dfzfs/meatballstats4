@@ -10,6 +10,8 @@ import { anchoredDate, dayKo } from '../core/clock.js';
 const { TOD_KO, room } = kit;
 
 let R = null;                 // the runtime (engine + app switches)
+let fixDraw = 0;              // several corrections in one tap: one redraw
+let undo = null;              // 💾 what a restore replaced (this session only)
 let root = null, view = 'home', timer = null, cssReady = null;
 const $ = (sel) => root.querySelector(sel);
 const meta = (id) => BUILTIN.find((a) => a.id === id) ?? R.externals().find((a) => a.id === id) ?? R.engine.reg.get(id);
@@ -97,7 +99,7 @@ function drawLook(body) {
     body.innerHTML = `${kit.card('🖼 배경화면', `<div class="mb4-walls">${WALLS.map(([id, n, bg]) => `<button class="mb4-wall${(L.wall ?? '') === id ? ' on' : ''}" data-wall="${id}" ${thumb(bg || 'linear-gradient(160deg,#fff8f1,#ffe9e1)')}><span>${n}</span></button>`).join('')}
             <label class="mb4-wall up${L.wall === 'img' ? ' on' : ''}" ${wallUrl ? `style="background:url('${wallUrl}') center/cover"` : ''}><span>🖼 내 사진</span><input type="file" accept="image/*" data-photo hidden></label></div>
             ${kit.hint('사진은 이 브라우저 안에만 저장돼요(설정 파일에 안 들어가요). 크면 저절로 줄여요.')}`)}
-        ${kit.card('🎨 테마 색', `<div class="mb4-chips">${ACCENTS.map(([id, n, c]) => `<button class="mb4-opt${(L.accent ?? '') === id ? ' on' : ''}" data-accent="${id}"><i class="mb4-dot" style="background:${c}"></i> ${n}</button>`).join('')}</div>`)}
+        ${kit.card('🎨 테마 색', `<div class="mb4-chips">${ACCENTS.map(([id, n, c]) => `<button class="mb4-opt${(L.accent ?? '') === id ? ' on' : ''}" data-accent="${id}"><i class="mb4-dot" style="background:${c}"></i> ${n}</button>`).join('')}<label class="mb4-opt${/^#/.test(L.accent ?? '') ? ' on' : ''}"><i class="mb4-dot" style="background:${/^#[0-9a-f]{6}$/i.test(L.accent ?? '') ? L.accent : '#888888'}"></i> 내 색<input type="color" data-accentpick value="${/^#[0-9a-f]{6}$/i.test(L.accent ?? '') ? L.accent : '#e2725b'}" style="width:0;height:0;opacity:0;border:0;padding:0"></label></div>`)}
         ${kit.card('🌗 밝기', `<div class="mb4-seg">${[['', '배경 따라'], ['light', '밝게'], ['dark', '어둡게']].map(([id, n]) => `<button class="${(L.mode ?? '') === id ? 'on' : ''}" data-mode="${id}">${n}</button>`).join('')}</div>`)}
         ${kit.card('🔤 글꼴', `<div class="mb4-chips">${F.map((f) => `<button class="mb4-opt${cur.id === f.id ? ' on' : ''}" data-font="${esc(f.id)}" style="font-family:${f.family ? esc(f.family) : 'inherit'}">${esc(f.name)}${f.mine ? ` <i class="mb4-x" data-fontdel="${esc(f.id)}" role="button" aria-label="빼기">✕</i>` : ''}</button>`).join('')}</div>
             <details class="mb4-fontadd"><summary class="mb4-hint">＋ 글꼴 더하기</summary>
@@ -110,6 +112,7 @@ function drawLook(body) {
     const set = (k, v) => { looks()[k] = v; saveCfg(); applyLook(); draw(true); };
     body.querySelectorAll('[data-wall]').forEach((b) => b.addEventListener('click', () => set('wall', b.dataset.wall)));
     body.querySelectorAll('[data-accent]').forEach((b) => b.addEventListener('click', () => set('accent', b.dataset.accent)));
+    body.querySelector('[data-accentpick]')?.addEventListener('change', (e) => { if (/^#[0-9a-f]{6}$/i.test(e.target.value)) set('accent', e.target.value.toLowerCase()); });
     body.querySelectorAll('[data-mode]').forEach((b) => b.addEventListener('click', () => set('mode', b.dataset.mode)));
     body.querySelectorAll('[data-font]').forEach((b) => b.addEventListener('click', (e) => { if (e.target.closest('[data-fontdel]')) return; set('font', b.dataset.font); }));
     body.querySelectorAll('[data-fontdel]').forEach((x) => x.addEventListener('click', (e) => { e.stopPropagation(); const L2 = looks(); L2.fonts = (L2.fonts ?? []).filter((f) => f.id !== x.dataset.fontdel); if (L2.font === x.dataset.fontdel) L2.font = ''; saveCfg(); applyLook(); draw(true); }));
@@ -132,7 +135,9 @@ function drawLook(body) {
 // The chat column (#sheld) keeps its width when the free space beside it is enough for the phone; otherwise it moves
 // over (and narrows only if it must) so the two sit side by side. Narrow screens (phones) keep the phone on top.
 // Only our own inline styles are touched, and they are put back exactly when the phone closes.
-const PHONE_MIN = 340, PHONE_MAX = 440, NARROW = 760, GAP = 8;
+const PHONE_MIN = 340, NARROW = 760, GAP = 8;
+const PHONE_W = { s: 380, m: 440, l: 540 };
+const phoneMax = () => PHONE_W[cfg().phoneW] ?? PHONE_W.m;
 let saved = null, onResize = null;
 function undock() {
     const sh = document.getElementById('sheld');
@@ -151,9 +156,9 @@ function dock() {
     const left = cfg().side === 'left', r = sh.getBoundingClientRect(), W = innerWidth;
     const free = left ? r.left : W - r.right;
     if (free >= PHONE_MIN + GAP) {   // room already: the phone fills the free strip, the chat does not move
-        root.style.width = `${Math.min(PHONE_MAX, free - GAP)}px`; root.classList.add('mb4-docked'); return;
+        root.style.width = `${Math.min(phoneMax(), free - GAP)}px`; root.classList.add('mb4-docked'); return;
     }
-    const phone = Math.max(PHONE_MIN, Math.min(PHONE_MAX, Math.round(W * 0.34))), room = W - phone - GAP;
+    const phone = Math.max(PHONE_MIN, Math.min(phoneMax(), Math.round(W * 0.34))), room = W - phone - GAP;
     const w = Math.min(r.width, room);
     if (w < 360) return;            // too tight to sit side by side: stay on top of the chat
     root.style.width = `${phone}px`; root.classList.add('mb4-docked');
@@ -409,7 +414,7 @@ function mountApp(body, id) {
         env, store: env.store, cfg: env.cfg, kit,
         state: () => E.state(id),
         save: () => { saveChat(); saveCfg(); E.touch(); E.refresh(); R.redrawFrame(); },
-        fix: (k, v) => { const ok = E.fix(k, v); if (!ok) toast(E.lastReply() < 0 ? 'AI 답이 하나는 있어야 고칠 수 있어요.' : '그 값은 넣을 수 없어요.', 'warning'); else draw(true); return ok; },
+        fix: (k, v) => { const ok = E.fix(k, v); if (!ok) toast(E.lastReply() < 0 ? 'AI 답이 하나는 있어야 고칠 수 있어요.' : '그 값은 넣을 수 없어요.', 'warning'); else { clearTimeout(fixDraw); fixDraw = setTimeout(() => draw(true), 0); } return ok; },
         redraw: () => draw(true), toast, close,
         // the phone's ⋯ menu: [{ icon, label, sub?, act, disabled?, cur? } | { sec: '제목' }] (only while this app is shown)
         menu: (items) => { menuItems = Array.isArray(items) ? items : []; $('[data-more]').hidden = !(menuItems.length || pageParts.length); },
@@ -535,7 +540,7 @@ function castOverview(box, e) {
         let stage = ''; try { stage = pair && bondsMod?.stageOf ? bondsMod.stageOf(pair)?.ko ?? '' : ''; } catch (x) { stage = ''; }
         const feels = pair ? [...new Set(Object.values(pair.feel ?? {}).map((f) => FEEL_KO[f?.t]).filter(Boolean))] : [];
         const role = P?.roles?.[n]?.v ?? '', callsMe = P?.calls?.[`${n}>${me}`]?.v, iCall = P?.calls?.[`${me}>${n}`]?.v;
-        const nSec = sec.filter((x) => { try { return JSON.stringify(x).includes(n); } catch (y) { return false; } }).length;
+        const nSec = sec.filter((x) => String(x?.who ?? '').split(/\s*[-&,]\s*/).some((w) => w.trim() && w.trim().toLowerCase() === String(n).toLowerCase())).length;   // secrets this person keeps
         const mind = minds.filter((m) => m?.who === n).at(-1);
         const pills = [here.has(n) ? kit.pill('지금 같이', 'good') : '', gone(n) ? kit.pill('떠남', 'bad') : '', stage ? kit.pill(stage, 'love') : '', l?.body ? kit.pill('🩹', 'bad') : ''].join('');
         const body = [
@@ -568,9 +573,11 @@ function drawSet(body) {
     const sw = (attr, on, label, sub = '', dis = false) => `<label class="mb4-sw"><span><b>${label}</b>${sub ? `<small>${sub}</small>` : ''}</span><input type="checkbox" ${attr} ${on ? 'checked' : ''} ${dis ? 'disabled' : ''}><i></i></label>`;
     body.innerHTML = `
         ${kit.card('쉬기', `${sw('data-c="paused"', c.paused, '⏸ 전체 멈춤', '모든 채팅에서 읽기 · 쪽지를 쉬어요')}${sw('data-s="off"', st?.off, '🔌 이 채팅에서만 끄기', '', !hasChat())}`)}
-        ${kit.card('채팅 화면', `${sw('data-c="hud"', c.hud !== false, '입력창 위 상태 줄')}${sw('data-c="chips"', c.chips !== false, '답 밑 변화 딱지')}${sw('data-side', c.side === 'left', '폰을 왼쪽에 두기')}${sw('data-c="dock"', c.dock !== false, '채팅 옆에 붙이기', '넓은 화면에서 채팅을 가리지 않게 옆으로 비켜 줘요')}`)}
+        ${kit.card('채팅 화면', `${sw('data-c="hud"', c.hud !== false, '입력창 위 상태 줄')}${sw('data-c="chips"', c.chips !== false, '답 밑 변화 딱지')}${sw('data-side', c.side === 'left', '폰을 왼쪽에 두기')}${sw('data-c="dock"', c.dock !== false, '채팅 옆에 붙이기', '넓은 화면에서 채팅을 가리지 않게 옆으로 비켜 줘요')}<label class="mb4-label">폰 너비 (옆에 붙일 때)</label><div class="mb4-seg">${[['s', '좁게'], ['m', '보통'], ['l', '넓게']].map(([v, n]) => `<button class="${(c.phoneW ?? 'm') === v ? 'on' : ''}" data-phonew="${v}">${n}</button>`).join('')}</div>`)}
         ${kit.card('답을 읽는 AI', `<select class="mb4-input" data-profile><option value="">본편과 같은 연결</option>${profiles().map((p) => `<option value="${esc(p.id)}" ${p.id === c.profile ? 'selected' : ''}>${esc(p.name)}</option>`).join('')}</select>
             ${kit.hint(`빠르고 싼 모델의 연결 프로필을 고르면 좋아요. ${keys.length ? `지금은 답마다 1번 읽어요 (읽는 항목 ${keys.length}개).` : '지금 켠 앱은 답을 읽을 필요가 없어서 AI를 부르지 않아요.'}`)}
+            <label class="mb4-label">🪙 누를 때 부르는 짧은 호출 (속마음 · 음악 같은 것)</label><div class="mb4-seg">${[['', '아껴서 (4096)'], ['big', '넉넉히 (8192)']].map(([v, n]) => `<button class="${(c.tapRoom ?? '') === v ? 'on' : ''}" data-taproom="${v}">${n}</button>`).join('')}</div>
+            ${kit.hint('생각을 길게 하는 모델에서 답이 중간에 잘리면 「넉넉히」로 바꿔 주세요.')}
             <label class="mb4-label">🍃 읽는 간격</label><div class="mb4-seg">${[[1, '답마다'], [2, '2답마다'], [3, '3답마다']].map(([v, n]) => `<button class="${(Math.max(1, Number(c.every) || 1)) === v ? 'on' : ''}" data-every="${v}">${n}</button>`).join('')}</div>
             ${kit.hint('2 · 3으로 두면 답을 모았다가 한 번에 읽어서, AI를 부르는 횟수가 절반 · 3분의 1로 줄어요. 놓치는 건 없고, 상태가 그만큼 늦게 따라와요.')}
             <button class="mb4-btn wide" data-reread ${keys.length && lastI >= 0 ? '' : 'disabled'}>🔄 마지막 답 다시 읽기 (AI 1회)</button>
@@ -590,7 +597,7 @@ function drawSet(body) {
         ${trCard()}
         ${doctorCard()}
         ${kit.card('💾 백업', `<div class="mb4-btnrow"><button class="mb4-btn ghost" data-bak="chat" ${st ? '' : 'disabled'}>이 채팅 기록 받기</button><button class="mb4-btn ghost" data-bak="all">설정 전부 받기</button></div>
-            <div class="mb4-btnrow"><label class="mb4-btn ghost" style="flex:1;text-align:center">📂 파일로 되살리기<input type="file" accept=".json,application/json" data-restore hidden></label></div>
+            <div class="mb4-btnrow"><label class="mb4-btn ghost" style="flex:1;text-align:center">📂 파일로 되살리기<input type="file" accept=".json,application/json" data-restore hidden></label></div>${undo ? `<div class="mb4-btnrow"><button class="mb4-btn ghost" style="flex:1" data-undo>↩ 되살리기 전으로 (${undo.kind === 'chat' ? '채팅 기록' : '설정'})</button></div>` : ''}
             ${sw('data-c="tips"', c.tips !== false, '💡 첫 화면 팁 보기')}
             ${kit.hint('받은 파일은 이 기기에 저장돼요. 되살리기는 파일 종류(채팅 기록 · 설정)를 보고 알맞은 곳에 넣어요. 채팅 기록은 지금 연 채팅에 들어가요.')}`)}
         ${kit.card('', `<button class="mb4-btn ghost wide" data-go="ask">처음 질문 다시 보기</button>
@@ -601,6 +608,8 @@ function drawSet(body) {
     body.querySelectorAll('[data-c]').forEach((el) => el.addEventListener('change', () => { c[el.dataset.c] = el.checked; saveCfg(); if (el.dataset.c === 'dock') { if (el.checked) dock(); else undock(); } refresh(); }));
     body.querySelector('[data-s]').addEventListener('change', (e) => { store(true).off = e.target.checked; saveChat(); refresh(); });
     body.querySelector('[data-side]').addEventListener('change', (e) => { c.side = e.target.checked ? 'left' : 'right'; saveCfg(); root.classList.toggle('mb4-left', c.side === 'left'); dock(); });
+    body.querySelectorAll('[data-taproom]').forEach((b) => b.addEventListener('click', () => { c.tapRoom = b.dataset.taproom; saveCfg(); draw(true); }));
+    body.querySelectorAll('[data-phonew]').forEach((b) => b.addEventListener('click', () => { c.phoneW = b.dataset.phonew; saveCfg(); dock(); draw(true); }));
     body.querySelector('[data-profile]').addEventListener('change', (e) => { c.profile = e.target.value; saveCfg(); });
     body.querySelectorAll('[data-every]').forEach((b) => b.addEventListener('click', () => { c.every = +b.dataset.every; saveCfg(); R.kick?.(); draw(true); }));
     wireTrCard(body);
@@ -615,11 +624,17 @@ function drawSet(body) {
         const f = e.target.files?.[0]; if (!f) return;
         try {
             const j = JSON.parse(await f.text());
-            if (j?.kind === 'meatball4-chat' && j.data && typeof j.data === 'object') { if (!hasChat()) { toast('채팅을 먼저 열어 주세요.', 'warning'); return; } ctx().chatMetadata.meatball4 = j.data; saveChat(); toast('이 채팅에 기록을 되살렸어요.'); }
-            else if (j?.kind === 'meatball4-settings' && j.data && typeof j.data === 'object') { const keepOn = c.on; Object.assign(c, j.data, { on: keepOn }); saveCfg(); toast('설정을 되살렸어요. 새로 고침하면 앱 켜짐도 맞춰져요.'); }
+            if (j?.kind === 'meatball4-chat' && j.data && typeof j.data === 'object') { if (!hasChat()) { toast('채팅을 먼저 열어 주세요.', 'warning'); return; } undo = { kind: 'chat', chat: ctx().getCurrentChatId?.() ?? '', data: structuredClone(ctx().chatMetadata.meatball4 ?? null) }; ctx().chatMetadata.meatball4 = j.data; saveChat(); toast('이 채팅에 기록을 되살렸어요. 「되살리기 전으로」로 되돌릴 수 있어요.'); }
+            else if (j?.kind === 'meatball4-settings' && j.data && typeof j.data === 'object') { undo = { kind: 'cfg', data: structuredClone(c) }; const keepOn = c.on; Object.assign(c, j.data, { on: keepOn }); saveCfg(); toast('설정을 되살렸어요. 새로 고침하면 앱 켜짐도 맞춰져요.'); }
             else { toast('미트볼 백업 파일이 아니에요.', 'warning'); return; }
             refresh();
         } catch (x) { toast('파일을 읽지 못했어요.', 'warning'); }
+    });
+    body.querySelector('[data-undo]')?.addEventListener('click', () => {
+        if (!undo) return;
+        if (undo.kind === 'chat') { if ((ctx().getCurrentChatId?.() ?? '') !== undo.chat) { toast('되살렸던 그 채팅을 열고 눌러 주세요.', 'warning'); return; } if (undo.data) ctx().chatMetadata.meatball4 = undo.data; else delete ctx().chatMetadata.meatball4; saveChat(); }
+        else { for (const k of Object.keys(c)) delete c[k]; Object.assign(c, undo.data); saveCfg(); }
+        undo = null; toast('되살리기 전으로 돌렸어요.'); refresh();
     });
     body.querySelector('[data-reread]').addEventListener('click', async (e) => { e.target.disabled = true; e.target.textContent = '읽는 중…'; await E.reread(lastI); draw(true); });
     body.querySelector('[data-wipe]').addEventListener('click', (e) => {
