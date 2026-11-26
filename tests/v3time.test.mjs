@@ -37,3 +37,18 @@ test('small years never show up (no «6년»), and the story\'s weekday is the o
     assert.match(note, /today is Wednesday, March 5, \d{4}\./);
     assert.doesNotMatch(note, /, 6\.|, 1906\./);
 });
+
+test('🎲 미정 날짜 정하기: no date → a day of this year; inside «며칠 뒤» → a day of that week, after the day before', async () => {
+    const { page, apiFor } = await import('./harness.mjs');
+    page();
+    const tap = async (t) => { const api = await apiFor(t.E, 'calendar'), el = document.createElement('div'); t.E.reg.get('calendar').render(el, api); const b = el.querySelector('[data-act="roll"]'); assert.ok(b, 'the 🎲 button is there'); b.dispatchEvent(new window.Event('click', { bubbles: true })); };
+    const a = await story([['time', 'morning']], ['scene', 'calendar']);
+    await tap(a);
+    assert.match(await on(a), new RegExp(`^${new Date().getUTCFullYear()}-\\d+-\\d+$`));
+    const b = await story([['date', 'June 10, 1702 (Saturday)'], ['time', '+?d']], ['scene', 'calendar']);
+    assert.equal(b.state('scene').vague, true);
+    await tap(b);
+    const got = await on(b), [y, m, d] = got.split('-').map(Number);
+    assert.equal(b.state('scene').vague, false);
+    assert.ok(y === 1702 && m === 6 && d >= 11 && d <= 17, got);
+});

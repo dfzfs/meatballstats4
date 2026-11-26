@@ -4,7 +4,7 @@
 // day, an optional cycle, "someone close notices a note") and the third generation's handling of vague time skips.
 import { esc, card, hint, acts, val, empty, pill } from '../ui/kit.js';
 import { namedDate, anchoredDate, startMs } from '../core/clock.js';
-import { dayOn } from '../core/v3time.js';
+import { dayOn, utc, dimOf, FUZZY_NOM } from '../core/v3time.js';
 import { plain, spendPlain, stamped, spendStamped } from '../core/once.js';
 
 const DAY = 86400000;
@@ -75,6 +75,22 @@ const cyNow = (cyc, day) => {
     const next = (cyc.len || 28) - ((day - last) % (cyc.len || 28));
     return `<p class="mb4-hint">지금은 기간이 아니에요 · 다음 시작까지 약 ${next}일 (그때만 AI에 알려요)</p>`;
 };
+
+// 🎲 「미정 날짜 정하기」 (v3 rollDates): no AI, a roll of the dice. Returns 'Month D, YYYY' or ''.
+//   no date anywhere yet → a random day of the year (the person's year, else this year)
+//   inside a vague skip («며칠 뒤» · «몇 주 뒤») → a random day of the week the calendar shows for it, after the day before
+const MON_EN_FULL = ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December'];
+export function rollDate(sc, year, rnd = Math.random) {
+    const R = (a, b) => a + Math.floor(rnd() * (b - a + 1)), fmt = (x) => `${MON_EN_FULL[x.getUTCMonth()]} ${x.getUTCDate()}, ${x.getUTCFullYear()}`;
+    const cal = sc?.cal;
+    if (!cal || cal.doy == null) { const y = Number.isInteger(year) ? year : new Date().getUTCFullYear(), m = R(1, 12); return fmt(utc(y, m, R(1, dimOf(y, m)))); }
+    if (!cal.fz) return '';
+    const base = dayOn({ ...cal, fz: null }, cal.fz.from + 1, year), nom = cal.fz.nom ?? FUZZY_NOM[cal.fz.unit] ?? 2;
+    if (!base) return '';
+    const b = utc(base.y, base.m, base.d), aim = new Date(b.getTime() + nom * DAY), sun = new Date(aim.getTime() - aim.getUTCDay() * DAY);
+    const days = [0, 1, 2, 3, 4, 5, 6].map((j) => new Date(sun.getTime() + j * DAY)).filter((x) => x > b);
+    return fmt(days.length ? days[R(0, days.length - 1)] : aim);
+}
 
 export default {
     api: 1,
@@ -169,6 +185,7 @@ export default {
             ${cyNow(st.cycle, sc.day)}
             <label class="mb4-sw"><span><b>AI에 알리기</b><small>기간 중에만 1줄 · 가까운 사람이 챙겨 줘요</small></span><input type="checkbox" data-act="cytell" ${st.cycle.tell ? 'checked' : ''}><i></i></label>` : ''}
         </details>
+        ${start == null || sc.vague ? card('🎲 미정 날짜 정하기', `${hint(start == null ? '이야기에 아직 날짜가 없어요. 주사위로 아무 날이나 정해요 (AI 안 써요).' : '「며칠 뒤」처럼 흐린 시간이라 날을 몰라요. 그 주 안에서 주사위로 정해요 (AI 안 써요).')}<div class="mb4-btnrow"><button class="mb4-btn" data-act="roll">🎲 정하기</button></div>`) : ''}
         <details class="mb4-card" ${start == null ? 'open' : ''}><summary>⚙️ 이야기 시작 날짜</summary>
             <label class="mb4-label">오늘이 며칠인가요<input class="mb4-input" data-act="now" maxlength="30" placeholder="예: 11월 25일 · 2026년 11월 25일 · 2026-11-25" value=""></label>
             <label class="mb4-label">또는 이야기가 시작한 날<input class="mb4-input" data-act="start" maxlength="30" placeholder="예: 3월 2일 · 2026-03-02" value="${esc(st.start ?? '')}"></label>
@@ -187,6 +204,7 @@ export default {
             start: (v) => { const t = readDate(v); if (t == null) { if (String(v).trim()) api.toast('날짜를 못 알아봤어요. 예: 11월 25일 · 2026-11-25'); return; } st.start = iso(new Date(t)); save(); },
             now: (v) => { const t = readDate(v); if (t == null) { if (String(v).trim()) api.toast('날짜를 못 알아봤어요. 예: 11월 25일 · 2026-11-25'); return; } st.start = iso(new Date(t - (sc.day - 1) * DAY)); save(); api.toast(`지금이 ${new Date(t).getUTCMonth() + 1}월 ${new Date(t).getUTCDate()}일이 되게 맞췄어요.`); },
             pick: (v) => { st.pick = v; api.redraw(); },
+            roll: () => { const mine = startMs(st.start), d = rollDate(sc, mine == null ? null : new Date(mine).getUTCFullYear()); if (!d) return; if (api.fix('date', `!${d}`)) api.toast(`🎲 ${d.replace(/^(\w+) (\d+), (\d+)$/, (_a, m, dd, y) => `${y}년 ${MON_EN_FULL.indexOf(m) + 1}월 ${dd}일`)}로 정했어요.`); },
             memo: (_v, t) => { const n = (st.notes[pick] ??= {}); n.text = t.value.trim().slice(0, 300); if (!n.text) delete st.notes[pick]; save(); },
             memotell: (_v, b) => { (st.notes[pick] ??= {}).tell = b.checked; save(); },
             peek: () => { st.peek = { who: partner, md: pick.slice(5).replace('-', '/'), text: note.text, at: env.last ?? 0 }; api.save(); api.toast(`다음 답에 한 번: ${partner}이(가) 메모를 볼 수 있어요.`); },
