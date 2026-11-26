@@ -1,7 +1,7 @@
 // 🧭 Scene: when, where, who is present, weather. Small and common, so it lives in the core and loads only when on.
 import { clip } from '../core/text.js';
 import { skipInMessage } from '../core/skip.js';
-import { applyTime } from '../core/clock.js';
+import { applyTime, anchoredDate } from '../core/clock.js';
 import { cueOr, slow } from '../core/cadence.js';
 import { esc, row, card, person, hint, acts, val, TOD, TOD_KO, room } from '../ui/kit.js';
 
@@ -30,14 +30,14 @@ export default {
     rules: [
         '"with" = only people physically present at the end; vague time passed = +?d, never an invented number.',
     ],
-    start: () => ({ gist: '', gists: [], near: {}, mood: '', day: 1, hrs: 0, tod: '', date: '', loc: '', with: [], weather: '', vague: false, fz: null, trail: [] }),
+    start: () => ({ gist: '', gists: [], near: {}, mood: '', day: 1, hrs: 0, tod: '', date: '', anchor: null, loc: '', with: [], weather: '', vague: false, fz: null, trail: [] }),
     check: ({ k, v }) => (k === 'loc' || k === 'date' || k === 'weather' ? v.length <= 120 : true),
     reduce(S, { k, v, i }) {
         if (k === 'near') { const m = String(v).match(/^(.+?)\s*[—–-]\s*(.+)$/); if (m) (S.near ??= {})[clip(m[1].trim(), 60)] = clip(m[2].trim(), 80); return; }
         if (k === 'mood') { S.mood = clip(v, 60); return; }
         if (k === 'gist') { S.gist = clip(v, 220); (S.gists ??= []).push({ v: S.gist, day: S.day, i }); if (S.gists.length > 40) S.gists.shift(); return; }
         if (k === 'time') applyTime(S, v);
-        else if (k === 'date') { S.date = clip(v, 60); S.vague = false; S.fz = null; }   // a named date ends a vague stretch
+        else if (k === 'date') { S.date = clip(v, 60); S.vague = false; S.fz = null; S.anchor = { day: S.day, date: S.date }; }   // a named date ends a vague stretch, and later days count on from it
         else if (k === 'weather') S.weather = clip(v, 40);
         else if (k === 'loc') {
             S.loc = clip(v, 120);
@@ -64,7 +64,8 @@ export default {
         ...Object.entries(S.near ?? {}).slice(-4).map(([a, b]) => `near: ${a} — ${b}`),
     ],
     note(S, env) {
-        const when = [S.vague ? 'some time later' : `day ${S.day} of the story`, S.date, S.tod].filter(Boolean).join(', ');
+        const counted = !S.date && !S.vague && S.anchor?.date ? (() => { const t = anchoredDate(S); return t == null ? `${S.day - S.anchor.day} days after ${S.anchor.date}` : new Date(t).toLocaleDateString('en-US', { timeZone: 'UTC', month: 'long', day: 'numeric' }); })() : '';
+        const when = [S.vague ? 'some time later' : `day ${S.day} of the story`, S.date || counted, S.tod].filter(Boolean).join(', ');
         const facts = [S.loc ? `Place: ${S.loc}.` : '', S.with.length ? `Present: ${S.with.join(', ')}.` : '', S.weather ? `Weather: ${S.weather}.` : '', S.mood ? `Mood: ${S.mood}.` : '', ...Object.entries(S.near ?? {}).filter(([a]) => S.loc.includes(a)).slice(0, 3).map(([a, b]) => `${a}: ${b}.`)].filter(Boolean).join(' ');
         const has = S.loc || S.with.length || S.day > 1 || S.tod || S.date;
         // a time skip written in the person's own message: what is recorded is the state BEFORE the gap
@@ -96,7 +97,7 @@ export default {
         el.innerHTML = `<div class="mb4-hero mb4-sum"><small>지금 이야기는</small><p class="mb4-sum-t">${esc(S.gist || '아직 요약이 없어요. 답이 몇 번 오가면 한 줄로 적어 둬요.')}</p><div class="mb4-hero-m">${[`📆 ${S.day}일째`, S.tod ? `🕰 ${TOD_KO[S.tod]}` : '', S.loc ? `📍 ${esc(room(S.loc))}` : '', S.with.length ? `👥 ${S.with.map(esc).join(', ')}` : '👤 혼자', S.weather ? `⛅ ${esc(S.weather)}` : '', S.mood ? `🌫 ${esc(S.mood)}` : ''].filter(Boolean).join('<i>·</i>')}</div></div>
         ${G.length > 1 ? card('📜 이야기 흐름', `<ol class="mb4-trail">${G.slice(-12).reverse().map((g) => `<li><b>${esc(g.v)}</b><small>${g.day}일째</small></li>`).join('')}</ol>`) : ''}
         ${card('', `
-            ${row('📆', '날', `${S.day}일째${S.date ? ` · ${esc(S.date)}` : ''}${S.vague ? ' · 며칠인지 흐림' : ''}`)}
+            ${row('📆', '날', `${S.day}일째${S.date ? ` · ${esc(S.date)}` : !S.vague && S.anchor?.date ? ` · ${(() => { const t = anchoredDate(S); return t == null ? `${esc(S.anchor.date)}에서 ${S.day - S.anchor.day}일 뒤` : `${new Date(t).getUTCMonth() + 1}월 ${new Date(t).getUTCDate()}일`; })()}` : ''}${S.vague ? ' · 며칠인지 흐림' : ''}`)}
             ${row('🕰', '때', esc(TOD_KO[S.tod] ?? '아직 몰라요'))}
             ${row('📍', '장소', esc(S.loc || '아직 몰라요'))}
             ${row('⛅', '날씨', esc(S.weather || '아직 몰라요'))}

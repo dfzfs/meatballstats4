@@ -3,6 +3,7 @@
 // Ported from the second generation's calendar-plus (D-day counting, a pinned D-day, yearly anniversaries, a note per
 // day, an optional cycle, "someone close notices a note") and the third generation's handling of vague time skips.
 import { esc, card, hint, acts, val, empty, pill } from '../ui/kit.js';
+import { namedDate, anchoredDate } from '../core/clock.js';
 
 const DAY = 86400000;
 const WD_KO = ['일', '월', '화', '수', '목', '금', '토'];
@@ -18,22 +19,15 @@ const fmtEN = (d) => `${WD_EN[d.getUTCDay()]}, ${MON_EN[d.getUTCMonth()]} ${d.ge
 // D-day words: D-3 · D-DAY · D+100
 export const ddayLabel = (day, today) => (day === today ? 'D-DAY' : day > today ? `D-${day - today}` : `D+${today - day}`);
 
-// A date the scene names ("March 14", "3월 14일") during a vague stretch fixes where we are (third generation's settle).
-const MON_RE = MON_EN.map((m, i) => [new RegExp(`\\b${m.slice(0, 3)}[a-z]*\\.?\\s+(\\d{1,2})\\b`, 'i'), i]);
-export function namedDate(text, year) {
-    const s = String(text ?? '');
-    const iso = s.match(/\b(\d{4})-(\d{1,2})-(\d{1,2})\b/);
-    if (iso) return Date.UTC(+iso[1], +iso[2] - 1, +iso[3]);
-    for (const [re, m] of MON_RE) { const x = s.match(re); if (x) { const y = s.slice(x.index).match(/^[^,]*,\s*(\d{4})\b/); return Date.UTC(y ? +y[1] : year, m, +x[1]); } }
-    const k = s.match(/(?:(\d{4})\s*년\s*)?(\d{1,2})\s*월\s*(\d{1,2})\s*일/);
-    return k ? Date.UTC(k[1] ? +k[1] : year, +k[2] - 1, +k[3]) : null;
-}
+// A date the scene names ("March 14", "3월 14일") fixes where we are (third generation's settle); after days pass,
+// the last named date keeps counting from there instead of falling back to the start date.
+export { namedDate };
 // Where the story is now: { date: Date|null, fuzzy: { since: Date } | null }
 export function today(env) {
     const start = startOf(env), sc = env.peek('scene');
     if (start == null || !sc) return null;
     if (sc.fz) return { date: null, fuzzy: { since: dateOf(start, sc.fz.from), unit: sc.fz.unit }, day: sc.day };
-    const named = sc.date ? namedDate(sc.date, dateOf(start, sc.day).getUTCFullYear()) : null;
+    const named = anchoredDate(sc, dateOf(start, sc.day).getUTCFullYear());
     return { date: named != null ? new Date(named) : dateOf(start, sc.day), fuzzy: null, day: sc.day };
 }
 // Marked days from today on, nearest first; a yearly one counts its next turn. [{ label, in, mark }]
