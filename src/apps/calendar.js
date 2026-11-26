@@ -60,6 +60,18 @@ export function cycleOn(cyc, day) {
     return day - last < len * 3 && k < dur ? k + 1 : 0;   // predicted for three cycles after the last one marked
 }
 
+// what the cycle box says now, so it is clear whether anything is marked and whether today is in it
+const cyNow = (cyc, day) => {
+    if (!cyc.starts?.length) return '<p class="mb4-hint">시작일을 표시해야 기간이 잡혀요.</p>';
+    const cd = cycleOn(cyc, day);
+    if (cd) return `<p class="mb4-hint">🩸 지금 기간 중 · ${cd}번째 날${cyc.tell ? ' · AI가 알아요' : ''}</p>`;
+    const last = Math.max(...cyc.starts.filter((n) => n <= day));
+    if (!Number.isFinite(last)) return '<p class="mb4-hint">표시한 시작일이 아직 오지 않았어요.</p>';
+    if (day - last >= (cyc.len || 28) * 3) return '<p class="mb4-hint">마지막 시작일이 오래돼서 쉬고 있어요. 새 시작일을 표시해 주세요.</p>';
+    const next = (cyc.len || 28) - ((day - last) % (cyc.len || 28));
+    return `<p class="mb4-hint">지금은 기간이 아니에요 · 다음 시작까지 약 ${next}일 (그때만 AI에 알려요)</p>`;
+};
+
 export default {
     api: 1,
     id: 'calendar',
@@ -69,9 +81,12 @@ export default {
     cost: 'zero',
     desc: '이야기 속 날짜를 달력으로 보여 주고, 내가 표시한 날이 다가오면 AI에 알려 줘요.',
     note(_S, env) {
-        const T = today(env);
-        if (!T) return null;
+        const T = today(env), sday = env.peek('scene')?.day;
         const st = env.store, state = [], now = [];
+        // the cycle counts story days, so it works even when the story has no calendar date yet
+        const user = env.user || 'the user', cd = sday == null ? 0 : cycleOn(st.cycle, sday);
+        const cycle = () => { if (cd && st.cycle.tell) { state.push(`${user} is on their period (day ${cd}).`); if (cd <= 3) now.push(`People close to ${user} know or notice it and act on it naturally: care, warmth, food, rest.`); } };
+        if (!T) { cycle(); return state.length || now.length ? { state, now } : null; }
         if (T.fuzzy) state.push(`Calendar: some ${{ d: 'days', w: 'weeks', mo: 'months', y: 'years' }[T.fuzzy.unit] ?? 'days'} after ${fmtEN(T.fuzzy.since)}; the exact date is not known yet. Do not name one unless the story settles it.`);
         else {
             state.push(`Calendar: today is ${fmtEN(T.date)}.`);
@@ -79,8 +94,7 @@ export default {
             const note = st.notes?.[iso(T.date)];
             if (note?.text && note.tell) state.push(`On today's page of the calendar the user wrote: ${String(note.text).slice(0, 80)}.`);
         }
-        const user = env.user || 'the user', cd = cycleOn(st.cycle, T.day);
-        if (cd && st.cycle.tell) { state.push(`${user} is on their period (day ${cd}).`); if (cd <= 3) now.push(`People close to ${user} know or notice it and act on it naturally: care, warmth, food, rest.`); }
+        cycle();
         // one reply only: someone close notices a calendar note (the person pressed it)
         const pk = stamped(st, 'peek', env);
         if (pk?.who && pk.text) now.push(`${pk.who} may notice ${user}'s calendar note for ${pk.md}: "${String(pk.text).slice(0, 80)}" and bring it up naturally if it fits.`);
@@ -145,7 +159,8 @@ export default {
         <details class="mb4-card"><summary>🩸 주기 (켤 때만)</summary>
             <label class="mb4-sw"><span><b>주기 표시</b></span><input type="checkbox" data-act="cyon" ${st.cycle.on ? 'checked' : ''}><i></i></label>
             ${st.cycle.on ? `<div class="mb4-btnrow"><label class="mb4-label">주기(일)<input class="mb4-input mb4-short" type="number" min="15" max="60" data-act="cylen" value="${st.cycle.len}"></label><label class="mb4-label">기간(일)<input class="mb4-input mb4-short" type="number" min="1" max="10" data-act="cydur" value="${st.cycle.dur}"></label></div>
-            <div class="mb4-btnrow"><button class="mb4-btn ghost sm" data-act="cystart">고른 날을 시작일로</button></div>
+            <div class="mb4-btnrow"><button class="mb4-btn ghost sm" data-act="cystart">${pick ? '고른 날을 시작일로' : '오늘을 시작일로'}</button></div>
+            ${cyNow(st.cycle, sc.day)}
             <label class="mb4-sw"><span><b>AI에 알리기</b><small>기간 중에만 1줄 · 가까운 사람이 챙겨 줘요</small></span><input type="checkbox" data-act="cytell" ${st.cycle.tell ? 'checked' : ''}><i></i></label>` : ''}
         </details>
         <details class="mb4-card" ${start == null ? 'open' : ''}><summary>⚙️ 이야기 시작 날짜</summary>
@@ -176,7 +191,7 @@ export default {
             cytell: (_v, b) => { st.cycle.tell = b.checked; save(); },
             cylen: (_v, b) => { st.cycle.len = Math.max(15, Math.min(60, +b.value || 28)); save(); },
             cydur: (_v, b) => { st.cycle.dur = Math.max(1, Math.min(10, +b.value || 5)); save(); },
-            cystart: () => { const d = dayOfIso(start, pick); if (d != null && !st.cycle.starts.includes(d)) st.cycle.starts.push(d); save(); },
+            cystart: () => { const d = pick && start != null ? dayOfIso(start, pick) : sc.day; if (d != null && !st.cycle.starts.includes(d)) st.cycle.starts.push(d); save(); },
         });
     },
 };
