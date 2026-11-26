@@ -32,7 +32,7 @@ export function loadFonts(list) {
 }
 export const isDark = (L = cfg().look ?? {}) => L.mode === 'dark' || (L.mode !== 'light' && L.wall === 'night');
 export function paint() {
-    const L = cfg().look ?? {}, acc = ACCENTS.find((a) => a[0] === (L.accent ?? '')) ?? ACCENTS[0], f = fontOf(L.font), r = document.documentElement;
+    const L = cfg().look ?? {}, acc = ACCENTS.find((a) => a[0] === (L.accent ?? '')) ?? (/^#[0-9a-f]{6}$/i.test(L.accent ?? '') ? [L.accent, '내 색', L.accent] : ACCENTS[0]), f = fontOf(L.font), r = document.documentElement;
     r.style.setProperty('--mb4-a', acc[2]);
     if (f.family) r.style.setProperty('--mb4-font', `${f.family}, sans-serif`); else r.style.removeProperty('--mb4-font');
     r.classList.toggle('mb4-night', isDark(L));

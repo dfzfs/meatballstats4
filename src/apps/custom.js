@@ -47,14 +47,14 @@ export default {
         ${F.length < MAX ? card('칸 만들기', `<div class="mb4-btnrow"><input class="mb4-input" data-f="icon" maxlength="2" placeholder="🙂" style="max-width:56px"><input class="mb4-input" data-f="name" maxlength="20" placeholder="이름 (예: 명성)"></div>
             <input class="mb4-input" data-f="en" maxlength="20" placeholder="영어 이름 (예: fame) — 영어 이야기면 적어 주세요" style="margin-top:6px">
             <input class="mb4-input" data-f="what" maxlength="100" placeholder="무엇인지 한 줄, 영어면 더 잘 읽어요 (예: how well known she is in town)" style="margin-top:6px">
-            <div class="mb4-btnrow"><select class="mb4-input" data-f="type"><option value="num">숫자 (0–100)</option><option value="text">글 (몇 낱말)</option></select><input class="mb4-input" data-f="start" maxlength="20" placeholder="처음 값"><button class="mb4-btn" data-act="add">만들기</button></div>`) : ''}
+            <div class="mb4-btnrow"><select class="mb4-input" data-f="type"><option value="num">숫자</option><option value="text">글 (몇 낱말)</option></select><input class="mb4-input" data-f="start" maxlength="20" placeholder="처음 값"><input class="mb4-input mb4-short" data-f="min" type="number" placeholder="최소 0"><input class="mb4-input mb4-short" data-f="max" type="number" placeholder="최대 100"><button class="mb4-btn" data-act="add">만들기</button></div>`) : ''}
         ${S.log.length ? card('최근 바뀐 것', S.log.slice(-6).reverse().map((x) => `<div class="mb4-row"><span class="mb4-row-k">${esc(x.n)}</span><span class="mb4-row-v">${esc(String(x.from ?? ''))} → <b>${esc(String(x.to))}</b></span></div>`).join('')) : ''}
         ${hint(`칸은 ${MAX}개까지. 칸이 하나라도 있으면 답을 읽을 때 한 줄을 더 물어요(칸이 여러 개여도 한 줄). 「가끔만」은 네 번에 한 번만 물어요.`)}`;
         acts(el, {
             add: () => {
                 const name = val(el, '[data-f="name"]'); if (!name || F.some((f) => f.name === name)) { api.toast('이름을 적어 주세요 (같은 이름은 안 돼요).'); return; }
                 const type = val(el, '[data-f="type"]') === 'text' ? 'text' : 'num', start = val(el, '[data-f="start"]');
-                F.push({ name: clip(name, 20), en: clip(val(el, '[data-f="en"]').replace(/[^A-Za-z ]/g, ''), 20), icon: val(el, '[data-f="icon"]'), what: clip(val(el, '[data-f="what"]'), 100), type, start: type === 'num' ? Number(start) || 0 : start, min: 0, max: 100, on: true });
+                F.push({ name: clip(name, 20), en: clip(val(el, '[data-f="en"]').replace(/[^A-Za-z ]/g, ''), 20), icon: val(el, '[data-f="icon"]'), what: clip(val(el, '[data-f="what"]'), 100), type, start: type === 'num' ? Number(start) || 0 : start, ...(() => { const lo = Number(val(el, '[data-f="min"]')), hi = Number(val(el, '[data-f="max"]')), mn = val(el, '[data-f="min"]') !== '' && Number.isFinite(lo) ? lo : 0, mx = val(el, '[data-f="max"]') !== '' && Number.isFinite(hi) && hi > mn ? hi : Math.max(mn + 1, 100); return { min: mn, max: mx }; })(), on: true });
                 api.save(); api.redraw();
             },
             del: (n) => { F.splice(+n, 1); api.save(); api.redraw(); },

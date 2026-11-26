@@ -44,6 +44,8 @@ export function regularTotal(st, day) {
 const dayOf = (env) => env.peek?.('scene')?.day ?? null;
 export const cashOf = (S, env) => S.cash + regularTotal(env.store, dayOf(env));
 const openLoans = (st) => (Array.isArray(st.loans) ? st.loans : []).filter((l) => l && !l.paid);
+// what a loan comes to now: simple interest per 30 story days since it was taken (rate in %, 0 = none)
+export const owedNow = (l, day) => { const r = Number(l?.rate) || 0, from = l?.from ?? day; return r > 0 && day != null && from != null ? Math.round(l.owed * (1 + (r / 100) * Math.max(0, Math.floor((day - from) / 30)))) : l.owed; };
 const label = (S, x) => `${x}${(S.qty?.[x.toLowerCase()] ?? 1) > 1 ? ` ×${S.qty[x.toLowerCase()]}` : ''}`;
 const unitOf = (env) => (env.store.unit ? ` ${env.store.unit}` : '');
 
@@ -99,12 +101,12 @@ export default {
     stateLines: (S, env) => [`cash: ${cashOf(S, env)}${unitOf(env)}`, `belongings: ${S.items.length ? S.items.map((x) => label(S, x)).join(', ') : '(none recorded)'}`],
     note(S, env) {
         const st = env.store, who = env.user || 'The user character', cash = cashOf(S, env), u = unitOf(env), day = dayOf(env), state = [], now = [];
-        state.push(`${who} has ${fmt(cash)}${u}${S.items.length ? ` and carries: ${S.items.slice(-15).map((x) => label(S, x)).join(', ')}` : ''}. Nothing else is owned.`);
+        if (cash !== 0 || S.items.length || S.log.length || Number(st.startCash) || openLoans(st).length) state.push(`${who} has ${fmt(cash)}${u}${S.items.length ? ` and carries: ${S.items.slice(-15).map((x) => label(S, x)).join(', ')}` : ''}. Nothing else is owned.`);
         if (cash > 0 && S.short.length) state.push(`Anything costing more than ${fmt(cash)}${u} cannot be bought outright.`);   // only once a reply has overspent
         if (Number(st.meal) > 0) state.push(`Prices: a plain meal costs about ${fmt(st.meal)}${u}; keep other prices in proportion.`);
         for (const l of openLoans(st).slice(0, 3)) {
             const left = l.due != null && day != null ? l.due - day : null;
-            state.push(`${who} owes ${l.lender} ${fmt(l.owed)}${u}${l.item ? ` (left ${l.item} as security)` : ''}${left == null ? '' : left >= 0 ? `, due in ${left} days` : `, ${-left} days overdue`}.`);
+            state.push(`${who} owes ${l.lender} ${fmt(owedNow(l, day))}${u}${l.item ? ` (left ${l.item} as security)` : ''}${left == null ? '' : left >= 0 ? `, due in ${left} days` : `, ${-left} days overdue`}.`);
         }
         // the story tried to spend money that is not there: say so once, for the next reply
         const s = S.short.at(-1);
@@ -132,8 +134,8 @@ export default {
             <div class="mb4-btnrow"><input class="mb4-input" data-f="item" maxlength="60" placeholder="물건 이름 (×2처럼 개수도)"><button class="mb4-btn ghost" data-act="add">넣기</button></div>`)}
         ${st.jobs.length ? card('⛏ 일거리', st.jobs.map((j, n) => `<div class="mb4-row"><span class="mb4-row-k">${esc(j.name)}</span><span class="mb4-row-v">일당 ${fmt(j.pay)}</span><button class="mb4-btn sm" data-act="work" data-v="${n}">일하기</button><button class="mb4-x" data-act="jdel" data-v="${n}" aria-label="지우기">✕</button></div>`).join('')) : ''}
         ${st.regular.length ? card('🔁 정기 수입 · 지출', st.regular.map((r, n) => `<div class="mb4-row"><span class="mb4-row-k">${esc(r.name)}</span><span class="mb4-row-v">${EVERY_KO[r.every] ?? ''} <b class="${r.amount < 0 ? 'mb4-bad' : 'mb4-good'}">${signed(r.amount)}</b></span><button class="mb4-x" data-act="rdel" data-v="${n}" aria-label="지우기">✕</button></div>`).join('') + hint(day == null ? '🧭 장면 앱을 켜면 날이 지날 때마다 저절로 들어오고 나가요.' : '날이 지날 때마다 저절로 들어오고 나가요.')) : ''}
-        ${card('💸 빚', `${loans.length ? loans.map((l) => { const left = l.due != null && day != null ? l.due - day : null; return `<div class="mb4-row"><span class="mb4-row-k">${esc(l.lender)}</span><span class="mb4-row-v">${fmt(l.owed)} ${left == null ? '' : pill(left >= 0 ? `D-${left}` : `${-left}일 연체`, left < 0 ? 'bad' : '')}${l.item ? ` <small>맡긴 것: ${esc(l.item)}</small>` : ''}</span><button class="mb4-btn sm" data-act="repay" data-v="${st.loans.indexOf(l)}" ${cash >= l.owed ? '' : 'disabled'}>갚기</button></div>`; }).join('') : hint('빚이 없어요.')}
-            <div class="mb4-btnrow"><input class="mb4-input" data-f="lender" maxlength="30" placeholder="누구에게"><input class="mb4-input mb4-short" data-f="owed" type="number" min="1" placeholder="얼마"><input class="mb4-input mb4-short" data-f="days" type="number" min="0" placeholder="며칠 안"><button class="mb4-btn ghost" data-act="borrow">빌림</button></div>`)}
+        ${card('💸 빚', `${loans.length ? loans.map((l) => { const left = l.due != null && day != null ? l.due - day : null; return `<div class="mb4-row"><span class="mb4-row-k">${esc(l.lender)}</span><span class="mb4-row-v">${fmt(owedNow(l, day))}${owedNow(l, day) !== l.owed ? ` <small>(이자 ${l.rate}%/달)</small>` : ''} ${left == null ? '' : pill(left >= 0 ? `D-${left}` : `${-left}일 연체`, left < 0 ? 'bad' : '')}${l.item ? ` <small>맡긴 것: ${esc(l.item)}</small>` : ''}</span><button class="mb4-btn sm" data-act="repay" data-v="${st.loans.indexOf(l)}" ${cash >= owedNow(l, day) ? '' : 'disabled'}>갚기</button></div>`; }).join('') : hint('빚이 없어요.')}
+            <div class="mb4-btnrow"><input class="mb4-input" data-f="lender" maxlength="30" placeholder="누구에게"><input class="mb4-input mb4-short" data-f="owed" type="number" min="1" placeholder="얼마"><input class="mb4-input mb4-short" data-f="days" type="number" min="0" placeholder="며칠 안"><input class="mb4-input mb4-short" data-f="rate" type="number" min="0" max="100" placeholder="이자%/달"><button class="mb4-btn ghost" data-act="borrow">빌림</button></div>`)}
         ${card('들어오고 나간 돈', S.log.length ? S.log.slice(-12).reverse().map((l) => `<div class="mb4-row"><span class="mb4-row-v">${esc(l.why || (l.d < 0 ? '씀' : '받음'))}</span><b class="${l.d < 0 ? 'mb4-bad' : 'mb4-good'}">${signed(l.d)}</b></div>`).join('') : empty('🧾', '아직 기록이 없어요', '이야기에서 돈을 쓰거나 받으면 쌓여요'))}
         <details class="mb4-card"><summary>⚙️ 돈 규칙</summary>
             <label class="mb4-label">처음 가진 돈<input class="mb4-input" data-act="set" data-k="startCash" type="number" value="${esc(st.startCash ?? 0)}"></label>
@@ -153,13 +155,13 @@ export default {
             drop: (x) => { api.fix('lost', x); },
             set: (_v, inp) => { st[inp.dataset.k] = inp.type === 'number' ? Number(inp.value) || 0 : inp.value.trim(); save(); },
             strict: (_v, b) => { st.strict = b.checked; save(); },
-            work: (n) => { const j = st.jobs[+n]; if (j && api.fix('cash', `+${j.pay} | ${j.name}`)) api.toast(`${j.name} · +${fmt(j.pay)}`); },
+            work: (n) => { const j = st.jobs[+n]; if (j && api.fix('cash', `+${j.pay} | ${j.name}`)) { if (api.isOn('scene')) api.fix('time', '+8h'); api.toast(`${j.name} · +${fmt(j.pay)}${api.isOn('scene') ? ' · 8시간 흐름' : ''}`); } },
             jadd: () => { const name = val(el, '[data-f="jname"]'), pay = Math.abs(Number(val(el, '[data-f="jpay"]')) || 0); if (name && pay) { st.jobs.push({ name, pay }); save(); } },
             jdel: (n) => { st.jobs.splice(+n, 1); save(); },
             radd: () => { const name = val(el, '[data-f="rname"]'), amount = Number(val(el, '[data-f="ramt"]')) || 0, every = val(el, '[data-f="revery"]'); if (name && amount) { st.regular.push({ name, amount, every, from: day ?? 1 }); save(); } },
             rdel: (n) => { st.regular.splice(+n, 1); save(); },
-            borrow: () => { const lender = val(el, '[data-f="lender"]'), owed = Math.abs(Number(val(el, '[data-f="owed"]')) || 0), days = val(el, '[data-f="days"]'); if (!lender || !owed) return; st.loans.push({ lender, owed, due: days !== '' && day != null ? day + Math.abs(+days) : null }); api.save(); api.fix('cash', `+${owed} | ${lender}에게 빌림`); },
-            repay: (n) => { const l = st.loans[+n]; if (!l) return; if (api.fix('cash', `-${l.owed} | ${l.lender}에게 갚음`)) { l.paid = true; save(); } },
+            borrow: () => { const lender = val(el, '[data-f="lender"]'), owed = Math.abs(Number(val(el, '[data-f="owed"]')) || 0), days = val(el, '[data-f="days"]'); if (!lender || !owed) return; st.loans.push({ lender, owed, from: day, rate: Math.max(0, Math.min(100, Number(val(el, '[data-f="rate"]')) || 0)), due: days !== '' && day != null ? day + Math.abs(+days) : null }); api.save(); api.fix('cash', `+${owed} | ${lender}에게 빌림`); },
+            repay: (n) => { const l = st.loans[+n]; if (!l) return; if (api.fix('cash', `-${owedNow(l, day)} | ${l.lender}에게 갚음`)) { l.paid = true; save(); } },
         });
     },
 };

@@ -127,12 +127,12 @@ export function loreSecrets(text) {
         if (k === 'hide') { const p = who.split('>').map((x) => x.trim()); if (p.length !== 2 || !p[0] || !p[1]) continue; who = p[0]; }
         out.push({ id: shortId('s', v.slice(0, 400)), v: v.slice(0, 400), who: who.slice(0, 60), signs: String(extra.signs ?? '').split(/[,，]/).map((x) => x.trim()).filter((x) => x.length >= 2).slice(0, 12), shows: (extra.shows ?? '').slice(0, 200), cover: (extra.cover ?? '').slice(0, 200), opens: (extra.opens ?? '').slice(0, 120) });
     }
-    return out.slice(0, 12);
+    return out.slice(0, 20);
 }
 // Secrets typed in the third generation, and what happened to them per reply (a leak, a clue, a lie, the person's
 // open / lock), as our own lines. Only secrets with a keeper and a text; at most 12, as there.
 function v3Secrets(md) {
-    const list = (Array.isArray(md?.secrets) ? md.secrets : []).filter((x) => x?.who && x?.v).slice(0, 12).map((x) => ({
+    const list = (Array.isArray(md?.secrets) ? md.secrets : []).filter((x) => x?.who && x?.v).slice(0, 20).map((x) => ({
         id: shortId('s', String(x.v).slice(0, 400)), v: String(x.v).slice(0, 400), who: String(x.who).slice(0, 60),
         signs: (Array.isArray(x.signs) ? x.signs : []).map(String).filter((w) => w.trim().length >= 2).slice(0, 12),
         shows: String(x.shows ?? '').slice(0, 200), cover: String(x.cover ?? '').slice(0, 200), opens: String(x.opens ?? '').slice(0, 120),
