@@ -3,7 +3,7 @@
 // counts, the bag grouped by kind) and the first generation's money tab (a usual meal price, wages, regular income
 // and costs, debts with a due day, a rough real-money equivalent).
 import { clip } from '../core/text.js';
-import { applyTime } from '../core/clock.js';
+import { tick, newClock } from '../core/clock.js';
 import { esc, card, hint, acts, val, empty, pill } from '../ui/kit.js';
 
 const num = (v) => { const m = String(v).replace(/,/g, '').match(/^\s*([=+-])?\s*(\d+(?:\.\d+)?)/); return m ? { sign: m[1] ?? '+', n: +m[2] } : null; };
@@ -65,13 +65,13 @@ export default {
         { id: 'got', line: 'got: thing kept (×2 for several; | from Name if given)' },
         { id: 'lost', line: 'lost: thing used up, given, sold, broken or taken' },
     ],
-    watch: ['time'],   // the story's day, so regular income counts when a spend is judged (only while the scene app is on)
+    watch: ['time', 'date'],   // the story's day, so regular income counts when a spend is judged (only while the scene app is on)
     rules: (env) => [`cash, got and lost are only about ${env.user || 'the user character'}'s own money and belongings. Numbers only when the text gives them.`],
     // items stay a list of names (older saves and other apps read it so); counts and givers sit beside it
-    start: (env) => ({ cash: Number(env.store.startCash) || 0, items: [...(env.store.startItems ?? [])], qty: {}, gift: {}, log: [], short: [], clock: { day: 1, hrs: 0, tod: '', date: '', vague: false, fz: null } }),
+    start: (env) => ({ cash: Number(env.store.startCash) || 0, items: [...(env.store.startItems ?? [])], qty: {}, gift: {}, log: [], short: [], clock: newClock() }),
     check: ({ k, v }) => (k === 'cash' ? !!num(v) : v.length <= 80),
     reduce(S, { k, v, i, watched }, env) {
-        if (watched) { if (k === 'time') applyTime(S.clock, v); return; }
+        if (watched) { if (k === 'time' || k === 'date') tick(S.clock, k, v, i); return; }
         if (k === 'cash') {
             const x = num(v);
             if (!x) return;

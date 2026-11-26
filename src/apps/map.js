@@ -1,5 +1,5 @@
 // Built into Meatball 4 (was a separately installed app). Fetched only when switched on.
-import { applyTime } from '../core/clock.js';
+import { tick as clockTick, newClock } from '../core/clock.js';
 //
 // 🗺 Map — the second generation's map, carried over: places are stations, the ways between them are lines
 // (coloured, bent at 45°), people are pins, a tapped place shows the way there, who is there, its rooms as a
@@ -29,7 +29,7 @@ const KIND_RE = [
 const guessKind = (name) => KIND_RE.find(([, re]) => re.test(name))?.[0] ?? 'other';
 
 // ───── story time (the same counting 🧭 Scene uses, so "today" means the same day) ─────
-function tick(S, v) { applyTime(S, v); }
+function tick(S, k, v, i) { clockTick(S, k, v, i); }
 
 // ───── which station a "big place > smaller place > room" line means ─────
 // three or more parts: the second is the station, the first its district, the rest a room inside.
@@ -68,7 +68,7 @@ function evict(S) {
     for (const [who, x] of Object.entries(S.seen)) if (x.at === out) delete S.seen[who];
 }
 function reduce(S, { k, v, i }) {
-    if (k === 'time') { tick(S, v); return; }
+    if (k === 'time' || k === 'date') { tick(S, k, v, i); return; }
     if (k === 'mood') { const P = S.P[S.cur]; if (P) P.mood = clip(v, 40); return; }
     if (k === 'loc') {
         const st = stationOf(S, v); if (!st) return;
@@ -418,8 +418,8 @@ const toggle = (list, v) => (list.includes(v) ? list.filter((x) => x !== v) : [.
 export default {
     api: 1, id: 'map', name: '지도', icon: '🗺', color: '#2f9e7a', cost: 'zero',
     desc: '다녀온 곳을 노선도로 그려요. 누가 어디 있는지, 가는 길, 건물 안까지 보여 줘요. 🧭 장면이 적어 둔 걸 읽기만 해요.',
-    watch: ['loc', 'with', 'time', 'mood'],
-    start: () => ({ day: 1, hrs: 0, cur: '', room: '', with: [], P: {}, E: {}, seen: {}, route: { day: 1, list: [] } }),
+    watch: ['loc', 'with', 'time', 'date', 'mood'],
+    start: () => ({ ...newClock(), cur: '', room: '', with: [], P: {}, E: {}, seen: {}, route: { day: 1, list: [] } }),
     reduce,
     widget(S) { const T = S?.route?.day === S?.day ? S.route.list.map((k) => S.P[k]?.name).filter(Boolean).slice(-4) : []; const cur = S?.P?.[S.cur]; return T.length > 1 ? `<div class="mb4-row"><span class="mb4-row-v" data-trc="place">${T.map((n) => esc(clip(n, 14))).join(' → ')}</span></div>` : cur ? `<div class="mb4-row"><span class="mb4-row-k">📍 지금</span><span class="mb4-row-v" data-trc="place">${esc(cur.name)}</span></div>` : ''; },
     widgetTitle: '오늘 다닌 길',

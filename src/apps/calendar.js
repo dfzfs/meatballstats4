@@ -3,8 +3,7 @@
 // Ported from the second generation's calendar-plus (D-day counting, a pinned D-day, yearly anniversaries, a note per
 // day, an optional cycle, "someone close notices a note") and the third generation's handling of vague time skips.
 import { esc, card, hint, acts, val, empty, pill } from '../ui/kit.js';
-import { namedDate, anchoredDate, startMs } from '../core/clock.js';
-import { dayOn, utc, dimOf, FUZZY_NOM } from '../core/v3time.js';
+import { namedDate, anchoredDate, startMs, dayOn, utc, dimOf, FUZZY_NOM } from '../core/clock.js';
 import { plain, spendPlain, stamped, spendStamped } from '../core/once.js';
 
 const DAY = 86400000;
@@ -39,7 +38,7 @@ export function today(env) {
     if (sc.fz) return { date: null, fuzzy: { since: dateOf(start, sc.fz.from), unit: sc.fz.unit }, day: sc.day };
     const named = anchoredDate(sc, dateOf(start, sc.day).getUTCFullYear());
     // the story's own weekday wins (v3 keeps it apart from the date), else the calendar's
-    const wd = sc.cal ? dayOn(sc.cal, sc.day)?.wd ?? null : null, date = named != null ? new Date(named) : dateOf(start, sc.day);
+    const wd = dayOn(sc)?.wd ?? null, date = named != null ? new Date(named) : dateOf(start, sc.day);
     return { date, fuzzy: null, day: sc.day, wd: wd ?? date.getUTCDay() };
 }
 // Marked days from today on, nearest first; a yearly one counts its next turn. [{ label, in, mark }]
@@ -85,7 +84,7 @@ export function rollDate(sc, year, rnd = Math.random) {
     const cal = sc?.cal;
     if (!cal || cal.doy == null) { const y = Number.isInteger(year) ? year : new Date().getUTCFullYear(), m = R(1, 12); return fmt(utc(y, m, R(1, dimOf(y, m)))); }
     if (!cal.fz) return '';
-    const base = dayOn({ ...cal, fz: null }, cal.fz.from + 1, year), nom = cal.fz.nom ?? FUZZY_NOM[cal.fz.unit] ?? 2;
+    const base = dayOn({ cal: { ...cal, fz: null } }, cal.fz.from + 1, year), nom = cal.fz.nom ?? FUZZY_NOM[cal.fz.unit] ?? 2;
     if (!base) return '';
     const b = utc(base.y, base.m, base.d), aim = new Date(b.getTime() + nom * DAY), sun = new Date(aim.getTime() - aim.getUTCDay() * DAY);
     const days = [0, 1, 2, 3, 4, 5, 6].map((j) => new Date(sun.getTime() + j * DAY)).filter((x) => x > b);

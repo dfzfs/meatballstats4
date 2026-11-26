@@ -2,7 +2,7 @@
 // (the story time 🧭 Scene records is watched, not asked again) and works out what is due or overdue; the main model
 // only gets the open ones, with «due today» / «overdue» when it matters.
 import { clip } from '../core/text.js';
-import { applyTime, dayKo } from '../core/clock.js';
+import { tick, newClock, dayKo } from '../core/clock.js';
 import { esc, card, hint, acts, val, empty, pill } from '../ui/kit.js';
 
 // time words say WHEN, not WHAT: two different promises both «by tomorrow evening» are not the same promise
@@ -41,12 +41,12 @@ export default {
         { id: 'promise', line: 'promise: A>B=what, when (keep the words for when: tomorrow, in 3 days, tonight…)', quote: true },
         { id: 'done', line: 'done: the promise — kept | broken | cancelled', when: (S) => (S?.open?.length ?? 1) > 0 },
     ],
-    watch: ['time'],
+    watch: ['time', 'date'],
     rules: ['"promise" is only for a clear commitment to do something later. Small talk and wishes are not promises.'],
-    start: () => ({ open: [], closed: [], clock: { day: 1, hrs: 0, tod: '', date: '', vague: false, fz: null } }),
+    start: () => ({ open: [], closed: [], clock: newClock() }),
     reduce(S, { k, v, q, i }) {
-        S.clock ??= { day: 1, hrs: 0, tod: '', date: '', vague: false, fz: null };
-        if (k === 'time') { applyTime(S.clock, v); return; }
+        S.clock ??= newClock();
+        if (k === 'time' || k === 'date') { tick(S.clock, k, v, i); return; }
         if (k === 'promise') {
             const text = clip(v, 140), d = dueIn(text);
             const pairOf = (s) => (String(s).includes('=') ? String(s).slice(0, String(s).indexOf('=')).replace(/\s+/g, '').toLowerCase() : '');

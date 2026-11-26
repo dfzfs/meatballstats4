@@ -1,4 +1,4 @@
-// 🕰 The scene's dates run on the third generation's time engine: the same answers v3 gave. Made-up dates only.
+// 🕰 Story time: the third generation's date rules inside the shared clock (scene, todo, wallet, map count the same days). Made-up dates only.
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { setup, chatOf, src } from './harness.mjs';
@@ -8,7 +8,7 @@ async function story(lines, apps = ['scene']) {
     lines.forEach((L, i) => t.record(i * 2, Array.isArray(L[0]) ? L : [L]));
     return t;
 }
-const on = async (t) => { const { dayOn } = await import(src('core/v3time.js')); const S = t.state('scene'); const o = dayOn(S.cal, S.day); return o ? `${o.y}-${o.m}-${o.d}` : (S.vague ? '~' : '-'); };
+const on = async (t) => { const { dayOn } = await import(src('core/clock.js')); const S = t.state('scene'); const o = dayOn(S); return o ? `${o.y}-${o.m}-${o.d}` : (S.vague ? '~' : '-'); };
 
 test('a full date named after "a few days" is taken (v3)', async () => {
     const t = await story([['date', '3월 2일 월요일'], ['time', '+?d'], ['date', '3월 20일 금요일'], ['time', '+?w'], ['date', '4월 10일']]);
@@ -51,4 +51,13 @@ test('🎲 미정 날짜 정하기: no date → a day of this year; inside «며
     const got = await on(b), [y, m, d] = got.split('-').map(Number);
     assert.equal(b.state('scene').vague, false);
     assert.ok(y === 1702 && m === 6 && d >= 11 && d <= 17, got);
+});
+
+test('scene, promises, wallet and map count the same day after a date moves the count', async () => {
+    const t = await story([['date', 'April 2, 1810'], ['time', '+1d'], ['date', 'April 20'], ['time', '+3h night'], ['time', 'morning']], ['scene', 'todo', 'wallet', 'map']);
+    const day = t.state('scene').day;
+    assert.equal(day, 1 + 18 + 1);
+    assert.equal(t.state('todo').clock.day, day);
+    assert.equal(t.state('wallet').clock.day, day);
+    assert.equal(t.state('map').day, day);
 });
