@@ -47,3 +47,14 @@ export function anchoredDate(S, year = new Date().getUTCFullYear()) {
     const t = namedDate(a.date, year);
     return t == null ? null : t + (S.day - a.day) * 86400000;
 }
+
+// The date of a story day, when one can be known: from the last date the story named (counted on), else from the
+// calendar's start date. -> UTC ms or null. Shown instead of a bare day count.
+export function dayDate(sc, day, start = '') {
+    if (!sc || !Number.isFinite(day)) return null;
+    const now = sc.vague ? null : anchoredDate(sc);
+    if (now != null && !Number.isNaN(now)) return now + (day - sc.day) * 86400000;
+    const t = Date.parse(`${start ?? ''}T00:00:00Z`);
+    return Number.isNaN(t) ? null : t + (day - 1) * 86400000;
+}
+export const dayKo = (sc, day, start = '') => { const t = dayDate(sc, day, start); if (t == null) return ''; const d = new Date(t); return `${d.getUTCMonth() + 1}월 ${d.getUTCDate()}일`; };

@@ -275,7 +275,7 @@ function model(S, env, st) {
     const at = new Map(), everyone = new Set([...S.with, ...Object.keys(S.seen)]);
     const push = (key, x) => { if (byKey.has(key)) (at.get(key) ?? at.set(key, []).get(key)).push(x); };
     for (const n of S.with) if (pinOK(n)) push(S.cur, { e: face(n), name: n, why: '지금 같이 있어요', now: true });
-    for (const [n, s] of Object.entries(S.seen)) if (!S.with.includes(n) && !gone[n]?.gone && pinOK(n)) push(s.at, { e: face(n), name: n, why: `${s.day}일째에 마지막으로 봤어요`, now: false });
+    for (const [n, s] of Object.entries(S.seen)) if (!S.with.includes(n) && !gone[n]?.gone && pinOK(n)) push(s.at, { e: face(n), name: n, why: '마지막으로 본 곳', now: false });
     return { places, byKey, at, everyone: [...everyone].filter((n) => !gone[n]?.gone), hidden: all.filter((p) => hide.has(p.key) && p.key !== S.cur), near };
 }
 
@@ -295,7 +295,7 @@ function placeCard(S, M, st, p, path, ui) {
         if (guess.length) L.push(rl('🔮', `가면 만날지도: ${guess.map(([n, c]) => `<b data-trc="name">${esc(n)}</b> <small>${c >= 5 ? '자주' : '가끔'}</small>`).join(' · ')}`));
     }
     if (p.mood) L.push(rl('🌫', `<small>여기 분위기</small> ${esc(p.mood)}`));
-    if (p.visits) L.push(rl('👣', `<b>${p.visits}번</b> 들렀어요 <small>처음 ${p.first}일째${p.last !== p.first ? ` · 마지막 ${p.last}일째` : ''}</small>`));
+    if (p.visits) L.push(rl('👣', `<b>${p.visits}번</b> 들렀어요 `));
     else L.push(rl('👣', '<small>아직 가 보지 않은 곳이에요</small>'));
     const often = Object.entries(p.ppl).sort((a, b) => b[1] - a[1]).slice(0, 4);
     if (often.length) L.push(rl('🕰', `여기서 본 사람: ${often.map(([n, c]) => `<b data-trc="name">${esc(n)}</b> <small>${c}번</small>`).join(' · ')}`));
@@ -346,7 +346,7 @@ function view(S, env, st, ui = {}) {
     h += placeCard(S, M, st, sel, path, ui);
     if (today.length > 1) h += `<section class="mb4-card"><h5 class="mb4-card-h">오늘 다닌 길</h5><p class="mbx-today" data-trc="place">${today.map((n, i) => `<b class="mb4-notr">${i + 1}</b> ${esc(n)}`).join(' → ')}</p></section>`;
     const trail = [...M.places].filter((p) => p.visits).sort((a, b) => b.i - a.i);
-    h += `<details class="mb4-card"><summary>🧾 다녀온 곳 전부 (${trail.length})</summary><ol class="mb4-trail">${trail.map((p) => `<li data-act="mapsel" data-v="${esc(p.name)}"><b><span class="mb4-notr">${PLACE_KINDS[p.kind]}</span> <span data-trc="place">${esc(p.name)}</span></b><small>${p.visits}번 · 마지막 ${p.last}일째${p.area ? ` · <span data-trc="place">${esc(p.area)}</span>` : ''}</small></li>`).join('')}</ol></details>`;
+    h += `<details class="mb4-card"><summary>🧾 다녀온 곳 전부 (${trail.length})</summary><ol class="mb4-trail">${trail.map((p) => `<li data-act="mapsel" data-v="${esc(p.name)}"><b><span class="mb4-notr">${PLACE_KINDS[p.kind]}</span> <span data-trc="place">${esc(p.name)}</span></b><small>${p.visits}번${p.area ? ` · <span data-trc="place">${esc(p.area)}</span>` : ''}</small></li>`).join('')}</ol></details>`;
     h += add;
     return h + env.kit.hint('역 = 장소, 선 = 실제로 오간 길이에요. 색이 진할수록 자주 간 곳이고, 숫자는 오늘 다닌 순서예요. AI를 부르지 않아요.');
 }

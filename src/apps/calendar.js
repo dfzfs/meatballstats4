@@ -124,16 +124,16 @@ export default {
             const marked = new Set(st.marks.flatMap((x) => (x.yearly ? [`${y}${x.date.slice(4)}`, x.date] : [x.date])));
             for (const c of loveCal) marked.add(iso(new Date(start + (c.day - 1) * 86400000)));
             const cells = [...Array(first.getUTCDay()).fill(''), ...Array.from({ length: days }, (_x, i) => i + 1)];
-            grid = `<div class="mb4-cal-h">${y}년 ${m + 1}월 <small>· 이야기 ${sc.day}일째${T.fuzzy ? ' · 며칠 흐름' : ''}</small></div><div class="mb4-cal">${WD_KO.map((w) => `<span class="mb4-cal-w">${w}</span>`).join('')}${cells.map((n) => {
+            grid = `<div class="mb4-cal-h">${y}년 ${m + 1}월 ${T.fuzzy ? '<small>· 며칠 흐름</small>' : ''}</div><div class="mb4-cal">${WD_KO.map((w) => `<span class="mb4-cal-w">${w}</span>`).join('')}${cells.map((n) => {
                 if (!n) return '<span></span>';
                 const key = iso(new Date(Date.UTC(y, m, n))), dn = dayOfIso(start, key), cy = st.cycle.on ? (cycleOn(st.cycle, dn) ? (st.cycle.starts.some((s) => dn >= s && dn < s + st.cycle.dur) ? ' cy' : ' cyp') : '') : '';
                 return `<span class="mb4-cal-d${!T.fuzzy && n === now.getUTCDate() ? ' today' : ''}${marked.has(key) ? ' mark' : ''}${st.notes[key]?.text ? ' memo' : ''}${cy}" data-act="pick" data-v="${key}">${n}</span>`;
             }).join('')}</div>`;
         }
         const note = st.notes[pick] ?? {};
-        const loveHtml = loveCal.length ? card('💌 누가 몰래 적어 놨어요', loveCal.map((c) => `<div class="mb4-row"><span class="mb4-row-k">${start != null ? esc(iso(new Date(start + (c.day - 1) * 86400000)).slice(5).replace('-', '/')) : `${c.day}일째`}</span><span class="mb4-row-v">${esc(c.text)} <small>— ${esc(c.who)}</small></span></div>`).join('')) : '';
+        const loveHtml = loveCal.length ? card('💌 누가 몰래 적어 놨어요', loveCal.map((c) => `<div class="mb4-row"><span class="mb4-row-k">${start != null ? esc(iso(new Date(start + (c.day - 1) * 86400000)).slice(5).replace('-', '/')) : ''}</span><span class="mb4-row-v">${esc(c.text)} <small>— ${esc(c.who)}</small></span></div>`).join('')) : '';
         const partner = (() => { const P = Object.values(env.peek('bonds')?.pairs ?? {}).filter((p) => p.a === env.user || p.b === env.user).sort((a, b) => b.lvl - a.lvl)[0]; return P ? (P.a === env.user ? P.b : P.a) : ''; })();
-        el.innerHTML = `${card('', grid || `<div class="mb4-big">이야기 ${sc.day}일째</div>${hint('시작 날짜를 정하면 달력으로 보여 줘요.')}`)}
+        el.innerHTML = `${card('', grid || hint('이야기에 날짜가 나오거나 아래에서 시작 날짜를 정하면 달력으로 보여 줘요.'))}
         ${loveHtml}
         ${T?.fuzzy ? card('', hint('「며칠 뒤」처럼 흐리게 지나서 지금 날짜를 몰라요. 이야기가 날짜를 말하면 다시 맞춰져요.'), 'warn') : ''}
         ${pick ? card(`📝 ${esc(pick.slice(5).replace('-', '/'))} 메모`, `<textarea class="mb4-input" rows="2" data-act="memo" placeholder="이 날 적어 둘 것">${esc(note.text ?? '')}</textarea>
@@ -149,8 +149,8 @@ export default {
             <label class="mb4-sw"><span><b>AI에 알리기</b><small>기간 중에만 1줄 · 가까운 사람이 챙겨 줘요</small></span><input type="checkbox" data-act="cytell" ${st.cycle.tell ? 'checked' : ''}><i></i></label>` : ''}
         </details>
         <details class="mb4-card" ${start == null ? 'open' : ''}><summary>⚙️ 이야기 시작 날짜</summary>
-            <label class="mb4-label">지금(이야기 ${sc.day}일째)이 며칠인가요<input class="mb4-input" data-act="now" maxlength="30" placeholder="예: 11월 25일 · 2026년 11월 25일 · 2026-11-25" value=""></label>
-            <label class="mb4-label">또는 1일째가 며칠인가요<input class="mb4-input" data-act="start" maxlength="30" placeholder="예: 3월 2일 · 2026-03-02" value="${esc(st.start ?? '')}"></label>
+            <label class="mb4-label">오늘이 며칠인가요<input class="mb4-input" data-act="now" maxlength="30" placeholder="예: 11월 25일 · 2026년 11월 25일 · 2026-11-25" value=""></label>
+            <label class="mb4-label">또는 이야기가 시작한 날<input class="mb4-input" data-act="start" maxlength="30" placeholder="예: 3월 2일 · 2026-03-02" value="${esc(st.start ?? '')}"></label>
             ${hint('연도를 안 쓰면 지금 정해진 해(없으면 올해)로 봐요. 엔터를 치거나 칸 밖을 누르면 정해져요.')}
         </details>`;
         const save = () => { api.save(); api.redraw(); };
