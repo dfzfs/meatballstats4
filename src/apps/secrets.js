@@ -248,8 +248,8 @@ export default {
 .mb4-sec-v { position: relative; margin: 10px 0 4px; padding: 8px 10px; border-radius: 12px; background: rgba(70, 45, 35, .06); font-size: 13.5px; cursor: pointer; user-select: none; }
 .mb4-sec-v span { filter: blur(6px); transition: filter .12s; }
 .mb4-sec-v i { position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; font-style: normal; font-size: 12px; color: var(--sub); }
-.mb4-sec-v:active span, .mb4-sec-v:focus span { filter: none; }
-.mb4-sec-v:active i, .mb4-sec-v:focus i { display: none; }
+.mb4-sec-v.show span { filter: none; }
+.mb4-sec-v.show i { display: none; }
 .mb4-sec-tl { margin-top: 8px; display: flex; flex-direction: column; gap: 4px; font-size: 12.5px; }
 .mb4-sec-tl div { display: flex; gap: 6px; align-items: baseline; }
 .mb4-sec-tl q { color: var(--sub); font-style: italic; overflow-wrap: anywhere; }
@@ -278,7 +278,7 @@ export default {
             const gauge = x?.open ? 100 : Math.min(100, Math.round(((x?.clues ?? 0) / 4) * 100));
             return `<section class="mb4-card mb4-sec-card st-${x?.stage ?? 'locked'}">
                 <div class="mb4-sec-top"><span class="mb4-sec-lock">${ICON[x?.stage ?? 'locked']}</span><span><b>${esc(s.who || '누구의 비밀인지 아직 몰라요')}</b><small>${esc(STAGE_KO[x?.stage ?? 'locked'])}${x?.letOn ? ' · 이번 장면에 털어놔도 돼' : ''}${x?.open && x.why ? ` · ${WHY_KO[x.why]}` : ''}</small></span></div>
-                <div class="mb4-sec-v" tabindex="0"><span>${esc(s.v)}</span><i>누르고 있으면 보여요</i></div>
+                <div class="mb4-sec-v" tabindex="0"><span>${esc(s.v)}</span><i>누르면 보여요 · 한 번 더 누르면 가려요</i></div>
                 <div class="mb4-steps">${STAGES.map((k, j) => `<span class="mb4-step${j <= STAGES.indexOf(x?.stage ?? 'locked') ? ' on' : ''}">${ICON[k]}</span>`).join('')}</div>
                 <div class="mb4-row"><span class="mb4-row-k">🔎 단서 ${x?.clues ?? 0} / 4</span><span class="mb4-row-v"><span class="mb4-meter"><i class="${gauge >= 75 ? 'bad' : gauge >= 25 ? 'mid' : ''}" style="width:${gauge}%"></i></span></span></div>
                 ${x?.lies ? `<div class="mb4-row"><span class="mb4-row-k">🤥 덮는 거짓말</span><span class="mb4-row-v">${x.lies}번</span></div>` : ''}
@@ -305,6 +305,7 @@ export default {
             ${st.list.length ? st.list.map(cardOf).join('') : empty('🔒', '아직 비밀이 없어요', '아래에서 하나 적어 보세요')}
             <div class="mb4-btnrow"><button class="mb4-btn wide" data-act="add">＋ 비밀 추가</button></div>
             ${blanks ? `<div class="mb4-btnrow"><button class="mb4-btn ghost wide" data-act="fill">✨ 빈 칸 채우기 (${blanks}개 · AI 1번)</button></div>${hint('들키는 낱말 · 보여도 되는 것 · 겉모습 · 열릴 때를 채워요. 이미 적은 칸은 그대로 둬요.')}` : ''}`;
+        el.querySelectorAll('.mb4-sec-v').forEach((x) => { const t = () => x.classList.toggle('show'); x.addEventListener('click', t); x.addEventListener('keydown', (e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); t(); } }); });
         const save = () => { api.save(); api.redraw(); };
         acts(el, {
             add: () => { st.list.push({ v: '', who: '', signs: [] }); save(); },

@@ -535,7 +535,7 @@ function castOverview(box, e) {
         let stage = ''; try { stage = pair && bondsMod?.stageOf ? bondsMod.stageOf(pair)?.ko ?? '' : ''; } catch (x) { stage = ''; }
         const feels = pair ? [...new Set(Object.values(pair.feel ?? {}).map((f) => FEEL_KO[f?.t]).filter(Boolean))] : [];
         const role = P?.roles?.[n]?.v ?? '', callsMe = P?.calls?.[`${n}>${me}`]?.v, iCall = P?.calls?.[`${me}>${n}`]?.v;
-        const nSec = sec.filter((x) => { try { return JSON.stringify(x).includes(n); } catch (y) { return false; } }).length;
+        const nSec = sec.filter((x) => String(x?.who ?? '').split(/\s*[-&,]\s*/).some((w) => w.trim() && w.trim().toLowerCase() === String(n).toLowerCase())).length;   // secrets this person keeps
         const mind = minds.filter((m) => m?.who === n).at(-1);
         const pills = [here.has(n) ? kit.pill('지금 같이', 'good') : '', gone(n) ? kit.pill('떠남', 'bad') : '', stage ? kit.pill(stage, 'love') : '', l?.body ? kit.pill('🩹', 'bad') : ''].join('');
         const body = [

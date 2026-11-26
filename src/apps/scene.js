@@ -112,8 +112,8 @@ export default {
             <label class="mb4-label">날씨<input class="mb4-input" data-f="weather" maxlength="60" value="${esc(S.weather)}"></label>
             <label class="mb4-label">분위기 · 기분<input class="mb4-input" data-f="mood" maxlength="60" value="${esc(S.mood ?? '')}"></label>
             <label class="mb4-label">같이 있는 사람 (쉼표로)<input class="mb4-input" data-f="with" value="${esc(S.with.join(', '))}"></label>
-            <div class="mb4-btnrow"><button class="mb4-btn" data-act="save">고치기</button><button class="mb4-btn ghost" data-act="day">하루 넘기기</button></div>
             <label class="mb4-label">요약 한 줄<input class="mb4-input" data-f="gist" maxlength="220" value="${esc(S.gist)}"></label>
+            <div class="mb4-btnrow"><button class="mb4-btn" data-act="save">고치기</button><button class="mb4-btn ghost" data-act="day">하루 넘기기</button></div>
             ${hint('고친 값은 마지막 답에 붙어요. 그 답을 다시 뽑으면 같이 사라져요.')}
         </details>
         <label class="mb4-sw"><span><b>요약을 AI에게도 알려 주기</b><small>지난 흐름 세 줄을 쪽지에 넣어요. 긴 이야기에서 앞일을 덜 잊어요. 끄면 화면에만 보여요.</small></span><input type="checkbox" data-act="recap" ${api.cfg.recap ? 'checked' : ''}><i></i></label>`;
