@@ -26,19 +26,29 @@ export function applyTime(S, v) {
 // A date written in the story ("March 14", "3월 14일", "2024-03-14") -> UTC ms, or null. `year` fills a missing year.
 const MON_EN = ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December'];
 const MON_RE = MON_EN.map((m, i) => [new RegExp(`\\b${m.slice(0, 3)}[a-z]*\\.?\\s+(\\d{1,2})\\b`, 'i'), i]);
-export function namedDate(text, year) {
-    const s = String(text ?? '');
+// A year we trust: four digits, 1000–9999. Anything else (6, 26, NaN, a broken start date) means "this year".
+// Without this, a stray small year (Date.UTC maps 0–99 to 1900s; a saved «0006-…» stays year 6) kept spreading.
+export const okYear = (y) => { const n = Number(y); return Number.isInteger(n) && n >= 1000 && n <= 9999 ? n : new Date().getUTCFullYear(); };
+// A saved start date («2026-03-02») -> UTC ms, or null. A start saved with a broken year keeps its month and day, this year.
+export function startMs(start) {
+    const m = String(start ?? '').match(/^(-?\d+)-(\d{1,2})-(\d{1,2})/);
+    if (!m) return null;
+    const t = Date.UTC(okYear(m[1]), +m[2] - 1, +m[3]);
+    return Number.isNaN(t) ? null : t;
+}
+export function namedDate(text, yearIn) {
+    const s = String(text ?? ''), year = okYear(yearIn);
     const iso = s.match(/\b(\d{4})-(\d{1,2})-(\d{1,2})\b/);
-    if (iso) return Date.UTC(+iso[1], +iso[2] - 1, +iso[3]);
-    for (const [re, m] of MON_RE) { const x = s.match(re); if (x) { const y = s.slice(x.index).match(/^[^,]*,\s*(\d{4})\b/); return Date.UTC(y ? +y[1] : year, m, +x[1]); } }
+    if (iso) return Date.UTC(okYear(iso[1]), +iso[2] - 1, +iso[3]);
+    for (const [re, m] of MON_RE) { const x = s.match(re); if (x) { const y = s.slice(x.index).match(/^[^,]*,\s*(\d{4})\b/); return Date.UTC(y ? okYear(y[1]) : year, m, +x[1]); } }
     const k = s.match(/(?:(\d{4})\s*년\s*)?(\d{1,2})\s*월\s*(\d{1,2})\s*일/);
-    if (k) return Date.UTC(k[1] ? +k[1] : year, +k[2] - 1, +k[3]);
+    if (k) return Date.UTC(k[1] ? okYear(k[1]) : year, +k[2] - 1, +k[3]);
     // only part of a month ("late November", "11월 초"), as the third generation kept it: early 5 · mid 15 · late 25
     const PART = { early: 5, mid: 15, late: 25, 초: 5, 중순: 15, 말: 25 };
     const pe = s.match(/\b(early|mid|late)[\s-]+([a-z]{3,})/i);
-    if (pe) { const at = MON_EN.findIndex((x) => x.slice(0, 3).toLowerCase() === pe[2].slice(0, 3).toLowerCase()); if (at >= 0) { const y = s.match(/\b(\d{4})\b/); return Date.UTC(y ? +y[1] : year, at, PART[pe[1].toLowerCase()]); } }
+    if (pe) { const at = MON_EN.findIndex((x) => x.slice(0, 3).toLowerCase() === pe[2].slice(0, 3).toLowerCase()); if (at >= 0) { const y = s.match(/\b(\d{4})\b/); return Date.UTC(y ? okYear(y[1]) : year, at, PART[pe[1].toLowerCase()]); } }
     const pk = s.match(/(?:(\d{4})\s*년\s*)?(\d{1,2})\s*월\s*(초|중순|말)/);
-    return pk ? Date.UTC(pk[1] ? +pk[1] : year, +pk[2] - 1, PART[pk[3]]) : null;
+    return pk ? Date.UTC(pk[1] ? okYear(pk[1]) : year, +pk[2] - 1, PART[pk[3]]) : null;
 }
 // The last date the story named keeps counting after days pass: «November 25» on day 3, now day 5 -> November 27.
 // S needs { day, date, anchor: { day, date } }. -> UTC ms, or null when no readable date was ever named.
@@ -56,7 +66,7 @@ export function dayDate(sc, day, start = '') {
     if (!sc || !Number.isFinite(day)) return null;
     const now = sc.vague ? null : anchoredDate(sc);
     if (now != null && !Number.isNaN(now)) return now + (day - sc.day) * 86400000;
-    const t = Date.parse(`${start ?? ''}T00:00:00Z`);
-    return Number.isNaN(t) ? null : t + (day - 1) * 86400000;
+    const t = startMs(start);
+    return t == null ? null : t + (day - 1) * 86400000;
 }
 export const dayKo = (sc, day, start = '') => { const t = dayDate(sc, day, start); if (t == null) return ''; const d = new Date(t); return `${d.getUTCMonth() + 1}월 ${d.getUTCDate()}일`; };

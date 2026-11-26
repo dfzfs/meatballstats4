@@ -3,7 +3,7 @@
 // Ported from the second generation's calendar-plus (D-day counting, a pinned D-day, yearly anniversaries, a note per
 // day, an optional cycle, "someone close notices a note") and the third generation's handling of vague time skips.
 import { esc, card, hint, acts, val, empty, pill } from '../ui/kit.js';
-import { namedDate, anchoredDate } from '../core/clock.js';
+import { namedDate, anchoredDate, startMs } from '../core/clock.js';
 import { plain, spendPlain, stamped, spendStamped } from '../core/once.js';
 
 const DAY = 86400000;
@@ -14,8 +14,8 @@ const iso = (d) => d.toISOString().slice(0, 10);
 // Day 1's date: the one the person set; else counted back from the last date the story named (records carried over
 // from an earlier Meatball hold those dates), so the calendar is never empty when the story has a date.
 const startOf = (env) => {
-    const t = Date.parse(`${env.store.start ?? ''}T00:00:00Z`);
-    if (!Number.isNaN(t)) return t;
+    const t = startMs(env.store.start);
+    if (t != null) return t;
     const sc = env.peek?.('scene'), a = sc ? anchoredDate(sc) : null;
     return a == null || Number.isNaN(a) ? null : a - (sc.day - 1) * DAY;
 };
@@ -127,6 +127,7 @@ export default {
         const env = api.env, st = api.store, sc = env.peek('scene'), start = startOf(env);
         st.marks = marks(env);
         st.notes = st.notes && typeof st.notes === 'object' ? st.notes : {};
+        if (st.start && startMs(st.start) != null && iso(new Date(startMs(st.start))) !== st.start) st.start = iso(new Date(startMs(st.start)));   // a start saved with a broken year (6, 26…): fixed to this year
         st.cycle = { on: false, starts: [], len: 28, dur: 5, tell: false, ...(st.cycle ?? {}) };
         if (!sc) { el.innerHTML = empty('🧭', '「장면」 앱을 켜 주세요', '날짜가 흐르는 건 장면 앱이 세요. 달력은 그걸 읽어서 보여 줘요.'); return; }
         const T = start == null ? null : today(env), now = T?.date ?? T?.fuzzy?.since ?? null;

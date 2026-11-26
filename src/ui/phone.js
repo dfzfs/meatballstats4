@@ -6,7 +6,7 @@ import { esc } from '../core/text.js';
 import * as kit from './kit.js';
 import { ACCENTS, fonts, fontOf, loadFonts, paint, isDark } from '../st/look.js';
 import { trCfg, CATS as TR_CATS, ENGINES as TR_ENGINES, LANGS as TR_LANGS } from '../core/tr.js';
-import { anchoredDate, dayKo } from '../core/clock.js';
+import { anchoredDate, dayKo, startMs } from '../core/clock.js';
 const { TOD_KO, room } = kit;
 
 let R = null;                 // the runtime (engine + app switches)
@@ -267,8 +267,8 @@ function hero() {
     let date = '';
     const kd = (d) => `${d.getUTCMonth() + 1}월 ${d.getUTCDate()}일 ${'일월화수목금토'[d.getUTCDay()]}요일`;
     // the last date the story named, counted on by the days since (wins over the calendar's own count)
-    if (S && !S.date && !S.vague && S.anchor?.date) { const t = anchoredDate(S, env?.store.start ? new Date(Date.parse(`${env.store.start}T00:00:00Z`) + (S.day - 1) * 86400000).getUTCFullYear() : undefined); date = t != null && !Number.isNaN(t) ? kd(new Date(t)) : `${S.anchor.date} + ${S.day - S.anchor.day}일`; }
-    else if (S && env?.store.start) { const t = Date.parse(`${env.store.start}T00:00:00Z`); if (!Number.isNaN(t)) { const d = new Date(t + (S.day - 1) * 86400000); date = `${d.getUTCMonth() + 1}월 ${d.getUTCDate()}일 ${'일월화수목금토'[d.getUTCDay()]}요일`; } }
+    if (S && !S.date && !S.vague && S.anchor?.date) { const t = anchoredDate(S, startMs(env?.store.start) != null ? new Date(startMs(env.store.start) + (S.day - 1) * 86400000).getUTCFullYear() : undefined); date = t != null && !Number.isNaN(t) ? kd(new Date(t)) : `${S.anchor.date} + ${S.day - S.anchor.day}일`; }
+    else if (S && env?.store.start) { const t = startMs(env.store.start); if (t != null) { const d = new Date(t + (S.day - 1) * 86400000); date = `${d.getUTCMonth() + 1}월 ${d.getUTCDate()}일 ${'일월화수목금토'[d.getUTCDay()]}요일`; } }
     if (!S) return `<div class="mb4-hero mb4-home-hero"><div class="mb4-hero-n">😼 미트볼</div><div class="mb4-hero-s">${chat ? `켠 앱 ${E.reg.size}개` : '채팅을 열면 기록이 시작돼요'}</div></div>`;
     return `<div class="mb4-hero mb4-home-hero" data-go="app:scene">
         <div class="mb4-hero-n">${S.tod ? TOD_KO[S.tod] : (S.date || date) ? esc(String(S.date || date).split(' ').slice(0, 2).join(' ')) : '😼'}</div>

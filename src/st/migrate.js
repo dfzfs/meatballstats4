@@ -194,7 +194,7 @@ function fromV2(md, chat, user) {
     const opsOf = (m) => { const sl = m.extra?.meatlite?.sw?.[m.swipe_id ?? 0]; const undo = new Set(sl?.undo ?? []); return [...(sl?.ops ?? []).filter((_o, j) => !undo.has(j)), ...(sl?.hand ?? []).map((h) => [h.k, h.v])]; };
     const w = md?.book?.world, s = w?.start, apps = {};
     if (w?.currency) apps.wallet = { unit: String(w.currency).slice(0, 12) };
-    if (s?.y && s?.m && s?.d) apps.calendar = { start: `${String(s.y).padStart(4, '0')}-${String(s.m).padStart(2, '0')}-${String(s.d).padStart(2, '0')}` };
+    if (s?.y && s?.m && s?.d && +s.y >= 1000 && +s.y <= 9999) apps.calendar = { start: `${String(s.y)}-${String(s.m).padStart(2, '0')}-${String(s.d).padStart(2, '0')}` };
     return { records: fromOps(chat, opsOf, user, 'v2'), apps };
 }
 function fromV1(md, chat, user) {
