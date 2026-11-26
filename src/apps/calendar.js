@@ -10,7 +10,14 @@ const WD_KO = ['일', '월', '화', '수', '목', '금', '토'];
 const WD_EN = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
 const MON_EN = ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December'];
 const iso = (d) => d.toISOString().slice(0, 10);
-const startOf = (env) => { const t = Date.parse(`${env.store.start ?? ''}T00:00:00Z`); return Number.isNaN(t) ? null : t; };
+// Day 1's date: the one the person set; else counted back from the last date the story named (records carried over
+// from an earlier Meatball hold those dates), so the calendar is never empty when the story has a date.
+const startOf = (env) => {
+    const t = Date.parse(`${env.store.start ?? ''}T00:00:00Z`);
+    if (!Number.isNaN(t)) return t;
+    const sc = env.peek?.('scene'), a = sc ? anchoredDate(sc) : null;
+    return a == null || Number.isNaN(a) ? null : a - (sc.day - 1) * DAY;
+};
 // The calendar date of a story day (day 1 = the start date).
 export const dateOf = (start, day) => new Date(start + (day - 1) * DAY);
 const dayOfIso = (start, s) => { const t = Date.parse(`${s}T00:00:00Z`); return Number.isNaN(t) ? null : Math.round((t - start) / DAY) + 1; };
