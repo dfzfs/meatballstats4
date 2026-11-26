@@ -67,7 +67,7 @@ export class Engine {
             peek: (other) => (this.folding || other === id || !this.reg.has(other) ? null : this.state(other)),
             // read-only copy of another app's own saved data for this chat (null when that app is off)
             // a hand correction on the newest reply, as if the person had made it (same checks; gone if that reply is swiped away)
-            fix: (k, v) => this.fix(k, v),
+            fix: (k, v, at) => this.fix(k, v, at),
             peekStore: (other) => { if (other === id || !this.reg.has(other)) return null; try { return JSON.parse(JSON.stringify(st?.apps?.[other] ?? {})); } catch (e) { return null; } },
         };
     };
@@ -90,8 +90,9 @@ export class Engine {
 
     // A correction made by hand: one line in the same form the reader writes, attached to the newest reply.
     // It is counted after that reply's own lines, and disappears with the reply if it is swiped away or deleted.
-    fix(k, v) {
-        const i = this.lastReply(), app = this.reg.ownerOf(k);
+    // a correction, on the last reply (or on reply `at`, which must be a reply still in the chat)
+    fix(k, v, at = null) {
+        const i = Number.isInteger(at) && isReply(this.host.chat()[at]) ? at : this.lastReply(), app = this.reg.ownerOf(k);
         if (i < 0 || !app) return false;
         try { if (app.check && app.check({ k, v: String(v), q: '' }, { ...this.envOf(app.id), text: '' }) === false) return false; } catch (e) { return false; }
         const st = this.host.store(true), fp = fingerprint(this.host.chat()[i]);
@@ -100,10 +101,13 @@ export class Engine {
         return true;
     }
     // Take back every hand-made correction on one reply.
-    unfix(i) {
+    // drop the corrections on reply i (only the line [k, v] when given)
+    unfix(i, k = null, v = null) {
         const st = this.host.store(false), m = this.host.chat()[i];
         if (!st?.fix || !m) return;
-        delete st.fix[fingerprint(m)];
+        const fp = fingerprint(m);
+        if (k == null) delete st.fix[fp];
+        else if (st.fix[fp]) { st.fix[fp] = st.fix[fp].filter(([a, b]) => !(a === k && (v == null || b === v))); if (!st.fix[fp].length) delete st.fix[fp]; }
         this.touch(); this.host.saveChat(); this.refresh(); this.host.changed();
     }
     // What was recorded for each reply still in the chat, oldest first: [{ i, fp, L, fixed, fail, D (dropped: [raw, why]), ks, src, cont }]

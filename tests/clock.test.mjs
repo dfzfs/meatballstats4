@@ -41,7 +41,7 @@ test('small years never show up (no «6년»), and the story\'s weekday is the o
 test('🎲 미정 날짜 정하기: no date → a day of this year; inside «며칠 뒤» → a day of that week, after the day before', async () => {
     const { page, apiFor } = await import('./harness.mjs');
     page();
-    const tap = async (t) => { const api = await apiFor(t.E, 'calendar'), el = document.createElement('div'); t.E.reg.get('calendar').render(el, api); const b = el.querySelector('[data-act="roll"]'); assert.ok(b, 'the 🎲 button is there'); b.dispatchEvent(new window.Event('click', { bubbles: true })); };
+    const tap = async (t) => { const api = await apiFor(t.E, 'calendar'), el = document.createElement('div'); t.E.reg.get('calendar').render(el, api); const b = el.querySelector('[data-act="rollall"]'); assert.ok(b, 'the 🎲 button is there'); b.dispatchEvent(new window.Event('click', { bubbles: true })); };
     const a = await story([['time', 'morning']], ['scene', 'calendar']);
     await tap(a);
     assert.match(await on(a), new RegExp(`^${new Date().getUTCFullYear()}-\\d+-\\d+$`));
@@ -80,9 +80,19 @@ test('📜 every reply shows on its day in the calendar; undated ones go to «�
     api.store.pick = '1700-03-30'; api.store.view = '1700-03';
     draw();
     assert.ok(el.querySelector('[data-v="1700-03-30"].has'), 'March 30 is marked');
-    assert.match(el.textContent, /3월 30일의 기록#0\s*r0#2\s*r1/);
+    assert.match(el.textContent, /📜 1700년 3월 30일 \(.\)[\s\S]*💬 답 2[\s\S]*#0\s*r0[\s\S]*#2\s*r1/);
+    assert.ok(el.querySelector('[data-v="1700-03-30"].l2'), 'two replies: the second shade');
     assert.match(el.textContent, /날짜 모름#6/);
     api.store.view = '1700-04'; draw();
     assert.match(el.querySelector('.mb4-cal-h').textContent, /1700년 4월/);
     assert.ok(el.querySelector('[data-v="1700-04-01"].has'), 'the reply two days later is on April 1');
+    assert.match(el.querySelector('.mb4-cal-ym')?.textContent ?? '', /1700\s*3\s*4/, 'one chip per month with replies');
+    // ✏️ on a reply: its date, and the replies after it follow
+    api.store.pick = '1700-03-30'; api.store.view = '1700-03'; api.store.edI = 2; draw();
+    el.querySelector('[data-f="setd"]').value = '1700년 5월 1일';
+    el.querySelector('[data-act="setd"]').dispatchEvent(new window.Event('click', { bubbles: true }));
+    assert.equal(await on(t), '~');
+    const { replyDays } = await import(src('apps/calendar.js'));
+    const R = replyDays(t.E.log(), t.state('scene'), '');
+    assert.deepEqual(R.map((r) => r.key), ['1700-05-01', '1700-05-01', '1700-05-03', '']);   // #0 came before any date: counted back from #2
 });

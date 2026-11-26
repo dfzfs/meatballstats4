@@ -2,8 +2,8 @@
 // No classifier key and no model call: it only reads what the Scene app already recorded.
 // Ported from the second generation's calendar-plus (D-day counting, a pinned D-day, yearly anniversaries, a note per
 // day, an optional cycle, "someone close notices a note") and the third generation's handling of vague time skips.
-import { esc, card, hint, acts, val, empty, pill } from '../ui/kit.js';
-import { namedDate, anchoredDate, startMs, dayOn, dayDate, utc, dimOf, FUZZY_NOM, tick, newClock } from '../core/clock.js';
+import { esc, card, hint, acts, val, empty, pill, TOD_KO, room } from '../ui/kit.js';
+import { namedDate, anchoredDate, startMs, dayOn, dayDate, utc, dimOf, FUZZY_NOM, tick, newClock, readDate as dateText } from '../core/clock.js';
 import { plain, spendPlain, stamped, spendStamped } from '../core/once.js';
 
 const DAY = 86400000;
@@ -17,7 +17,7 @@ const iso = (d) => d.toISOString().slice(0, 10);
 // person typed is used only while the story has named no readable date.
 const startFrom = (store, sc) => {
     // day 1's date from the story's dates (also while a «며칠 뒤» stretch is open: the days before it are known)
-    const mine = startMs(store?.start), o = sc?.cal ? dayOn({ cal: { ...sc.cal, fz: null } }, 1, mine == null ? null : new Date(mine).getUTCFullYear()) : null;
+    const mine = startMs(store?.start), y1 = store?.year1 ?? (mine == null ? null : new Date(mine).getUTCFullYear()), o = sc?.cal ? dayOn({ cal: { ...sc.cal, fz: null } }, 1, y1) : null;
     return o ? utc(o.y, o.m, o.d).getTime() : mine;
 };
 const startOf = (env) => startFrom(env.store, env.peek?.('scene'));
@@ -73,13 +73,40 @@ export function cycleOn(cyc, day, start = null) {
 // open has no date yet (the «날짜 모름» tray); one inside a stretch that later got its date is shown as roughly (~).
 export function replyDays(log, sc, start) {
     const C = newClock(), out = [];
+    let loc = '', who = [];
     for (const e of log ?? []) {
-        for (const [k, v] of [...(e.L ?? []), ...(e.fixed ?? [])]) if (k === 'time' || k === 'date') tick(C, k, v, e.i);
+        for (const [k, v] of [...(e.L ?? []), ...(e.fixed ?? [])]) {
+            if (k === 'time' || k === 'date') tick(C, k, v, e.i);
+            else if (k === 'loc') loc = String(v);
+            else if (k === 'with') { const t = String(v).trim(); if (t.startsWith('=')) who = t.slice(1).split(/[,，、]/).map((x) => x.trim()).filter((x) => x && !/^\(?(none|nobody|no one|alone)\)?$/i.test(x)); else for (const p of t.split(/\s*[;/]\s*|\s+(?=[+-])/)) { const n = p.slice(1).trim(); if (p.startsWith('+') && n && !who.includes(n)) who.push(n); if (p.startsWith('-')) who = who.filter((x) => x !== n); } }
+        }
         const t = C.vague && sc?.vague && C.cal.fz?.from === sc.cal?.fz?.from ? null : dayDate(sc, C.day, start);
-        out.push({ i: e.i, day: C.day, key: t == null ? '' : iso(new Date(t)), approx: C.vague });
+        out.push({ i: e.i, day: C.day, key: t == null ? '' : iso(new Date(t)), approx: C.vague, tod: C.tod, loc, with: [...who], read: e.read !== false, fail: e.fail ?? '' });
     }
     return out;
 }
+// 🎲 for every reply that has no day of its own (v3 rollDates): the first reply when the story has no date at all,
+// and the first reply of each «며칠 뒤» run — a day of the week it sits in, after the day before, not past the next
+// date the story names. Returns [{ i, v }] (v: the date line to write on that reply).
+export function rollAll(R, year1, rnd = Math.random) {
+    const P = (k) => (k ? utc(+k.slice(0, 4), +k.slice(5, 7), +k.slice(8, 10)) : null), fmt = (x) => `${MON_EN_FULL[x.getUTCMonth()]} ${x.getUTCDate()}, ${x.getUTCFullYear()}`, pickOf = (a) => a[Math.floor(rnd() * a.length)];
+    if (!R.some((r) => r.key)) {
+        const r = R.find((x) => x.read); if (!r) return [];
+        const y = fourDigitsOr(year1), m = 1 + Math.floor(rnd() * 12);
+        return [{ i: r.i, v: `!${fmt(utc(y, m, 1 + Math.floor(rnd() * dimOf(y, m))))}` }];
+    }
+    const out = [];
+    R.forEach((r, n) => {
+        if (!r.approx || (n && R[n - 1].approx) || !r.read) return;
+        const prev = [...R.slice(0, n)].reverse().find((x) => x.key && !x.approx), next = R.slice(n + 1).find((x) => x.key && !x.approx);
+        if (!prev) return;
+        const b = P(prev.key), aim = r.key ? P(r.key) : new Date(b.getTime() + (r.day - prev.day) * DAY), sun = new Date(aim.getTime() - aim.getUTCDay() * DAY);
+        const days = [0, 1, 2, 3, 4, 5, 6].map((j) => new Date(sun.getTime() + j * DAY)).filter((x) => x > b && (!next || x <= P(next.key)));
+        out.push({ i: r.i, v: `!${fmt(days.length ? pickOf(days) : aim)}` });
+    });
+    return out;
+}
+const fourDigitsOr = (y) => (Number.isInteger(y) && y >= 1000 && y <= 9999 ? y : new Date().getUTCFullYear());
 const ranges = (ids) => { const out = []; for (const x of [...new Set(ids)].sort((a, b) => a - b)) { const r = out.at(-1); if (r && x - r[1] <= 2) r[1] = x; else out.push([x, x]); } return out.map(([a, b]) => (a === b ? `#${a}` : `#${a}~#${b}`)).join(', '); };
 // for other apps (contacts): the period day today, from the calendar's saved data and the scene
 export const cycleToday = (store, sc) => (sc ? cycleOn(store?.cycle, sc.day, startFrom(store, sc)) : 0);
@@ -159,7 +186,17 @@ export default {
     css: `
 .mb4-cal-d.memo::after { content: ''; display: block; width: 4px; height: 4px; margin: 1px auto 0; border-radius: 50%; background: var(--a); }
 .mb4-cal-d.cy { background: rgba(229, 72, 77, .16); }
-.mb4-cal-d.has { text-decoration: underline 2px var(--a); text-underline-offset: 4px; font-weight: 700; }
+.mb4-cal-d.has { font-weight: 700; }
+.mb4-cal-d.l1 { background: color-mix(in srgb, var(--a) 14%, transparent); }
+.mb4-cal-d.l2 { background: color-mix(in srgb, var(--a) 28%, transparent); }
+.mb4-cal-d.l3 { background: color-mix(in srgb, var(--a) 45%, transparent); }
+.mb4-cal-wk { grid-column: 1 / -1; margin: 2px 0 4px; padding: 4px 8px; border: 0; border-radius: 8px; font-size: 12px; text-align: left; color: var(--sub); background: repeating-linear-gradient(135deg, var(--fill2) 0 6px, transparent 6px 12px); cursor: pointer; }
+.mb4-cal-wk.on { box-shadow: inset 0 0 0 1.5px var(--a); color: var(--fg); }
+.mb4-cal-ym { display: flex; flex-wrap: wrap; align-items: center; gap: 4px; margin: 4px 0 8px; font-size: 12px; }
+.mb4-cal-ym i { font-style: normal; color: var(--sub); margin: 0 2px 0 6px; }
+.mb4-cal-m { min-width: 26px; padding: 2px 6px; border: 0; border-radius: 7px; cursor: pointer; color: var(--fg); }
+.mb4-cal-m.lv1 { background: color-mix(in srgb, var(--a) 14%, transparent); } .mb4-cal-m.lv2 { background: color-mix(in srgb, var(--a) 28%, transparent); } .mb4-cal-m.lv3 { background: color-mix(in srgb, var(--a) 45%, transparent); }
+.mb4-cal-m.on { box-shadow: inset 0 0 0 1.5px var(--a); font-weight: 700; }
 .mb4-cal-d.picked:not(.today) { box-shadow: inset 0 0 0 1.5px var(--a); }
 .mb4-cal-h { display: flex; align-items: center; justify-content: center; gap: 8px; }
 .mb4-cal-d.cyp { box-shadow: inset 0 0 0 1px rgba(229, 72, 77, .35); }
@@ -172,10 +209,11 @@ export default {
         st.cycle = { on: false, starts: [], len: 28, dur: 5, tell: false, ...(st.cycle ?? {}) };
         if (!sc) { el.innerHTML = empty('🧭', '「장면」 앱을 켜 주세요', '날짜가 흐르는 건 장면 앱이 세요. 달력은 그걸 읽어서 보여 줘요.'); return; }
         const T = start == null ? null : today(env), now = T?.date ?? T?.fuzzy?.since ?? null;
-        const pick = st.pick && now ? st.pick : now ? iso(now) : '';
-        const R = replyDays(api.core?.log?.() ?? [], sc, st.start), onDay = new Map();
-        for (const r of R) if (r.key) (onDay.get(r.key) ?? onDay.set(r.key, []).get(r.key)).push(r);
-        const chatMsgs = api.core?.chat?.() ?? [];
+        const year1 = st.year1 ?? (startMs(st.start) == null ? null : new Date(startMs(st.start)).getUTCFullYear());
+        const R = replyDays(api.core?.log?.() ?? [], sc, st.start), onDay = new Map(), onWeek = [];
+        for (const r of R) if (r.key) { if (r.approx) onWeek.push(r); else (onDay.get(r.key) ?? onDay.set(r.key, []).get(r.key)).push(r); }
+        const chatMsgs = api.core?.chat?.() ?? [], undated = R.filter((r) => !r.key).map((r) => r.i), undated0 = undated.length > 0;
+        const pick = st.pick && (now || st.pick === 'u') ? st.pick : now ? iso(now) : undated0 ? 'u' : '';
         const loveCal = Array.isArray(env.peekStore?.('touch')?.cal) ? env.peekStore('touch').cal : [];
         let grid = '';
         if (now) {
@@ -185,23 +223,54 @@ export default {
             const first = utc(y, m + 1, 1), firstWd = T?.date && T.wd != null ? (((T.wd + Math.round((first - T.date) / DAY)) % 7) + 7) % 7 : first.getUTCDay();
             const marked = new Set(st.marks.flatMap((x) => (x.yearly ? [`${y}${x.date.slice(4)}`, x.date] : [x.date])));
             for (const c of loveCal) marked.add(iso(new Date(start + (c.day - 1) * 86400000)));
-            const cells = [...Array(firstWd).fill(''), ...Array.from({ length: days }, (_x, i) => i + 1)];
+            const keyOf = (n) => iso(new Date(Date.UTC(y, m, n))), cell = (n) => {
+                const key = keyOf(n), dn = dayOfIso(start, key), cy = st.cycle.on ? (cycleOn(st.cycle, dn, start) ? (cyDays(st.cycle, start).some((s) => dn >= s && dn < s + st.cycle.dur) ? ' cy' : ' cyp') : '') : '';
+                const c = onDay.get(key)?.length ?? 0, lv = !c ? '' : c > 4 ? ' has l3' : c > 1 ? ' has l2' : ' has l1';
+                return `<span class="mb4-cal-d${!T.fuzzy && key === iso(now) ? ' today' : ''}${lv}${key === pick ? ' picked' : ''}${marked.has(key) ? ' mark' : ''}${st.notes[key]?.text ? ' memo' : ''}${cy}" data-act="pick" data-v="${key}">${n}</span>`;
+            };
+            // rows of seven; under a row, the replies that are only «somewhere this week» (inside a «며칠 뒤» stretch)
+            let rows = '', col = firstWd, row = '<span></span>'.repeat(firstWd), rowFrom = 1;
+            for (let n = 1; n <= days; n++) {
+                row += cell(n); col++;
+                if (col % 7 === 0 || n === days) {
+                    const ks = new Set(Array.from({ length: n - rowFrom + 1 }, (_x, j) => keyOf(rowFrom + j))), wk = onWeek.filter((r) => ks.has(r.key));
+                    rows += row + (wk.length ? `<button class="mb4-cal-wk${pick === `w:${keyOf(rowFrom)}` ? ' on' : ''}" data-act="pick" data-v="w:${keyOf(rowFrom)}">≈ 이 주 어딘가 · ${ranges(wk.map((r) => r.i))}</button>` : '');
+                    row = ''; rowFrom = n + 1;
+                }
+            }
             const mv = (k) => { const d = utc(y, m + 1 + k, 1); return `${d.getUTCFullYear()}-${String(d.getUTCMonth() + 1).padStart(2, '0')}`; };
-            grid = `<div class="mb4-cal-h"><button class="mb4-x" data-act="month" data-v="${mv(-1)}" aria-label="지난달">‹</button> ${y}년 ${m + 1}월 ${T.fuzzy ? '<small>· 며칠 흐름</small>' : ''}<button class="mb4-x" data-act="month" data-v="${mv(1)}" aria-label="다음 달">›</button>${vm ? ' <button class="mb4-x" data-act="month" data-v="" aria-label="오늘로">오늘</button>' : ''}</div><div class="mb4-cal">${WD_KO.map((w) => `<span class="mb4-cal-w">${w}</span>`).join('')}${cells.map((n) => {
-                if (!n) return '<span></span>';
-                const key = iso(new Date(Date.UTC(y, m, n))), dn = dayOfIso(start, key), cy = st.cycle.on ? (cycleOn(st.cycle, dn, start) ? (cyDays(st.cycle, start).some((s) => dn >= s && dn < s + st.cycle.dur) ? ' cy' : ' cyp') : '') : '';
-                return `<span class="mb4-cal-d${!T.fuzzy && key === iso(now) ? ' today' : ''}${onDay.has(key) ? ' has' : ''}${key === pick ? ' picked' : ''}${marked.has(key) ? ' mark' : ''}${st.notes[key]?.text ? ' memo' : ''}${cy}" data-act="pick" data-v="${key}">${n}</span>`;
-            }).join('')}</div>`;
+            // the whole story at a glance: one chip per month that has replies (darker = more); press to go there
+            const cnt = new Map(); for (const r of R) if (r.key) cnt.set(r.key.slice(0, 7), (cnt.get(r.key.slice(0, 7)) ?? 0) + 1);
+            const months = [...cnt.keys()].sort(), mx = Math.max(1, ...cnt.values()), here = `${y}-${String(m + 1).padStart(2, '0')}`;
+            const chips = months.length > 1 ? `<div class="mb4-cal-ym">${months.map((k, j) => `${j === 0 || months[j - 1].slice(0, 4) !== k.slice(0, 4) ? `<i>${k.slice(0, 4)}</i>` : ''}<button class="mb4-cal-m lv${cnt.get(k) / mx > 0.66 ? 3 : cnt.get(k) / mx > 0.33 ? 2 : 1}${k === here ? ' on' : ''}" data-act="month" data-v="${k}">${+k.slice(5)}</button>`).join('')}</div>` : '';
+            grid = `<div class="mb4-cal-h"><button class="mb4-x" data-act="month" data-v="${mv(-1)}" aria-label="지난달">‹</button> ${y}년 ${m + 1}월 ${T.fuzzy ? '<small>· 며칠 흐름</small>' : ''}<button class="mb4-x" data-act="month" data-v="${mv(1)}" aria-label="다음 달">›</button>${vm ? ' <button class="mb4-x" data-act="month" data-v="" aria-label="오늘로">오늘</button>' : ''}</div>${chips}<div class="mb4-cal">${WD_KO.map((w) => `<span class="mb4-cal-w">${w}</span>`).join('')}${rows}</div>`;
         }
         const note = st.notes[pick] ?? {};
         const loveHtml = loveCal.length ? card('💌 누가 몰래 적어 놨어요', loveCal.map((c) => `<div class="mb4-row"><span class="mb4-row-k">${start != null ? esc(iso(new Date(start + (c.day - 1) * 86400000)).slice(5).replace('-', '/')) : ''}</span><span class="mb4-row-v">${esc(c.text)} <small>— ${esc(c.who)}</small></span></div>`).join('')) : '';
         const partner = (() => { const P = Object.values(env.peek('bonds')?.pairs ?? {}).filter((p) => p.a === env.user || p.b === env.user).sort((a, b) => b.lvl - a.lvl)[0]; return P ? (P.a === env.user ? P.b : P.a) : ''; })();
         const snip = (i) => esc(String(chatMsgs[i]?.mes ?? '').replace(/<[^>]*>/g, ' ').replace(/\s+/g, ' ').trim().slice(0, 60));
-        const dayList = onDay.get(pick) ?? [], undated = R.filter((r) => !r.key).map((r) => r.i);
-        const recHtml = pick ? card(`📜 ${+pick.slice(5, 7)}월 ${+pick.slice(8)}일의 기록`, dayList.length ? dayList.map((r) => `<div class="mb4-row"><span class="mb4-row-k">#${r.i}${r.approx ? ' ~' : ''}</span><span class="mb4-row-v">${snip(r.i)}</span></div>`).join('') + (dayList.some((r) => r.approx) ? hint('~ 는 「며칠 뒤」 사이라 그 무렵이라는 뜻이에요.') : '') : hint('이날의 답은 없어요. 밑줄 그은 날을 눌러 보세요.')) : '';
-        el.innerHTML = `${card('', grid || hint('이야기에 날짜가 나오거나 아래에서 시작 날짜를 정하면 달력으로 보여 줘요.'))}
+        const isWk = pick.startsWith('w:'), wk0 = isWk ? pick.slice(2) : '', wkKeys = isWk ? new Set([0, 1, 2, 3, 4, 5, 6].map((j) => iso(new Date(Date.parse(`${wk0}T00:00:00Z`) + j * DAY)))) : null;
+        const dayList = pick === 'u' ? R.filter((r) => !r.key) : isWk ? onWeek.filter((r) => wkKeys.has(r.key)) : onDay.get(pick) ?? [];
+        const wdOfKey = (k) => (T?.date && T.wd != null ? ((T.wd + Math.round((Date.parse(`${k}T00:00:00Z`) - T.date) / DAY)) % 7 + 7) % 7 : new Date(Date.parse(`${k}T00:00:00Z`)).getUTCDay());
+        const title = pick === 'u' ? '날짜 모름' : isWk ? `${+wk0.slice(5, 7)}월 ${+wk0.slice(8)}일 주 어딘가` : pick ? `${pick.slice(0, 4)}년 ${+pick.slice(5, 7)}월 ${+pick.slice(8)}일 (${WD_KO[wdOfKey(pick)]})` : '';
+        const seq = (a) => a.filter((v, j) => v && v !== a[j - 1]);
+        const sum = dayList.length ? `<div class="mb4-chips">${[`💬 답 ${dayList.length}`, seq(dayList.map((r) => TOD_KO[r.tod] ?? r.tod)).slice(0, 4).join(' › ') && `🕐 ${seq(dayList.map((r) => TOD_KO[r.tod] ?? r.tod)).slice(0, 4).join(' › ')}`, seq(dayList.map((r) => room(r.loc))).slice(0, 4).join(' › ') && `📍 ${seq(dayList.map((r) => room(r.loc))).slice(0, 4).join(' › ')}`, [...new Set(dayList.flatMap((r) => r.with))].slice(0, 5).join(', ') && `👥 ${[...new Set(dayList.flatMap((r) => r.with))].slice(0, 5).join(', ')}`].filter(Boolean).map((x) => `<span class="mb4-chip">${esc(x)}</span>`).join('')}</div>` : '';
+        const edRow = (i) => (st.edI === i ? `<div class="mb4-btnrow"><input class="mb4-input" data-f="setd" maxlength="40" placeholder="예: 11월 18일 · 1525년 11월 18일 · November 18"><button class="mb4-btn sm" data-act="setd" data-v="${i}">이 답부터 이 날짜</button></div>` : '');
+        const recHtml = pick ? card(`📜 ${esc(title)}${dayList.length ? ` <small>· ${ranges(dayList.map((r) => r.i))}</small>` : ''}`, dayList.length ? sum + dayList.map((r) => `<div class="mb4-row"><span class="mb4-row-k">#${r.i}${r.approx ? ' ≈' : ''}</span><span class="mb4-row-v">${snip(r.i)}</span><button class="mb4-x" data-act="edi" data-v="${r.i}" aria-label="이 답의 날짜 바꾸기">✏️</button></div>${edRow(r.i)}`).join('') : hint('이날의 답은 없어요. 색칠된 날을 눌러 보세요.')) : '';
+        // every reply in order, one row per run on the same day (v3 «답 순서대로»)
+        const runs = []; for (const r of R) { const k = !r.read ? 'x' : !r.key ? 'u' : r.approx ? `≈${r.key}` : r.key, last = runs.at(-1); if (last && last.k === k) last.ids.push(r.i); else runs.push({ k, ids: [r.i], r }); }
+        const kd = (k) => `${k.slice(0, 4)}년 ${+k.slice(5, 7)}월 ${+k.slice(8, 10)}일`;
+        const listHtml = R.length ? `<details class="mb4-card"><summary>📜 답 순서대로 <small>${R.length}개</small></summary>${runs.map((x) => `<div class="mb4-row"><span class="mb4-row-k">${ranges(x.ids)}</span><span class="mb4-row-v">${x.k === 'x' ? '아직 안 읽음' : x.k === 'u' ? '날짜 모름' : x.k.startsWith('≈') ? `≈ ${kd(x.k.slice(1))}` : `<button class="mb4-link" data-act="go" data-v="${x.k}">${kd(x.k)}</button>`}</span>${x.k === 'x' ? '' : `<button class="mb4-x" data-act="edi" data-v="${x.ids[0]}" aria-label="이 답부터 날짜 바꾸기">✏️</button>`}</div>${edRow(x.ids[0])}`).join('')}</details>` : '';
+        // the same day for 15+ replies in a row: time probably moved without a date (v3 gap warning)
+        let same = 0; for (let j = R.length - 1; j >= 0 && R[j].key && R[j].key === R.at(-1).key && !R[j].approx; j--) same++;
+        const gap = same >= 15 ? card('', hint(`🕰 ${same}답째 같은 날이에요. 시간이 흘렀다면 ✏️로 날짜를 바꾸거나 🎲를 써 보세요.`), 'warn') : '';
+        const rollable = rollAll(R, year1, () => 0).length;
+        const tools = `<div class="mb4-btnrow">${rollable ? `<button class="mb4-btn ghost sm" data-act="rollall">🎲 미정 날짜 정하기 (${rollable})</button>` : ''}${st.lastRoll?.length ? '<button class="mb4-btn ghost sm" data-act="unroll">↩ 되돌리기</button>' : ''}</div>`;
+        el.innerHTML = `${card('', (grid || hint('이야기에 날짜가 나오거나 아래에서 시작 날짜를 정하면 달력으로 보여 줘요.')) + tools)}
+        ${gap}
         ${recHtml}
-        ${undated.length ? card('🗂 날짜 모름', hint(`${ranges(undated)} — 날짜가 나오기 전이거나 「며칠 뒤」라 날을 몰라요. 🎲로 정할 수 있어요.`)) : ''}
+        ${undated.length ? card('🗂 날짜 모름', `${hint(`${ranges(undated)} — 날짜가 나오기 전이거나 「며칠 뒤」라 날을 몰라요.`)}<div class="mb4-btnrow"><button class="mb4-btn ghost sm" data-act="pick" data-v="u">이 답들 보기</button></div>`) : ''}
+        ${listHtml}
         ${loveHtml}
         ${T?.fuzzy ? card('', hint('「며칠 뒤」처럼 흐리게 지나서 지금 날짜를 몰라요. 이야기가 날짜를 말하면 다시 맞춰져요.'), 'warn') : ''}
         ${pick ? card(`📝 ${esc(pick.slice(5).replace('-', '/'))} 메모`, `<textarea class="mb4-input" rows="2" data-act="memo" placeholder="이 날 적어 둘 것">${esc(note.text ?? '')}</textarea>
@@ -218,10 +287,10 @@ export default {
             ${st.cycle.starts.length ? `<div class="mb4-chips">${st.cycle.starts.map((s, n) => `<span class="mb4-chip">🩸 ${esc(typeof s === 'string' ? `${+s.slice(5, 7)}/${+s.slice(8)}` : start != null ? (() => { const d = new Date(start + (s - 1) * DAY); return `${d.getUTCMonth() + 1}/${d.getUTCDate()}`; })() : `이야기 ${s}번째 날`)} <button class="mb4-x" data-act="cydel" data-v="${n}" aria-label="지우기">✕</button></span>`).join('')}</div>` : ''}
             <label class="mb4-sw"><span><b>AI에 알리기</b><small>기간 중에만 1줄 · 가까운 사람이 챙겨 줘요</small></span><input type="checkbox" data-act="cytell" ${st.cycle.tell ? 'checked' : ''}><i></i></label>` : ''}
         </details>
-        ${start == null || sc.vague ? card('🎲 미정 날짜 정하기', `${hint(start == null ? '이야기에 아직 날짜가 없어요. 주사위로 아무 날이나 정해요 (AI 안 써요).' : '「며칠 뒤」처럼 흐린 시간이라 날을 몰라요. 그 주 안에서 주사위로 정해요 (AI 안 써요).')}<div class="mb4-btnrow"><button class="mb4-btn" data-act="roll">🎲 정하기</button></div>`) : ''}
         <details class="mb4-card" ${start == null ? 'open' : ''}><summary>⚙️ 이야기 시작 날짜</summary>
             <label class="mb4-label">오늘이 며칠인가요<input class="mb4-input" data-act="now" maxlength="30" placeholder="예: 11월 25일 · 2026년 11월 25일 · 2026-11-25" value=""></label>
             <label class="mb4-label">또는 이야기가 시작한 날<input class="mb4-input" data-act="start" maxlength="30" placeholder="예: 3월 2일 · 2026-03-02" value="${esc(st.start ?? '')}"></label>
+            <label class="mb4-label">첫 날의 연도 <small>(이야기가 해를 안 말할 때만, 비우면 요일에 맞춰 짐작)</small><input class="mb4-input mb4-short" data-act="year1" maxlength="6" placeholder="예: 1524" value="${esc(String(st.year1 ?? ''))}"></label>
             ${hint('연도를 안 쓰면 지금 정해진 해(없으면 올해)로 봐요. 엔터를 치거나 칸 밖을 누르면 정해져요.')}
         </details>`;
         const save = () => { api.save(); api.redraw(); };
@@ -238,7 +307,13 @@ export default {
             now: (v) => { const t = readDate(v); if (t == null) { if (String(v).trim()) api.toast('날짜를 못 알아봤어요. 예: 11월 25일 · 2026-11-25'); return; } st.start = iso(new Date(t - (sc.day - 1) * DAY)); save(); api.toast(`지금이 ${new Date(t).getUTCMonth() + 1}월 ${new Date(t).getUTCDate()}일이 되게 맞췄어요.`); },
             pick: (v) => { st.pick = v; api.redraw(); },
             month: (v) => { st.view = v; api.redraw(); },
-            roll: () => { const mine = startMs(st.start), d = rollDate(sc, mine == null ? null : new Date(mine).getUTCFullYear()); if (!d) return; if (api.fix('date', `!${d}`)) api.toast(`🎲 ${d.replace(/^(\w+) (\d+), (\d+)$/, (_a, m, dd, y) => `${y}년 ${MON_EN_FULL.indexOf(m) + 1}월 ${dd}일`)}로 정했어요.`); },
+            go: (v) => { st.pick = v; st.view = v.slice(0, 7); api.redraw(); },
+            edi: (v) => { st.edI = st.edI === +v ? null : +v; api.redraw(); },
+            // the date of one reply, set by the person: the replies after it follow it
+            setd: (v) => { const t = val(el, '[data-f="setd"]').replace(/\s+/g, ' ').replace(/(\d)\s+(년|월|일)/g, '$1$2'); if (!dateText(t)) { api.toast('날짜로 못 읽었어요. 예: 11월 18일'); return; } st.edI = null; if (api.fix('date', `!${t}`, +v)) { delete st.pick; delete st.view; api.toast(`#${v}부터 ${t}`); } },
+            rollall: () => { const L = rollAll(R, year1); st.lastRoll = L.filter((x) => api.fix('date', x.v, x.i)); api.save(); api.toast(`🎲 답 ${st.lastRoll.length}개의 날짜를 정했어요. 마음에 안 들면 ↩ 되돌리기.`); api.redraw(); },
+            unroll: () => { for (const x of st.lastRoll ?? []) api.core?.unfix?.(x.i, 'date', x.v); st.lastRoll = []; api.save(); api.redraw(); },
+            year1: (v) => { const n = parseInt(String(v).replace(/[^\d]/g, ''), 10); if (String(v).trim() === '') delete st.year1; else if (n >= 1000 && n <= 9999) st.year1 = n; else { api.toast('네 자리 연도로 적어 주세요. 예: 1524'); return; } save(); },
             memo: (_v, t) => { const n = (st.notes[pick] ??= {}); n.text = t.value.trim().slice(0, 300); if (!n.text) delete st.notes[pick]; save(); },
             memotell: (_v, b) => { (st.notes[pick] ??= {}).tell = b.checked; save(); },
             peek: () => { st.peek = { who: partner, md: pick.slice(5).replace('-', '/'), text: note.text, at: env.last ?? 0 }; api.save(); api.toast(`다음 답에 한 번: ${partner}이(가) 메모를 볼 수 있어요.`); },

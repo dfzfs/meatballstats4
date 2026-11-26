@@ -417,7 +417,7 @@ function mountApp(body, id) {
         env, store: env.store, cfg: env.cfg, kit,
         state: () => E.state(id),
         save: () => { saveChat(); saveCfg(); E.touch(); E.refresh(); R.redrawFrame(); },
-        fix: (k, v) => { const ok = E.fix(k, v); if (!ok) toast(E.lastReply() < 0 ? 'AI 답이 하나는 있어야 고칠 수 있어요.' : '그 값은 넣을 수 없어요.', 'warning'); else { clearTimeout(fixDraw); fixDraw = setTimeout(() => draw(true), 0); } return ok; },
+        fix: (k, v, at) => { const ok = E.fix(k, v, at); if (!ok) toast(E.lastReply() < 0 ? 'AI 답이 하나는 있어야 고칠 수 있어요.' : '그 값은 넣을 수 없어요.', 'warning'); else { clearTimeout(fixDraw); fixDraw = setTimeout(() => draw(true), 0); } return ok; },
         redraw: () => draw(true), toast, close,
         // the phone's ⋯ menu: [{ icon, label, sub?, act, disabled?, cur? } | { sec: '제목' }] (only while this app is shown)
         menu: (items) => { menuItems = Array.isArray(items) ? items : []; $('[data-more]').hidden = !(menuItems.length || pageParts.length); },
@@ -433,7 +433,7 @@ function mountApp(body, id) {
         // make a new version of the last reply (as the reroll arrow would); false when there is none to press
         regen: () => { const b = document.querySelector('#chat .last_mes .swipe_right'); if (b) { b.click(); return true; } try { ctx().executeSlashCommandsWithOptions?.('/regenerate'); return true; } catch (e) { return false; } },
         say: (text) => { const box = document.getElementById('send_textarea'); if (!box) return false; box.value = box.value ? `${box.value} ${text}` : text; box.dispatchEvent(new Event('input', { bubbles: true })); box.focus(); return true; },
-        core: { log: () => E.log(), chips: (e) => E.chips(e), reread: (i) => E.reread(i), unfix: (i) => E.unfix(i), chat: () => E.host.chat(),
+        core: { log: () => E.log(), chips: (e) => E.chips(e), reread: (i) => E.reread(i), unfix: (i, k, v) => E.unfix(i, k, v), chat: () => E.host.chat(),
             // a read-only summary for self-check and reports (no secrets: the reader's prompt is not included)
             status: () => ({ ...E.stats, lastPrompt: undefined, lastAnswer: undefined, promptChars: E.stats.lastPrompt?.length ?? 0, apps: E.reg.list().map((a) => a.id), keys: E.reg.keys().map((k) => k.id), paused: E.paused(), unread: E.unreadCount(), version: VERSION, gen: '',
                 // note lines another app held back or changed on the way out (shown in the self-check)

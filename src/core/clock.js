@@ -169,14 +169,17 @@ function date(C, p, force, i) {
     return r;
 }
 
-// The date of story day `day` (1-based) as { y, m, d, wd }: the story's year, else `year` (the person's), else a guess
-// that fits the weekday. null when no date was named yet, or the day is inside a vague stretch.
-export function dayOn(C, day = C?.day, year = null) {
+// The date of story day `day` (1-based) as { y, m, d, wd }: the story's year, else `year1` (the person's year for
+// day 1), else a guess that fits the weekday. null when no date was named yet, or the day is inside a vague stretch.
+export function dayOn(C, day = C?.day, year1 = null) {
     const cal = C?.cal;
     if (!cal || cal.doy == null || inFog(cal, day - 1)) return null;
     const r = rawAt(cal, day - 1);
     let y = r.y;
-    if (y == null) { const a = rawAt(cal, cal.an); y = (fourDigits(year) ? year : guessYear(a.m, a.d, a.wd)) + Math.floor((cal.doy + day - 1 - cal.an) / 365); }
+    if (y == null) {
+        const t = (n) => Math.floor((cal.doy + n - cal.an) / 365), a = rawAt(cal, cal.an);   // whole years from the anchor's
+        y = fourDigits(year1) ? year1 + t(day - 1) - t(0) : guessYear(a.m, a.d, a.wd) + t(day - 1);
+    }
     return { y, m: r.m, d: Math.min(r.d, dimOf(y, r.m)), wd: r.wd ?? null };
 }
 // A saved start date («2026-03-02») -> UTC ms, or null. A start saved with a broken year («0001-…») counts as not set.

@@ -58,9 +58,9 @@ export async function apiFor(E, id, { draw = () => {} } = {}) {
     return {
         env, store: env.store, cfg: env.cfg, kit,
         state: () => E.state(id), save: () => { E.touch(); E.refresh(); }, redraw: draw,
-        fix: (k, v) => E.fix(k, v), toast() {}, close() {}, menu() {}, onBack() {}, title() {}, go() {}, here: () => `app:${id}`,
+        fix: (k, v, at) => E.fix(k, v, at), toast() {}, close() {}, menu() {}, onBack() {}, title() {}, go() {}, here: () => `app:${id}`,
         isOn: (other) => E.reg.has(other), ask: async () => '', facts: () => '', regen: () => false, say: () => true,
-        core: { log: () => E.log(), chips: (e) => E.chips(e), reread: async () => 0, unfix: (i) => E.unfix(i), chat: () => E.host.chat(), status: () => ({ apps: [], keys: [], calls: 0, kept: 0, dropped: 0, unread: 0 }), ownerOf: (k) => E.reg.ownerOf(k)?.id ?? '' },
+        core: { log: () => E.log(), chips: (e) => E.chips(e), reread: async () => 0, unfix: (i, k, v) => E.unfix(i, k, v), chat: () => E.host.chat(), status: () => ({ apps: [], keys: [], calls: 0, kept: 0, dropped: 0, unread: 0 }), ownerOf: (k) => E.reg.ownerOf(k)?.id ?? '' },
         helper: { appsOn: () => [], keys: () => [], chip: () => '', fix: (k, v) => E.fix(k, v), storeOf: () => null, cardOf: () => null },
     };
 }
