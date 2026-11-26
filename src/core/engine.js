@@ -243,9 +243,11 @@ export class Engine {
                 if (!prompt) break;
                 let answer = '';
                 calls++; this.stats.calls++; this.stats.lastPrompt = prompt;
-                try { answer = await this.host.classify(prompt); } catch (e) { answer = ''; this.stats.status = `error: ${e?.message ?? e}`; }
+                let threw = false;
+                try { answer = await this.host.classify(prompt); } catch (e) { answer = ''; threw = true; this.stats.status = `error: ${e?.message ?? e}`; }
                 this.stats.lastAnswer = String(answer ?? '');
                 if (this.host.store(false) !== st) break;                    // the chat was switched while waiting
+                if (threw) break;                                            // the connection failed: these replies stay unread and are tried again later
                 const broken = brokenKind(answer);
                 const text = jobs.map((j) => `${j.user}\n${j.reply}`).join('\n');
                 const { kept, dropped } = broken ? { kept: [], dropped: [] } : validate(parseAnswer(answer), { reg: this.reg, text, reply: jobs.map((j) => j.reply).join('\n'), envOf: this.envOf });
@@ -258,11 +260,13 @@ export class Engine {
                 this.stats.kept += kept.length; this.stats.dropped += dropped.length; this.stats.lastDropped = dropped.slice(0, 12);
                 this.stats.status = broken ? `unusable answer (${broken})` : 'ok';
                 done += jobs.length;
-                this.touch(); this.host.saveChat();
+                this.touch();
+                if (calls % 10 === 0) this.host.saveChat();                   // a long catch-up saves now and then, not after every call
                 try { onStep({ done, total: all.length, calls }); } catch (e) { /* progress display is optional */ }
                 if (gap) await new Promise((r) => setTimeout(r, gap));
             }
         } finally { this.busy = false; }
+        if (calls) this.host.saveChat();
         this.touch(); this.refresh(); this.host.changed();
         return { done, total: all.length, calls };
     }

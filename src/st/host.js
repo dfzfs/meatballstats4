@@ -21,7 +21,27 @@ export function store(create = false) {
     if (!md[KEY] && create) md[KEY] = { v: 1, ev: {}, apps: {} };
     return md[KEY] ?? null;
 }
-export const saveChat = () => { try { const c = ctx(); (c.saveMetadataDebounced ?? c.saveMetadata)?.(); } catch (e) { /* saved with the next message */ } };
+// Saving this chat's data rewrites the whole chat file. Many small saves close together (and one right on top of the
+// application's own save after a reply) can collide on Windows (EPERM on rename). So saves are gathered: one save a
+// moment after the last change, and none while a reply is being written or just after it was saved by the application.
+// The data lives in the chat's metadata, so the application's own save carries it too; nothing waits forever.
+const SAVE_WAIT = 1200;
+let saveTimer = null, saveFor = '', hold = () => false;
+export const holdSaves = (fn) => { hold = typeof fn === 'function' ? fn : () => false; };
+function flushChat(tries = 0) {
+    saveTimer = null;
+    try {
+        const c = ctx();
+        if (!c.getCurrentChatId?.() || c.getCurrentChatId() !== saveFor) return;   // the chat was switched: it was saved on the way out
+        if (tries < 20 && hold()) { saveTimer = setTimeout(() => flushChat(tries + 1), SAVE_WAIT); return; }
+        (c.saveMetadataDebounced ?? c.saveMetadata)?.();
+    } catch (e) { /* saved with the next message */ }
+}
+export const saveChat = () => {
+    try { saveFor = ctx().getCurrentChatId?.() ?? ''; } catch (e) { saveFor = ''; }
+    clearTimeout(saveTimer);
+    saveTimer = setTimeout(() => flushChat(0), SAVE_WAIT);
+};
 
 // One key per character card or group, for data that should follow them from chat to chat.
 export const cardKey = () => { try { const c = ctx(); return c.groupId ? `g:${c.groupId}` : c.characters?.[c.characterId]?.avatar ? `c:${c.characters[c.characterId].avatar}` : ''; } catch (e) { return ''; } };

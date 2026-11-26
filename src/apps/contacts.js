@@ -97,7 +97,7 @@ export default {
                 return `<button class="mbx-row" data-act="open" data-v="${esc(n)}"><span class="mb4-face">${k.face(n)}</span><span class="mbx-row-t"><b>${nameOf(n)}${P.dnd ? ' <i>🔕</i>' : ''}${away ? ` <i>${away.sleep ? '😴' : '💤'}</i>` : ''}</b><small>${last ? `${last.me ? '나: ' : ''}${last.letter ? '✉️ ' : ''}${esc(clip(one(last.text), 60))}` : '아직 문자가 없어요'}</small></span>${dot ? '<em class="mbx-new"></em>' : ''}</button>`;
             };
             el.innerHTML = `<div class="mb4-list mbx-list">
-                ${''/* the group room lives on its own screen (⋯ › 단체방), not in this list */}
+                <button class="mbx-row" data-act="group"><span class="mb4-face mbx-gface">💬</span><span class="mbx-row-t"><b>단체방${groupOn ? '' : ' <i>꺼짐</i>'}</b><small>${groupOn ? (gl ? `${esc(gl.who ?? '')}: ${esc(clip(one(String(gl.t ?? '')), 60))}` : '아직 대화가 없어요') : '누르면 켤 수 있어요'}</small></span></button>
                 ${(() => { const at = Number(env.peekStore?.('heart')?.showAt) || k.SHOW_AT, sp = k.byHeart(known, env.peek('heart'), env.user, env.peek('scene')?.with ?? [], at, (n) => (T[n] ?? []).length > 0); return sp ? k.foldUnder(sp.shown.map(row), sp.rest.map(row), at) : k.foldRest(known.map(row)); })()}</div>
                 ${known.length ? '' : k.hint('이야기에 인물이 나오면 여기 떠요. ⋯에서 직접 더할 수도 있어요.')}
                 ${st._panel === 'new' ? `<div class="mb4-btnrow"><input class="mb4-input" data-f="new" maxlength="40" placeholder="누구에게 보낼까요"><button class="mb4-btn ghost" data-act="add">추가</button></div>` : ''}

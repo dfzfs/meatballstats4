@@ -2,7 +2,7 @@
 // Loaded only when the master switch is on. Listeners exist only while at least one app is on.
 import { Engine } from '../core/engine.js';
 import { checkDef, API } from '../core/registry.js';
-import { ctx, cfg, saveCfg, store, saveChat, names, cardKey, hasChat, toast, KEY, VERSION } from './host.js';
+import { ctx, cfg, saveCfg, store, saveChat, holdSaves, names, cardKey, hasChat, toast, KEY, VERSION } from './host.js';
 import { fingerprint, isReply } from '../core/text.js';
 import { BUILTIN } from '../apps/catalog.js';
 
@@ -44,6 +44,8 @@ const host = {
     ask: (prompt) => model(prompt, ROOM, 0.9),
 };
 export const engine = new Engine(host);
+// our saves wait while a reply is being written and for a moment after the application saved it (see host.saveChat)
+holdSaves(() => Q.generating || Date.now() - (Q.savedAt ?? 0) < 2500);
 
 // ── reader queue: one call at a time, never while the main reply is being written ──
 export function kick(delay = AFTER_REPLY) { clearTimeout(Q.timer); Q.timer = setTimeout(tick, delay); Q.timer?.unref?.(); }
@@ -128,6 +130,7 @@ async function carry() {
 const H = {
     chat: () => { engine.clear(); engine.onChat(); carry().finally(() => { engine.touch(); engine.refresh(); host.changed(); }); kick(); },
     reply: () => {
+        Q.savedAt = Date.now();
         // the application may say "generation ended" before or after the reply arrives (streaming: before), so the
         // kind of generation that made this reply is kept until the reply has been counted
         const live = Q.gen;
@@ -148,7 +151,7 @@ const H = {
         const last = [...(ctx().chat ?? [])].reverse().find(isReply);
         Q.cont = type === 'continue' && last ? { fp: fingerprint(last), len: String(last.mes ?? '').length } : null;
     },
-    genEnd: () => { Q.generating = false; Q.gen = ''; kick(); },
+    genEnd: () => { Q.generating = false; Q.gen = ''; Q.savedAt = Date.now(); kick(); },
     // the person's message has just joined the chat (it is not there yet when the generation starts): lines that
     // depend on what they wrote are worked out now, before the prompt is put together
     userSent: () => { engine.touch(); engine.refresh(); },
