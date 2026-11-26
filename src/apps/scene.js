@@ -1,7 +1,7 @@
 // 🧭 Scene: when, where, who is present, weather. Small and common, so it lives in the core and loads only when on.
 import { clip } from '../core/text.js';
 import { skipInMessage } from '../core/skip.js';
-import { applyTime, anchoredDate, dayKo } from '../core/clock.js';
+import { applyTime, anchoredDate, namedDate, dayKo } from '../core/clock.js';
 import { cueOr, slow } from '../core/cadence.js';
 import { esc, row, card, person, hint, acts, val, TOD, TOD_KO, room } from '../ui/kit.js';
 
@@ -36,8 +36,21 @@ export default {
         if (k === 'near') { const m = String(v).match(/^(.+?)\s*[—–-]\s*(.+)$/); if (m) (S.near ??= {})[clip(m[1].trim(), 60)] = clip(m[2].trim(), 80); return; }
         if (k === 'mood') { S.mood = clip(v, 60); return; }
         if (k === 'gist') { S.gist = clip(v, 220); (S.gists ??= []).push({ v: S.gist, day: S.day, i }); if (S.gists.length > 40) S.gists.shift(); return; }
-        if (k === 'time') applyTime(S, v);
-        else if (k === 'date') { S.date = clip(v, 60); S.vague = false; S.fz = null; S.anchor = { day: S.day, date: S.date }; }   // a named date ends a vague stretch, and later days count on from it
+        if (k === 'time') { applyTime(S, v); S.todI = i; }
+        else if (k === 'date') {
+            const d = clip(v, 60);
+            // the reader often writes only the new date («11월 26일») without «+1d»: a later date than the one being
+            // counted means that many days went by (a date in January after December is the next year)
+            if (!S.vague && S.anchor?.date) {
+                const before = anchoredDate(S), after = before == null ? null : namedDate(d, new Date(before).getUTCFullYear());
+                if (after != null && !Number.isNaN(after)) {
+                    let n = Math.round((after - before) / 86400000);
+                    if (n < -300) n += 365;
+                    if (n > 0 && n <= 400) { S.day += n; S.hrs = 0; if (S.todI !== i) S.tod = ''; }
+                }
+            }
+            S.date = d; S.vague = false; S.fz = null; S.anchor = { day: S.day, date: S.date };
+        }   // a named date ends a vague stretch, and later days count on from it
         else if (k === 'weather') S.weather = clip(v, 40);
         else if (k === 'loc') {
             S.loc = clip(v, 120);

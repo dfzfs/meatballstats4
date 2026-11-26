@@ -17,6 +17,8 @@ export function applyTime(S, v) {
     const fz = t.match(/\+\s*\?\s*(d|w|mo|y)?/);
     if (fz) { S.vague = true; S.fz = { from: S.day, unit: fz[1] || 'd' }; S.day += { d: 2, w: 7, mo: 30, y: 365 }[fz[1] || 'd']; }   // "a few days later": the count is a guess until a date is named
     const tod = TOD.find((x) => new RegExp(`\\b${x}\\b`).test(t)) ?? Object.entries(ALSO).find(([w]) => new RegExp(`\\b${w}\\b`).test(t))?.[1];
+    // night (or late evening) followed by morning with no time written: that is the next day
+    if (tod && !d && !w && !mo && !h && !mi && !fz && ['evening', 'night', 'midnight'].includes(S.tod) && ['dawn', 'morning'].includes(tod)) { S.day += 1; S.hrs = 0; S.date = ''; }
     if (tod) S.tod = tod; else if (d || w || mo) S.tod = '';
     if (d || w || mo) { S.hrs = 0; S.date = ''; }          // a written date is only true for the day it was written for
 }

@@ -1,6 +1,23 @@
 // Reads the classifier's answer line by line and keeps only lines that pass every check.
 import { quoteOk } from './text.js';
 
+// The reader sometimes names the person's own character by how the story addresses them («당신», «you», «User»).
+// In a name place that is the person's character; in «with» (who else is present) it is left out.
+const NO_NAMES = new Set(['time', 'date', 'loc', 'weather', 'mood', 'gist', 'near', 'cash', 'got', 'lost', 'stat', 'tag', 'my', 'leak', 'broke', 'ate', 'slept', 'washed', 'done']);
+const ME = /^(?:당신|너|그대|자네|you|the user|user|\{\{user\}\}|player|protagonist)$/i;
+export function meToUser(k, v, user) {
+    if (!user || NO_NAMES.has(k)) return v;
+    const fix = (s) => s.split(/(\s*[>&,+]\s*|-)/).map((t) => (ME.test(t.trim()) ? t.replace(t.trim(), user) : t)).join('');
+    if (k === 'with') {
+        const m = String(v).match(/^(\s*=?\s*)(.*)$/s);
+        const kept = m[2].split(/\s*[,，、]\s*/).filter((n) => !ME.test(n.replace(/^[+-]\s*/, '').trim()) && n.replace(/^[+-]\s*/, '').trim().toLowerCase() !== String(user).toLowerCase());
+        if (!kept.length) return /=/.test(m[1]) ? '=none' : null;   // «+당신» alone says nothing about anyone else
+        return `${m[1]}${kept.join(', ')}`;
+    }
+    const i = String(v).indexOf('=');
+    return i < 0 ? fix(String(v)) : fix(String(v).slice(0, i)) + String(v).slice(i);
+}
+
 // 'key: value | "quote"' lines between <mb> and </mb>. Anything else is reported in `dropped`.
 export function parseAnswer(answer) {
     const lines = [], dropped = [];
@@ -39,6 +56,8 @@ export function validate(parsed, { reg, text, reply = null, envOf = () => ({}) }
     const kept = [], dropped = [...parsed.dropped];
     for (const ln of parsed.lines) {
         const app = reg.ownerOf(ln.k);
+        try { ln.v = meToUser(ln.k, ln.v, envOf(reg.ownerOf(ln.k)?.id)?.user ?? ''); } catch (e) { /* keep as written */ }
+        if (ln.v == null) continue;
         const raw = `${ln.k}: ${ln.v}`;
         if (!app) { dropped.push({ raw, why: 'key-off', ...(ln.n != null ? { n: ln.n } : {}) }); continue; }
         const kd = app.keys.find((k) => k.id === ln.k);
