@@ -71,3 +71,18 @@ test('the month grid puts days under the story\'s weekdays', async () => {
     const cells = [...el.querySelectorAll('.mb4-cal > *')].slice(7).map((x) => x.textContent.trim());
     assert.equal(cells.indexOf('17') % 7, 6, 'the 17th sits under 토');
 });
+
+test('📜 every reply shows on its day in the calendar; undated ones go to «날짜 모름»; ‹ › moves the month', async () => {
+    const { page, apiFor } = await import('./harness.mjs');
+    page();
+    const t = await story([['time', 'morning'], ['date', 'March 30, 1700'], ['time', '+2d'], ['time', '+?d']], ['scene', 'calendar']);
+    const api = await apiFor(t.E, 'calendar'), el = document.createElement('div'), draw = () => { el.innerHTML = ''; t.E.reg.get('calendar').render(el, api); };
+    api.store.pick = '1700-03-30'; api.store.view = '1700-03';
+    draw();
+    assert.ok(el.querySelector('[data-v="1700-03-30"].has'), 'March 30 is marked');
+    assert.match(el.textContent, /3월 30일의 기록#0\s*r0#2\s*r1/);
+    assert.match(el.textContent, /날짜 모름#6/);
+    api.store.view = '1700-04'; draw();
+    assert.match(el.querySelector('.mb4-cal-h').textContent, /1700년 4월/);
+    assert.ok(el.querySelector('[data-v="1700-04-01"].has'), 'the reply two days later is on April 1');
+});
