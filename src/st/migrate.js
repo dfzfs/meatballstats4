@@ -57,13 +57,16 @@ function v3Line(e, user) {
         default: return [];
     }
 }
-function fromV3(md, user) {
+function fromV3(md, user, chat = []) {
     const records = {};
+    // dates and times the person set before the first recorded reply (v3 kept them apart, in md.pre): they go first
+    const pre = (Array.isArray(md?.pre) ? md.pre : []).flatMap((e) => { try { return v3Line(e, user); } catch (x) { return []; } });
     for (const [fp, evs] of Object.entries(md?.ev ?? {})) {
         if (!fp.startsWith('a.') || !Array.isArray(evs)) continue;
         const L = evs.flatMap((e) => { try { return v3Line(e, user); } catch (x) { return []; } });
         records[fp.slice(2)] = { t: Date.now(), L, src: 'v3' };   // "a.<name>.<text>.<length>" -> our "<name>.<text>.<length>"
     }
+    if (pre.length) { const m = (chat ?? []).find(isReply); if (m) { const fp = fingerprint(m); records[fp] = { t: Date.now(), src: 'v3', ...(records[fp] ?? {}), L: [...pre, ...(records[fp]?.L ?? [])] }; } }
     // relationship events were kept apart, in md.rel (same fingerprints): dealings, feelings, the official relationship
     const MV = ['closer', 'back', 'wavering', 'crack', 'clash', 'same'], TEX = ['attraction', 'desire', 'lingering', 'love-hate', 'forbidden pull', 'resentment', 'bond', 'none'];
     for (const [fp0, evs] of Object.entries(md?.rel ?? {})) {
@@ -213,7 +216,7 @@ export function collect(chatMetadata, chat, user) {
     const out = { records: {}, apps: {}, by: {} };
     for (const { gen, key } of sources(chatMetadata).reverse()) {
         let got = { records: {}, apps: {} };
-        try { got = gen === 'v3' ? fromV3(chatMetadata[key], user) : gen === 'v2' ? fromV2(chatMetadata[key], chat, user) : fromV1(chatMetadata[key], chat, user); } catch (e) { console.warn(`[meatball] could not read ${gen} data`, e); }
+        try { got = gen === 'v3' ? fromV3(chatMetadata[key], user, chat) : gen === 'v2' ? fromV2(chatMetadata[key], chat, user) : fromV1(chatMetadata[key], chat, user); } catch (e) { console.warn(`[meatball] could not read ${gen} data`, e); }
         out.by[gen] = Object.keys(got.records).length;
         Object.assign(out.records, got.records);
         for (const [id, data] of Object.entries(got.apps)) out.apps[id] = { ...(out.apps[id] ?? {}), ...data };

@@ -30,7 +30,13 @@ export function namedDate(text, year) {
     if (iso) return Date.UTC(+iso[1], +iso[2] - 1, +iso[3]);
     for (const [re, m] of MON_RE) { const x = s.match(re); if (x) { const y = s.slice(x.index).match(/^[^,]*,\s*(\d{4})\b/); return Date.UTC(y ? +y[1] : year, m, +x[1]); } }
     const k = s.match(/(?:(\d{4})\s*년\s*)?(\d{1,2})\s*월\s*(\d{1,2})\s*일/);
-    return k ? Date.UTC(k[1] ? +k[1] : year, +k[2] - 1, +k[3]) : null;
+    if (k) return Date.UTC(k[1] ? +k[1] : year, +k[2] - 1, +k[3]);
+    // only part of a month ("late November", "11월 초"), as the third generation kept it: early 5 · mid 15 · late 25
+    const PART = { early: 5, mid: 15, late: 25, 초: 5, 중순: 15, 말: 25 };
+    const pe = s.match(/\b(early|mid|late)[\s-]+([a-z]{3,})/i);
+    if (pe) { const at = MON_EN.findIndex((x) => x.slice(0, 3).toLowerCase() === pe[2].slice(0, 3).toLowerCase()); if (at >= 0) { const y = s.match(/\b(\d{4})\b/); return Date.UTC(y ? +y[1] : year, at, PART[pe[1].toLowerCase()]); } }
+    const pk = s.match(/(?:(\d{4})\s*년\s*)?(\d{1,2})\s*월\s*(초|중순|말)/);
+    return pk ? Date.UTC(pk[1] ? +pk[1] : year, +pk[2] - 1, PART[pk[3]]) : null;
 }
 // The last date the story named keeps counting after days pass: «November 25» on day 3, now day 5 -> November 27.
 // S needs { day, date, anchor: { day, date } }. -> UTC ms, or null when no readable date was ever named.

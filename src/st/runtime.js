@@ -81,7 +81,7 @@ async function tick() {
 const quiet = (type, opts, dry) => !!dry || type === 'quiet' || type === 'impersonate' || !!opts?.quiet_prompt;
 // Secrets, directions and notes set in an earlier Meatball come along by themselves the first time a chat is opened
 // (reply records still wait for 「이어 가기」). Done once per chat; nothing old is changed.
-const CARRY_V = 3;
+const CARRY_V = 4;   // 4: v3 records translated again (the person's dates set before the first reply)
 // The third generation's lore sheet: this chat's own, else the one set for the character, else the lorebook entry.
 async function v3Lore(md) {
     const c = ctx(), s3 = md.meatball_status3;
