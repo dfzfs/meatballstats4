@@ -15,11 +15,12 @@ const iso = (d) => d.toISOString().slice(0, 10);
 // from an earlier Meatball hold those dates), so the calendar is never empty when the story has a date.
 // Day 1's date. The story's own last readable date wins (it carries the story's year, e.g. 1525); the start date the
 // person typed is used only while the story has named no readable date.
-const startOf = (env) => {
-    const sc = env.peek?.('scene'), mine = startMs(env.store.start), a = sc && !sc.vague ? anchoredDate(sc, mine == null ? null : new Date(mine).getUTCFullYear()) : null;
+const startFrom = (store, sc) => {
+    const mine = startMs(store?.start), a = sc && !sc.vague ? anchoredDate(sc, mine == null ? null : new Date(mine).getUTCFullYear()) : null;
     if (a != null && !Number.isNaN(a)) return a - (sc.day - 1) * DAY;
-    return startMs(env.store.start);
+    return mine;
 };
+const startOf = (env) => startFrom(env.store, env.peek?.('scene'));
 // The calendar date of a story day (day 1 = the start date).
 export const dateOf = (start, day) => new Date(start + (day - 1) * DAY);
 const dayOfIso = (start, s) => { const t = Date.parse(`${s}T00:00:00Z`); return Number.isNaN(t) ? null : Math.round((t - start) / DAY) + 1; };
@@ -54,21 +55,26 @@ function upcoming(env, now, span = 14) {
     }
     return out.sort((a, b) => a.in - b.in);
 }
-// The optional cycle: day n of a period (or 0), from the start days the person marked.
-export function cycleOn(cyc, day) {
+// The optional cycle. Start days are kept as dates («2026-03-04»), so a change in how story days are counted never
+// moves them; a number is a story day, kept only while the story has no date at all.
+const cyDays = (cyc, start) => (cyc?.starts ?? []).map((s) => (typeof s === 'string' ? (start == null ? null : dayOfIso(start, s)) : Number.isInteger(s) ? s : null)).filter((n) => n != null);
+// day n of a period (or 0) on story day `day`
+export function cycleOn(cyc, day, start = null) {
     if (!cyc?.on) return 0;
-    const past = (cyc.starts ?? []).filter((n) => n <= day).sort((a, b) => a - b), last = past.at(-1);
+    const past = cyDays(cyc, start).filter((n) => n <= day).sort((a, b) => a - b), last = past.at(-1);
     if (last == null) return 0;
     const len = cyc.len || 28, dur = cyc.dur || 5, k = (day - last) % len;
     return day - last < len * 3 && k < dur ? k + 1 : 0;   // predicted for three cycles after the last one marked
 }
 
 // what the cycle box says now, so it is clear whether anything is marked and whether today is in it
-const cyNow = (cyc, day) => {
+// for other apps (contacts): the period day today, from the calendar's saved data and the scene
+export const cycleToday = (store, sc) => (sc ? cycleOn(store?.cycle, sc.day, startFrom(store, sc)) : 0);
+const cyNow = (cyc, day, start) => {
     if (!cyc.starts?.length) return '<p class="mb4-hint">시작일을 표시해야 기간이 잡혀요.</p>';
-    const cd = cycleOn(cyc, day);
+    const cd = cycleOn(cyc, day, start);
     if (cd) return `<p class="mb4-hint">🩸 지금 기간 중 · ${cd}번째 날${cyc.tell ? ' · AI가 알아요' : ''}</p>`;
-    const last = Math.max(...cyc.starts.filter((n) => n <= day));
+    const last = Math.max(...cyDays(cyc, start).filter((n) => n <= day));
     if (!Number.isFinite(last)) return '<p class="mb4-hint">표시한 시작일이 아직 오지 않았어요.</p>';
     if (day - last >= (cyc.len || 28) * 3) return '<p class="mb4-hint">마지막 시작일이 오래돼서 쉬고 있어요. 새 시작일을 표시해 주세요.</p>';
     const next = (cyc.len || 28) - ((day - last) % (cyc.len || 28));
@@ -103,7 +109,7 @@ export default {
         const T = today(env), sday = env.peek('scene')?.day;
         const st = env.store, state = [], now = [];
         // the cycle counts story days, so it works even when the story has no calendar date yet
-        const user = env.user || 'the user', cd = sday == null ? 0 : cycleOn(st.cycle, sday);
+        const user = env.user || 'the user', cd = sday == null ? 0 : cycleOn(st.cycle, sday, startOf(env));
         const cycle = () => { if (cd && st.cycle.tell) { state.push(`${user} is on their period (day ${cd}).`); if (cd <= 3) now.push(`People close to ${user} know or notice it and act on it naturally: care, warmth, food, rest.`); } };
         if (!T) { cycle(); return state.length || now.length ? { state, now } : null; }
         if (T.fuzzy) state.push(`Calendar: some ${{ d: 'days', w: 'weeks', mo: 'months', y: 'years' }[T.fuzzy.unit] ?? 'days'} after ${fmtEN(T.fuzzy.since)}; the exact date is not known yet. Do not name one unless the story settles it.`);
@@ -147,7 +153,6 @@ export default {
         st.marks = marks(env);
         st.notes = st.notes && typeof st.notes === 'object' ? st.notes : {};
         if (st.start && startMs(st.start) == null) delete st.start;   // a start saved with a broken year («0001-…»): dropped, the story's date is used
-        if (st.cycle?.starts) st.cycle.starts = st.cycle.starts.filter((n) => Number.isInteger(n) && Math.abs(n - sc?.day) < 3650);   // day numbers left by a broken start
         st.cycle = { on: false, starts: [], len: 28, dur: 5, tell: false, ...(st.cycle ?? {}) };
         if (!sc) { el.innerHTML = empty('🧭', '「장면」 앱을 켜 주세요', '날짜가 흐르는 건 장면 앱이 세요. 달력은 그걸 읽어서 보여 줘요.'); return; }
         const T = start == null ? null : today(env), now = T?.date ?? T?.fuzzy?.since ?? null;
@@ -155,13 +160,15 @@ export default {
         const loveCal = Array.isArray(env.peekStore?.('touch')?.cal) ? env.peekStore('touch').cal : [];
         let grid = '';
         if (now) {
-            const y = now.getUTCFullYear(), m = now.getUTCMonth(), first = new Date(Date.UTC(y, m, 1)), days = new Date(Date.UTC(y, m + 1, 0)).getUTCDate();
+            const y = now.getUTCFullYear(), m = now.getUTCMonth(), days = dimOf(y, m + 1);
+            // the month laid out on the story's own weekdays (they win over a real calendar's, as everywhere else)
+            const firstWd = T?.date && T.wd != null ? ((T.wd - (T.date.getUTCDate() - 1)) % 7 + 7) % 7 : utc(y, m + 1, 1).getUTCDay();
             const marked = new Set(st.marks.flatMap((x) => (x.yearly ? [`${y}${x.date.slice(4)}`, x.date] : [x.date])));
             for (const c of loveCal) marked.add(iso(new Date(start + (c.day - 1) * 86400000)));
-            const cells = [...Array(first.getUTCDay()).fill(''), ...Array.from({ length: days }, (_x, i) => i + 1)];
+            const cells = [...Array(firstWd).fill(''), ...Array.from({ length: days }, (_x, i) => i + 1)];
             grid = `<div class="mb4-cal-h">${y}년 ${m + 1}월 ${T.fuzzy ? '<small>· 며칠 흐름</small>' : ''}</div><div class="mb4-cal">${WD_KO.map((w) => `<span class="mb4-cal-w">${w}</span>`).join('')}${cells.map((n) => {
                 if (!n) return '<span></span>';
-                const key = iso(new Date(Date.UTC(y, m, n))), dn = dayOfIso(start, key), cy = st.cycle.on ? (cycleOn(st.cycle, dn) ? (st.cycle.starts.some((s) => dn >= s && dn < s + st.cycle.dur) ? ' cy' : ' cyp') : '') : '';
+                const key = iso(new Date(Date.UTC(y, m, n))), dn = dayOfIso(start, key), cy = st.cycle.on ? (cycleOn(st.cycle, dn, start) ? (cyDays(st.cycle, start).some((s) => dn >= s && dn < s + st.cycle.dur) ? ' cy' : ' cyp') : '') : '';
                 return `<span class="mb4-cal-d${!T.fuzzy && n === now.getUTCDate() ? ' today' : ''}${marked.has(key) ? ' mark' : ''}${st.notes[key]?.text ? ' memo' : ''}${cy}" data-act="pick" data-v="${key}">${n}</span>`;
             }).join('')}</div>`;
         }
@@ -181,7 +188,8 @@ export default {
             <label class="mb4-sw"><span><b>주기 표시</b></span><input type="checkbox" data-act="cyon" ${st.cycle.on ? 'checked' : ''}><i></i></label>
             ${st.cycle.on ? `<div class="mb4-btnrow"><label class="mb4-label">주기(일)<input class="mb4-input mb4-short" type="number" min="15" max="60" data-act="cylen" value="${st.cycle.len}"></label><label class="mb4-label">기간(일)<input class="mb4-input mb4-short" type="number" min="1" max="10" data-act="cydur" value="${st.cycle.dur}"></label></div>
             <div class="mb4-btnrow"><button class="mb4-btn ghost sm" data-act="cystart">${pick ? '고른 날을 시작일로' : '오늘을 시작일로'}</button></div>
-            ${cyNow(st.cycle, sc.day)}
+            ${cyNow(st.cycle, sc.day, start)}
+            ${st.cycle.starts.length ? `<div class="mb4-chips">${st.cycle.starts.map((s, n) => `<span class="mb4-chip">🩸 ${esc(typeof s === 'string' ? `${+s.slice(5, 7)}/${+s.slice(8)}` : start != null ? (() => { const d = new Date(start + (s - 1) * DAY); return `${d.getUTCMonth() + 1}/${d.getUTCDate()}`; })() : `이야기 ${s}번째 날`)} <button class="mb4-x" data-act="cydel" data-v="${n}" aria-label="지우기">✕</button></span>`).join('')}</div>` : ''}
             <label class="mb4-sw"><span><b>AI에 알리기</b><small>기간 중에만 1줄 · 가까운 사람이 챙겨 줘요</small></span><input type="checkbox" data-act="cytell" ${st.cycle.tell ? 'checked' : ''}><i></i></label>` : ''}
         </details>
         ${start == null || sc.vague ? card('🎲 미정 날짜 정하기', `${hint(start == null ? '이야기에 아직 날짜가 없어요. 주사위로 아무 날이나 정해요 (AI 안 써요).' : '「며칠 뒤」처럼 흐린 시간이라 날을 몰라요. 그 주 안에서 주사위로 정해요 (AI 안 써요).')}<div class="mb4-btnrow"><button class="mb4-btn" data-act="roll">🎲 정하기</button></div>`) : ''}
@@ -214,7 +222,9 @@ export default {
             cytell: (_v, b) => { st.cycle.tell = b.checked; save(); },
             cylen: (_v, b) => { st.cycle.len = Math.max(15, Math.min(60, +b.value || 28)); save(); },
             cydur: (_v, b) => { st.cycle.dur = Math.max(1, Math.min(10, +b.value || 5)); save(); },
-            cystart: () => { const d = pick && start != null ? dayOfIso(start, pick) : sc.day; if (d != null && !st.cycle.starts.includes(d)) st.cycle.starts.push(d); save(); },
+            // a date when the calendar has one (it stays put whatever happens to the day count), else the story day
+            cystart: () => { const d = start != null ? (pick || iso(new Date(start + (sc.day - 1) * DAY))) : sc.day; if (!st.cycle.starts.includes(d)) st.cycle.starts.push(d); save(); },
+            cydel: (n) => { st.cycle.starts.splice(+n, 1); save(); },
         });
     },
 };

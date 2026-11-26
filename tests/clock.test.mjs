@@ -61,3 +61,13 @@ test('scene, promises, wallet and map count the same day after a date moves the 
     assert.equal(t.state('wallet').clock.day, day);
     assert.equal(t.state('map').day, day);
 });
+
+test('the month grid puts days under the story\'s weekdays', async () => {
+    const { page, apiFor } = await import('./harness.mjs');
+    page();
+    const t = await story([['date', 'November 17, 1640 (Saturday)']], ['scene', 'calendar']);
+    const el = document.createElement('div');
+    t.E.reg.get('calendar').render(el, await apiFor(t.E, 'calendar'));
+    const cells = [...el.querySelectorAll('.mb4-cal > *')].slice(7).map((x) => x.textContent.trim());
+    assert.equal(cells.indexOf('17') % 7, 6, 'the 17th sits under 토');
+});

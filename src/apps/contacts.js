@@ -1,7 +1,7 @@
 // Built into Meatball 4 (was a separately installed app). Fetched only when switched on.
 const esc = (s) => String(s ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
 const clip = (s, n) => { const t = String(s ?? '').trim(); return t.length > n ? t.slice(0, n) : t; };
-import { cycleOn } from './calendar.js';
+import { cycleToday } from './calendar.js';
 import { startMs } from '../core/clock.js';
 import { plain, spendPlain, stamped, spendStamped, isReroll, sameReply } from '../core/once.js';
 const one = (t) => String(t ?? '').replace(/\s*\n+\s*/g, ' ').trim();
@@ -184,7 +184,7 @@ export default {
             const bd = w ? Object.values(env.peek('bonds')?.pairs ?? {}).find((x) => (x.a === w && x.b === env.user) || (x.b === w && x.a === env.user)) : null;
             const PP_rule = (n) => String(per(st, n).rule ?? '').trim();
             const hdW = w ? env.peek('heart')?.d?.[`${w}>${user}`] : null, cal = env.peekStore?.('calendar') ?? {}, scD = env.peek('scene')?.day;
-            const cyc = cal.cycle?.on && scD != null ? (() => { const c = cycleOn(cal.cycle, scD); return c ? `${user}'s period: day ${c} of the cycle${(cal.cycle.starts ?? []).some((x) => scD >= x && scD < x + (cal.cycle.dur ?? 5)) ? ' (on her period now)' : ''}.` : ''; })() : '';
+            const cyc = cal.cycle?.on && scD != null ? (() => { const c = cycleToday(cal, env.peek('scene')); return c ? `${user} is on their period (day ${c}).` : ''; })() : '';
             const soon = Array.isArray(cal.marks) && cal.start ? cal.marks.map((m) => ({ m, d: Math.round((Date.parse(`${m.date}T00:00:00Z`) - startMs(cal.start)) / 86400000) + 1 - (scD ?? 1) })).filter((x) => x.d >= 0 && x.d <= 7).map((x) => `${x.m.label} ${x.d === 0 ? 'today' : `in ${x.d} day(s)`}`) : [];
             const aware = [hdW ? `How ${w} feels about ${user} (0-100): affection ${hdW.a}, trust ${hdW.t}${hdW.j >= 30 ? ', jealous' : ''}. Let it show in the texts.` : '', cyc, soon.length ? `Dates coming up: ${soon.join('; ')}.` : '',
                 cfg.rule ? `How texts should go (from ${user}): ${cfg.rule}` : '', w && PP_rule(w) ? `For ${w} in particular: ${PP_rule(w)}` : ''].filter(Boolean);

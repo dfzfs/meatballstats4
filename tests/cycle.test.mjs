@@ -20,7 +20,7 @@ for (const dated of [true, false]) {
         c.tap('cyon');
         assert.doesNotMatch(c.said(), /period/, 'only shown on the calendar until told');
         c.tap('cystart');
-        assert.deepEqual(c.api.store.cycle.starts, [1]);
+        assert.deepEqual(c.api.store.cycle.starts, dated ? [`${new Date().getUTCFullYear()}-03-04`] : [1], 'a date when the story has one, else the story day');
         assert.doesNotMatch(c.said(), /period/, '「AI에 알리기」 is off');
         c.tap('cytell');
         assert.match(c.said(), /하루 is on their period \(day 1\)/);
@@ -34,8 +34,23 @@ test('cycle: outside the days of a period nothing is sent, and the box says so',
     c.tap('cyon'); c.tap('cytell');
     c.draw();
     assert.match(c.el.textContent, /시작일을 표시해야/);
-    c.api.store.cycle.starts = [-10];   // started 11 days before today: past a 5-day period
+    c.api.store.cycle.starts = [`${new Date().getUTCFullYear()}-02-22`];   // 10 days before today (March 4): past a 5-day period
     assert.doesNotMatch(c.said(), /period/);
     c.draw();
-    assert.match(c.el.textContent, /지금은 기간이 아니에요 · 다음 시작까지 약 17일/);
+    assert.match(c.el.textContent, /지금은 기간이 아니에요 · 다음 시작까지 약 18일/);
+});
+
+test('cycle: start days stay on their dates when the day count changes, and a wrong one can be removed', async () => {
+    const c = await cal(true);
+    c.tap('cyon'); c.tap('cystart'); c.tap('cytell');
+    assert.match(c.said(), /period \(day 1\)/);
+    // the story gains a «a few days later» before today's date: day numbers shift, the start date does not
+    c.t.chat.unshift({ is_user: false, name: '도윤', mes: 'x' }, { is_user: true, name: '하루', mes: 'y' });
+    c.t.record(0, [['time', '+?d']]);
+    assert.match(c.said(), /period \(day 1\)/);
+    c.draw();
+    assert.match(c.el.textContent, /🩸 3\/4/);
+    c.el.querySelector('[data-act="cydel"]').dispatchEvent(new window.Event('click', { bubbles: true }));
+    assert.deepEqual(c.api.store.cycle.starts, []);
+    assert.doesNotMatch(c.said(), /period/);
 });
