@@ -142,9 +142,12 @@ export default {
             <label class="mb4-sw"><span><b>AI에 알리기</b><small>기간 중에만 1줄 · 가까운 사람이 챙겨 줘요</small></span><input type="checkbox" data-act="cytell" ${st.cycle.tell ? 'checked' : ''}><i></i></label>` : ''}
         </details>
         <details class="mb4-card" ${start == null ? 'open' : ''}><summary>⚙️ 이야기 시작 날짜</summary>
-            <label class="mb4-label">이야기 1일째가 며칠인가요<input class="mb4-input" data-act="start" type="date" value="${esc(st.start ?? '')}"></label>
+            <label class="mb4-label">지금(이야기 ${sc.day}일째)이 며칠인가요<input class="mb4-input" data-act="now" maxlength="30" placeholder="예: 11월 25일 · 2026년 11월 25일 · 2026-11-25" value=""></label>
+            <label class="mb4-label">또는 1일째가 며칠인가요<input class="mb4-input" data-act="start" maxlength="30" placeholder="예: 3월 2일 · 2026-03-02" value="${esc(st.start ?? '')}"></label>
+            ${hint('연도를 안 쓰면 지금 정해진 해(없으면 올해)로 봐요. 엔터를 치거나 칸 밖을 누르면 정해져요.')}
         </details>`;
         const save = () => { api.save(); api.redraw(); };
+        const readDate = (v) => { const y = start != null ? new Date(start).getUTCFullYear() : new Date().getUTCFullYear(), t = namedDate(String(v ?? '').trim().replace(/^(\d{4})\s*[.\/]\s*(\d{1,2})\s*[.\/]\s*(\d{1,2})\.?$/, '$1-$2-$3'), y); return t == null || Number.isNaN(t) ? null : t; };
         const memos = Object.entries(st.notes ?? {}).filter(([, x]) => x?.text);
         api.kit.editMore(el, api, [
             { name: 'mark', list: st.marks, label: (x) => `${x.yearly ? '🎂' : '🗓'} 표시 이름 · ${x.date}`, get: (x) => x.label, set: (x, t) => { x.label = t.slice(0, 40); } },
@@ -152,7 +155,9 @@ export default {
             { name: 'memo', list: memos, label: ([d]) => `📝 ${d} 메모`, get: ([, x]) => x.text, set: ([, x], t) => { x.text = t.slice(0, 200); }, remove: ([d]) => { delete st.notes[d]; } },
         ]);
         acts(el, {
-            start: (v) => { st.start = v; save(); },
+            // typed, not picked: "11월 25일", "2026년 11월 25일", "2026-11-25", "November 25, 2026"
+            start: (v) => { const t = readDate(v); if (t == null) { if (String(v).trim()) api.toast('날짜를 못 알아봤어요. 예: 11월 25일 · 2026-11-25'); return; } st.start = iso(new Date(t)); save(); },
+            now: (v) => { const t = readDate(v); if (t == null) { if (String(v).trim()) api.toast('날짜를 못 알아봤어요. 예: 11월 25일 · 2026-11-25'); return; } st.start = iso(new Date(t - (sc.day - 1) * DAY)); save(); api.toast(`지금이 ${new Date(t).getUTCMonth() + 1}월 ${new Date(t).getUTCDate()}일이 되게 맞췄어요.`); },
             pick: (v) => { st.pick = v; api.redraw(); },
             memo: (_v, t) => { const n = (st.notes[pick] ??= {}); n.text = t.value.trim().slice(0, 300); if (!n.text) delete st.notes[pick]; save(); },
             memotell: (_v, b) => { (st.notes[pick] ??= {}).tell = b.checked; save(); },
