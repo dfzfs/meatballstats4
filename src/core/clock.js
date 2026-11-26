@@ -20,3 +20,24 @@ export function applyTime(S, v) {
     if (tod) S.tod = tod; else if (d || w || mo) S.tod = '';
     if (d || w || mo) { S.hrs = 0; S.date = ''; }          // a written date is only true for the day it was written for
 }
+
+// A date written in the story ("March 14", "3월 14일", "2024-03-14") -> UTC ms, or null. `year` fills a missing year.
+const MON_EN = ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December'];
+const MON_RE = MON_EN.map((m, i) => [new RegExp(`\\b${m.slice(0, 3)}[a-z]*\\.?\\s+(\\d{1,2})\\b`, 'i'), i]);
+export function namedDate(text, year) {
+    const s = String(text ?? '');
+    const iso = s.match(/\b(\d{4})-(\d{1,2})-(\d{1,2})\b/);
+    if (iso) return Date.UTC(+iso[1], +iso[2] - 1, +iso[3]);
+    for (const [re, m] of MON_RE) { const x = s.match(re); if (x) { const y = s.slice(x.index).match(/^[^,]*,\s*(\d{4})\b/); return Date.UTC(y ? +y[1] : year, m, +x[1]); } }
+    const k = s.match(/(?:(\d{4})\s*년\s*)?(\d{1,2})\s*월\s*(\d{1,2})\s*일/);
+    return k ? Date.UTC(k[1] ? +k[1] : year, +k[2] - 1, +k[3]) : null;
+}
+// The last date the story named keeps counting after days pass: «November 25» on day 3, now day 5 -> November 27.
+// S needs { day, date, anchor: { day, date } }. -> UTC ms, or null when no readable date was ever named.
+export function anchoredDate(S, year = new Date().getUTCFullYear()) {
+    if (S?.date) { const t = namedDate(S.date, year); if (t != null) return t; }
+    const a = S?.anchor;
+    if (!a?.date || !Number.isInteger(a.day)) return null;
+    const t = namedDate(a.date, year);
+    return t == null ? null : t + (S.day - a.day) * 86400000;
+}
