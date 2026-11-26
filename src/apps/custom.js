@@ -43,6 +43,7 @@ export default {
             ${f.type === 'num' ? `<div class="mb4-gauges one"><div class="mb4-gauge"><span>${f.min ?? 0}–${f.max ?? 100}</span>${bar(((S.v[f.name] ?? 0) - (f.min ?? 0)) / Math.max(1, (f.max ?? 100) - (f.min ?? 0)) * 100, 'mid')}<b>${S.v[f.name] ?? 0}</b></div></div>` : `<p>${esc(S.v[f.name] || '아직 없어요')}</p>`}
             <small class="mb4-dim">${esc(f.what || '')}</small>
             <div class="mb4-btnrow tight"><input class="mb4-input" data-f="v${n}" placeholder="${f.type === 'num' ? '새 숫자 또는 +5 / -3' : '새 값'}" maxlength="80"><button class="mb4-btn ghost sm" data-act="fix" data-v="${n}">고치기</button></div>
+            ${f.type === 'num' ? `<div class="mb4-btnrow tight"><label class="mb4-label" style="margin:0">최소<input class="mb4-input mb4-short" type="number" data-act="range" data-v="${n}|min" value="${f.min ?? 0}"></label><label class="mb4-label" style="margin:0">최대<input class="mb4-input mb4-short" type="number" data-act="range" data-v="${n}|max" value="${f.max ?? 100}"></label></div>` : ''}
             <div class="mb4-btnrow tight"><button class="mb4-btn ${f.slow ? '' : 'ghost '}sm" data-act="flag" data-v="${n}|slow">🐢 가끔만 묻기</button><button class="mb4-btn ${f.tell !== false ? '' : 'ghost '}sm" data-act="flag" data-v="${n}|tell">🤖 AI에 알리기</button><button class="mb4-btn ${f.hud ? '' : 'ghost '}sm" data-act="flag" data-v="${n}|hud">📌 상태 줄에</button><button class="mb4-btn ${f.on === false ? '' : 'ghost '}sm" data-act="flag" data-v="${n}|on">${f.on === false ? '▶ 다시' : '⏸ 쉬기'}</button><button class="mb4-x" data-act="del" data-v="${n}" aria-label="지우기">✕</button></div>`)).join('') : empty('🧩', '아직 만든 칸이 없어요', '아래에서 이름과 뜻을 적어 만들어 보세요')}
         ${F.length < MAX ? card('칸 만들기', `<div class="mb4-btnrow"><input class="mb4-input" data-f="icon" maxlength="2" placeholder="🙂" style="max-width:56px"><input class="mb4-input" data-f="name" maxlength="20" placeholder="이름 (예: 명성)"></div>
             <input class="mb4-input" data-f="en" maxlength="20" placeholder="영어 이름 (예: fame) — 영어 이야기면 적어 주세요" style="margin-top:6px">
@@ -58,6 +59,7 @@ export default {
                 api.save(); api.redraw();
             },
             del: (n) => { F.splice(+n, 1); api.save(); api.redraw(); },
+            range: (v, inp) => { const [n, k] = v.split('|'), f = F[+n], x = Number(inp.value); if (!f || !Number.isFinite(x)) return; if (k === 'min' && x < (f.max ?? 100)) f.min = x; else if (k === 'max' && x > (f.min ?? 0)) f.max = x; else { api.toast('최소는 최대보다 작아야 해요.'); } api.save(); api.redraw(); },
             flag: (v) => { const [n, k] = v.split('|'), f = F[+n]; if (k === 'on') f.on = f.on === false; else if (k === 'tell') f.tell = f.tell === false; else f[k] = !f[k]; api.save(); api.redraw(); },
             fix: (n) => { const f = F[+n], t = val(el, `[data-f="v${n}"]`); if (t) api.fix('my', `${f.en || f.name}=${t}`); },
         });

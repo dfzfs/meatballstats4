@@ -2,7 +2,7 @@
 const esc = (s) => String(s ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
 const clip = (s, n) => { const t = String(s ?? '').trim(); return t.length > n ? t.slice(0, n) : t; };
 import { cycleOn } from './calendar.js';
-import { plain, spendPlain, stamped, spendStamped } from '../core/once.js';
+import { plain, spendPlain, stamped, spendStamped, isReroll, sameReply } from '../core/once.js';
 const one = (t) => String(t ?? '').replace(/\s*\n+\s*/g, ' ').trim();
 
 // 📞 Contacts: text a character from the phone. One model call per tap, never on its own.
@@ -62,14 +62,14 @@ export default {
         if (f && st.tell !== false) now.push(f.letter ? `A letter from ${f.who} has reached ${env.user}: "${clip(f.them, 300)}". ${env.user} has read it.` : `Since the last reply, ${env.user} and ${f.who} exchanged text messages. ${env.user}: "${clip(f.me, 200)}" — ${f.who}: "${clip(f.them, 300)}". The characters know this happened.`);
         // letters that arrived with the story's days (no call: the reply was written when it was sent, and waits)
         const day = env.peek?.('scene')?.day;
-        for (const [who, L] of Object.entries(st.threads ?? {})) for (const m of L) if (m.letter && !m.me && !m.told && day != null && day >= m.arrive && st.tell !== false) now.push(`A letter from ${who} has arrived for ${env.user} today. It says: "${clip(m.text, 300)}".`);
+        for (const [who, L] of Object.entries(st.threads ?? {})) for (const m of L) if (m.letter && !m.me && (!m.told || (isReroll(env) && typeof m.told === 'number' && sameReply(m.told, env))) && day != null && day >= m.arrive && st.tell !== false) now.push(`A letter from ${who} has arrived for ${env.user} today. It says: "${clip(m.text, 300)}".`);
         return now.length ? { now: now.slice(0, 2) } : null;
     },
     onReply(env) {
         const st = env.store, day = env.peek?.('scene')?.day;
         let ch = false;
         if (spendPlain(st, 'fresh', env)) ch = true;
-        for (const L of Object.values(st.threads ?? {})) for (const m of L) if (m.letter && !m.me && !m.told && day != null && day >= m.arrive) { m.told = true; ch = true; }
+        for (const L of Object.values(st.threads ?? {})) for (const m of L) if (m.letter && !m.me && !m.told && day != null && day >= m.arrive) { m.told = env.last ?? true; ch = true; }   // the reply it was told in (a reroll of it hears it again)
         return ch;
     },
     hud: (_s, env) => { const day = env.peek?.('scene')?.day; const mail = day != null && Object.values(env.store.threads ?? {}).some((L) => L.some((m) => m.letter && !m.me && !m.told && day >= m.arrive)); return [...(env.store.fresh ? ['📞 새 문자'] : []), ...(mail ? ['✉️ 편지 도착'] : [])]; },

@@ -134,10 +134,11 @@ export default {
         const showAt = Number(api.env.peekStore?.('heart')?.showAt) || SHOW_AT;
         // only people who matter: in the scene now, or 💗 애정 at the bar (the rest folded); without 💗 the closest 8
         const listOf = (rows) => { const sp = byHeart(rows.map(([n]) => n), api.env.peek('heart'), api.env.user, here, showAt); if (!sp) return foldRest(rows.map(([, h]) => h)); const H = Object.fromEntries(rows); return foldUnder(sp.shown.map((n) => H[n]), sp.rest.map((n) => H[n]), showAt); };
-        const L = Object.values(S.list).sort((a, b) => (here.includes(b.name) - here.includes(a.name)) || (near(b.name) - near(a.name)) || b.i - a.i);
+        const q = String(st._q ?? '').trim().toLowerCase();
+        const L = Object.values(S.list).filter((p) => !q || [p.name, p.about, ...(p.seen ?? [])].some((x) => String(x ?? '').toLowerCase().includes(q))).sort((a, b) => (here.includes(b.name) - here.includes(a.name)) || (near(b.name) - near(a.name)) || b.i - a.i);
         const calls = (n) => Object.entries(S.calls ?? {}).filter(([d]) => d.startsWith(`${n}>`) || d.endsWith(`>${n}`)).map(([d, c]) => `<span class="mb4-chip">${esc(d.replace('>', ' → '))} 「${esc(c.v)}」</span>`).join('');
         const merge = lookalikes(L.map((p) => p.name)).filter(([a, b]) => !st.alias[b.toLowerCase()] && !st.alias[a.toLowerCase()]);
-        el.innerHTML = (merge.length ? card('🔀 같은 사람인가요?', merge.slice(0, 4).map(([a, b]) => `<div class="mb4-row"><span class="mb4-row-v">${esc(a)} · ${esc(b)}</span><button class="mb4-btn ghost sm" data-act="merge" data-v="${esc(`${b}|${a}`)}">하나로</button></div>`).join(''), 'warn') : '')
+        el.innerHTML = (Object.keys(S.list).length > 6 || q ? `<input class="mb4-input" data-act="q" placeholder="🔍 이름 · 소개로 찾기" value="${esc(st._q ?? '')}" style="margin-bottom:8px">` : '') + (merge.length ? card('🔀 같은 사람인가요?', merge.slice(0, 4).map(([a, b]) => `<div class="mb4-row"><span class="mb4-row-v">${esc(a)} · ${esc(b)}</span><button class="mb4-btn ghost sm" data-act="merge" data-v="${esc(`${b}|${a}`)}">하나로</button></div>`).join(''), 'warn') : '')
             + (L.length ? listOf(L.map((p) => [p.name, card('', `
             ${person(p.name, p.about || '아직 소개가 없어요', `${here.includes(p.name) ? pill('지금 여기', 'good') : ''}${p.gone ? pill('떠남', 'bad') : ''}`)}
             ${p.seen?.length ? `<p class="mb4-hint">다르게 적힌 이름: ${esc(p.seen.join(', '))}</p>` : ''}
@@ -165,6 +166,7 @@ export default {
             + hint('소개는 AI 답에서 읽어 와요. 대소문자 · 조사 · 「간호사 벨」=「벨」처럼 같은 사람은 저절로 합쳐요. 한 글자만 다른 이름은 위에서 물어봐요.');
         const save = () => { api.save(); api.redraw(); };
         acts(el, {
+            q: (_v, inp) => { st._q = inp.value.trim(); api.redraw(); },
             memo: (_v, inp) => { st.notes[inp.dataset.v] = inp.value.trim(); api.save(); },
             merge: (v) => { const [from, to] = v.split('|'); st.alias[from.toLowerCase()] = to; save(); },
             alias: () => { const from = (el.querySelector('[data-f="from"]').value ?? '').trim(), to = (el.querySelector('[data-f="to"]').value ?? '').trim(); if (from && to && from !== to) { st.alias[from.toLowerCase()] = to; save(); } },

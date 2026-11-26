@@ -42,7 +42,7 @@ const host = {
     gen: () => Q.gen ?? '',
     classify: (prompt) => model(prompt, ROOM, 0.2),
     // a tap call that only needs a few lines gets a smaller ceiling (still roomy for a model that thinks first)
-    ask: (prompt, max) => model(prompt, Number(max) > 0 && Number(max) <= 600 ? 4096 : ROOM, 0.9),
+    ask: (prompt, max) => model(prompt, cfg().tapRoom !== 'big' && Number(max) > 0 && Number(max) <= 600 ? 4096 : ROOM, 0.9),
 };
 export const engine = new Engine(host);
 // our saves wait while a reply is being written and for a moment after the application saved it (see host.saveChat)

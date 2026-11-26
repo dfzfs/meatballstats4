@@ -55,6 +55,8 @@ export class Engine {
             card: (() => { const key = h.cardKey?.(); return key ? (((cfg.cards ??= {})[key] ??= {})[id] ??= {}) : {}; })(),
             ...h.names(),
             last,
+            // the newest reply slot even while it is still empty (a reroll being written): index or -1
+            lastAny: (() => { for (let i = chat.length - 1; i >= 0; i--) { const m = chat[i]; if (m && !m.is_user && !m.is_system) return i; if (m?.is_user) return -1; } return -1; })(),
             // the kind of generation being prepared ('normal', 'swipe', 'regenerate', 'continue', … or '' when none)
             gen: h.gen?.() ?? '',
             // is the newest message the person's own (a reply to it is about to be written)?

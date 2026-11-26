@@ -84,7 +84,7 @@ export default {
             ${B.map((b) => `<div class="mb4-hint">${b.icon} ${esc(b.name)} — 절반 아래 · 4분의 1 아래 (영어로 적으면 그대로 가요)</div><div class="mb4-btnrow">${[0, 1].map((n) => `<input class="mb4-input" data-act="sym" data-k="${esc(b.key)}" data-n="${n}" placeholder="${esc(SYMPTOM[b.key]?.[n] ?? (n ? 'badly off' : 'a bit off'))}" value="${esc(st.sym?.[b.key]?.[n] ?? '')}">`).join('')}</div>`).join('')}
         </details>
         <details class="mb4-card"><summary>⚙️ 수치 고르기</summary>
-            ${B.map((b, n) => `<div class="mb4-row"><span class="mb4-row-v">${b.icon} ${esc(b.name)} <small>(${esc(b.key)})</small></span><label class="mb4-label" style="margin:0">최대<input class="mb4-input mb4-short" type="number" min="1" max="100000" data-act="max" data-v="${n}" value="${b.max}"></label><button class="mb4-x" data-act="del" data-v="${n}" aria-label="지우기">✕</button></div>`).join('')}
+            ${B.map((b, n) => `<div class="mb4-row"><span class="mb4-row-v">${b.icon} ${esc(b.name)} <small>(${esc(b.key)})</small></span><input class="mb4-input mb4-short" maxlength="2" data-act="icon" data-v="${n}" value="${esc(b.icon)}" aria-label="아이콘"><label class="mb4-label" style="margin:0">최대<input class="mb4-input mb4-short" type="number" min="1" max="100000" data-act="max" data-v="${n}" value="${b.max}"></label><button class="mb4-x" data-act="del" data-v="${n}" aria-label="지우기">✕</button></div>`).join('')}
             <div class="mb4-btnrow"><input class="mb4-input mb4-short" data-f="icon" maxlength="2" placeholder="🙂"><input class="mb4-input" data-f="name" maxlength="12" placeholder="이름 (예: 허기)"><input class="mb4-input mb4-short" data-f="key" maxlength="16" placeholder="영어 이름"><button class="mb4-btn" data-act="add">추가</button></div>
             ${hint('영어 이름은 답을 읽는 AI가 쓰는 이름이에요 (예: hunger). 수치를 더하거나 빼면 처음부터 다시 세요. 최대를 바꾸면 지금 값은 그 안으로 맞춰져요.')}
         </details>`;
@@ -94,6 +94,7 @@ export default {
             tag: () => { const n = val(el, '[data-f="tag"]'), d = val(el, '[data-f="tagd"]'), m = val(el, '[data-f="tagm"]'); if (n) api.fix('tag', `${n}${d ? ` ${d}` : ''}${m && +m ? ` | dice ${+m > 0 ? '+' : ''}${+m}` : ''}`); },
             sym: (_v, t) => { (st.sym ??= {})[t.dataset.k] ??= ['', '']; st.sym[t.dataset.k][+t.dataset.n] = t.value.trim().slice(0, 80); api.save(); },
             del: (n) => { st.bars = B.filter((_b, i) => i !== +n); api.save(); api.redraw(); },
+            icon: (n, inp) => { const ic = String(inp.value).trim().slice(0, 2) || '🔹'; st.bars = B.map((b, i) => (i === +n ? { ...b, icon: ic } : b)); api.save(); api.redraw(); },
             max: (n, inp) => { const m = Math.max(1, Math.min(100000, Math.round(+inp.value) || 100)); st.bars = B.map((b, i) => (i === +n ? { ...b, max: m, start: Math.min(b.start ?? m, m) } : b)); api.save(); api.redraw(); },
             add: () => {
                 const name = val(el, '[data-f="name"]'), key = (val(el, '[data-f="key"]') || name).toLowerCase().replace(/[=|]/g, '');

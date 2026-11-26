@@ -4,7 +4,9 @@
 
 export const isReroll = (env) => env?.gen === 'swipe' || env?.gen === 'regenerate';
 const lastOf = (env) => env?.last ?? 0;
-const was = (store, key, env) => { const w = store?.[`${key}_was`]; return isReroll(env) && w && w.at === lastOf(env) ? w.v : null; };
+// during a reroll the reply being rewritten may already be emptied out, so its slot (lastAny) counts too
+export const sameReply = (at, env) => at === lastOf(env) || (Number.isInteger(env?.lastAny) && env.lastAny >= 0 && at === env.lastAny);
+const was = (store, key, env) => { const w = store?.[`${key}_was`]; return isReroll(env) && w && sameReply(w.at, env) ? w.v : null; };
 
 // A value with nothing to mark when it was set: live until the next reply, then kept for rerolls of that reply.
 export function plain(store, key, env) { const x = store?.[key]; return x != null && x !== '' ? x : was(store, key, env); }

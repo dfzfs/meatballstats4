@@ -576,6 +576,8 @@ function drawSet(body) {
         ${kit.card('채팅 화면', `${sw('data-c="hud"', c.hud !== false, '입력창 위 상태 줄')}${sw('data-c="chips"', c.chips !== false, '답 밑 변화 딱지')}${sw('data-side', c.side === 'left', '폰을 왼쪽에 두기')}${sw('data-c="dock"', c.dock !== false, '채팅 옆에 붙이기', '넓은 화면에서 채팅을 가리지 않게 옆으로 비켜 줘요')}<label class="mb4-label">폰 너비 (옆에 붙일 때)</label><div class="mb4-seg">${[['s', '좁게'], ['m', '보통'], ['l', '넓게']].map(([v, n]) => `<button class="${(c.phoneW ?? 'm') === v ? 'on' : ''}" data-phonew="${v}">${n}</button>`).join('')}</div>`)}
         ${kit.card('답을 읽는 AI', `<select class="mb4-input" data-profile><option value="">본편과 같은 연결</option>${profiles().map((p) => `<option value="${esc(p.id)}" ${p.id === c.profile ? 'selected' : ''}>${esc(p.name)}</option>`).join('')}</select>
             ${kit.hint(`빠르고 싼 모델의 연결 프로필을 고르면 좋아요. ${keys.length ? `지금은 답마다 1번 읽어요 (읽는 항목 ${keys.length}개).` : '지금 켠 앱은 답을 읽을 필요가 없어서 AI를 부르지 않아요.'}`)}
+            <label class="mb4-label">🪙 누를 때 부르는 짧은 호출 (속마음 · 음악 같은 것)</label><div class="mb4-seg">${[['', '아껴서 (4096)'], ['big', '넉넉히 (8192)']].map(([v, n]) => `<button class="${(c.tapRoom ?? '') === v ? 'on' : ''}" data-taproom="${v}">${n}</button>`).join('')}</div>
+            ${kit.hint('생각을 길게 하는 모델에서 답이 중간에 잘리면 「넉넉히」로 바꿔 주세요.')}
             <label class="mb4-label">🍃 읽는 간격</label><div class="mb4-seg">${[[1, '답마다'], [2, '2답마다'], [3, '3답마다']].map(([v, n]) => `<button class="${(Math.max(1, Number(c.every) || 1)) === v ? 'on' : ''}" data-every="${v}">${n}</button>`).join('')}</div>
             ${kit.hint('2 · 3으로 두면 답을 모았다가 한 번에 읽어서, AI를 부르는 횟수가 절반 · 3분의 1로 줄어요. 놓치는 건 없고, 상태가 그만큼 늦게 따라와요.')}
             <button class="mb4-btn wide" data-reread ${keys.length && lastI >= 0 ? '' : 'disabled'}>🔄 마지막 답 다시 읽기 (AI 1회)</button>
@@ -606,6 +608,7 @@ function drawSet(body) {
     body.querySelectorAll('[data-c]').forEach((el) => el.addEventListener('change', () => { c[el.dataset.c] = el.checked; saveCfg(); if (el.dataset.c === 'dock') { if (el.checked) dock(); else undock(); } refresh(); }));
     body.querySelector('[data-s]').addEventListener('change', (e) => { store(true).off = e.target.checked; saveChat(); refresh(); });
     body.querySelector('[data-side]').addEventListener('change', (e) => { c.side = e.target.checked ? 'left' : 'right'; saveCfg(); root.classList.toggle('mb4-left', c.side === 'left'); dock(); });
+    body.querySelectorAll('[data-taproom]').forEach((b) => b.addEventListener('click', () => { c.tapRoom = b.dataset.taproom; saveCfg(); draw(true); }));
     body.querySelectorAll('[data-phonew]').forEach((b) => b.addEventListener('click', () => { c.phoneW = b.dataset.phonew; saveCfg(); dock(); draw(true); }));
     body.querySelector('[data-profile]').addEventListener('change', (e) => { c.profile = e.target.value; saveCfg(); });
     body.querySelectorAll('[data-every]').forEach((b) => b.addEventListener('click', () => { c.every = +b.dataset.every; saveCfg(); R.kick?.(); draw(true); }));

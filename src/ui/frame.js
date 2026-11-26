@@ -39,13 +39,13 @@ function labels() {
         const entry = byIndex.get(Number(mes.getAttribute('mesid')));
         let box = mes.querySelector(':scope .mb4-msg');
         const chips = entry ? E.chips(entry) : [];
-        const html = chips.slice(0, chips.length > 5 ? 4 : 5).map((c) => `<span class="mb4-mc">${esc(c.text)}</span>`).join('') + (chips.length > 5 ? `<span class="mb4-mc" title="${esc(chips.slice(4).map((c) => c.text).join(' · '))}">+${chips.length - 4}</span>` : '') + (entry?.fail ? '<span class="mb4-mc mb4-mc-warn">⚠ 못 읽음</span>' : '');
+        const html = chips.map((c, n) => `<span class="mb4-mc${chips.length > 5 && n >= 4 ? ' mb4-mc-x' : ''}">${esc(c.text)}</span>`).join('') + (chips.length > 5 ? `<span class="mb4-mc mb4-mc-more" role="button">+${chips.length - 4}</span>` : '') + (entry?.fail ? '<span class="mb4-mc mb4-mc-warn">⚠ 못 읽음</span>' : '');
         if (!html) { box?.remove(); continue; }
         if (!box) {
             const host = mes.querySelector('.mes_block') ?? mes;
             box = document.createElement('div');
             box.className = 'mb4-msg';
-            box.addEventListener('click', () => open('app:record'));
+            box.addEventListener('click', (e) => { if (e.target.closest('.mb4-mc-more')) { box.classList.toggle('mb4-msg-open'); return; } open('app:record'); });
             host.append(box);
         }
         if (box.dataset.h !== html) { box.innerHTML = html; box.dataset.h = html; }
