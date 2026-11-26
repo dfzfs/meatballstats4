@@ -13,11 +13,12 @@ const MON_EN = ['January', 'February', 'March', 'April', 'May', 'June', 'July', 
 const iso = (d) => d.toISOString().slice(0, 10);
 // Day 1's date: the one the person set; else counted back from the last date the story named (records carried over
 // from an earlier Meatball hold those dates), so the calendar is never empty when the story has a date.
+// Day 1's date. The story's own last readable date wins (it carries the story's year, e.g. 1525); the start date the
+// person typed is used only while the story has named no readable date.
 const startOf = (env) => {
-    const t = startMs(env.store.start);
-    if (t != null) return t;
-    const sc = env.peek?.('scene'), a = sc ? anchoredDate(sc) : null;
-    return a == null || Number.isNaN(a) ? null : a - (sc.day - 1) * DAY;
+    const sc = env.peek?.('scene'), a = sc && !sc.vague ? anchoredDate(sc) : null;
+    if (a != null && !Number.isNaN(a)) return a - (sc.day - 1) * DAY;
+    return startMs(env.store.start);
 };
 // The calendar date of a story day (day 1 = the start date).
 export const dateOf = (start, day) => new Date(start + (day - 1) * DAY);
@@ -127,7 +128,8 @@ export default {
         const env = api.env, st = api.store, sc = env.peek('scene'), start = startOf(env);
         st.marks = marks(env);
         st.notes = st.notes && typeof st.notes === 'object' ? st.notes : {};
-        if (st.start && startMs(st.start) != null && iso(new Date(startMs(st.start))) !== st.start) st.start = iso(new Date(startMs(st.start)));   // a start saved with a broken year (6, 26…): fixed to this year
+        if (st.start && startMs(st.start) == null) delete st.start;   // a start saved with a broken year («0001-…»): dropped, the story's date is used
+        if (st.cycle?.starts) st.cycle.starts = st.cycle.starts.filter((n) => Number.isInteger(n) && Math.abs(n - sc?.day) < 3650);   // day numbers left by a broken start
         st.cycle = { on: false, starts: [], len: 28, dur: 5, tell: false, ...(st.cycle ?? {}) };
         if (!sc) { el.innerHTML = empty('🧭', '「장면」 앱을 켜 주세요', '날짜가 흐르는 건 장면 앱이 세요. 달력은 그걸 읽어서 보여 줘요.'); return; }
         const T = start == null ? null : today(env), now = T?.date ?? T?.fuzzy?.since ?? null;

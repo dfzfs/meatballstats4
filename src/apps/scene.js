@@ -49,7 +49,11 @@ export default {
                     if (n > 0 && n <= 400) { S.day += n; S.hrs = 0; if (S.todI !== i) S.tod = ''; }
                 }
             }
-            S.date = d; S.vague = false; S.fz = null; S.anchor = { day: S.day, date: S.date };
+            // only a date that can be read («November 17», «11월 17일») becomes the anchor; a bare «Wednesday» or «November»
+            // is shown but must not wipe the last readable date (that made the calendar fall back to a guessed year)
+            const readable = namedDate(d, 2000) != null;
+            S.date = d;
+            if (readable) { S.vague = false; S.fz = null; S.anchor = { day: S.day, date: S.date }; }
         }   // a named date ends a vague stretch, and later days count on from it
         else if (k === 'weather') S.weather = clip(v, 40);
         else if (k === 'loc') {

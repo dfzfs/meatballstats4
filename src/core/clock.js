@@ -29,11 +29,11 @@ const MON_RE = MON_EN.map((m, i) => [new RegExp(`\\b${m.slice(0, 3)}[a-z]*\\.?\\
 // A year we trust: four digits, 1000–9999. Anything else (6, 26, NaN, a broken start date) means "this year".
 // Without this, a stray small year (Date.UTC maps 0–99 to 1900s; a saved «0006-…» stays year 6) kept spreading.
 export const okYear = (y) => { const n = Number(y); return Number.isInteger(n) && n >= 1000 && n <= 9999 ? n : new Date().getUTCFullYear(); };
-// A saved start date («2026-03-02») -> UTC ms, or null. A start saved with a broken year keeps its month and day, this year.
+// A saved start date («2026-03-02») -> UTC ms, or null. A start saved with a broken year («0001-…») counts as not set.
 export function startMs(start) {
-    const m = String(start ?? '').match(/^(-?\d+)-(\d{1,2})-(\d{1,2})/);
-    if (!m) return null;
-    const t = Date.UTC(okYear(m[1]), +m[2] - 1, +m[3]);
+    const m = String(start ?? '').match(/^(-?\d+)-(\d{1,2})-(\d{1,2})$/);
+    if (!m || okYear(m[1]) !== +m[1]) return null;
+    const t = Date.UTC(+m[1], +m[2] - 1, +m[3]);
     return Number.isNaN(t) ? null : t;
 }
 export function namedDate(text, yearIn) {
