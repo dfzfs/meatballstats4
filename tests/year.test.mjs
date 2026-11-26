@@ -60,5 +60,5 @@ test('the story\'s own year wins over a saved start, and a bare weekday or month
         t.E.touch(); t.E.refresh();
         assert.match(t.note().state, /today is \w+, March 5, 1525/, `start ${start}`);
     }
-    assert.equal(t.state('scene').anchor.date, 'March 3, 1525 (Friday)');
+    assert.equal(t.state('scene').cal.y != null, true, 'the named year is kept');
 });

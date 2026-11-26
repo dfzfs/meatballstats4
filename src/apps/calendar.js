@@ -4,6 +4,7 @@
 // day, an optional cycle, "someone close notices a note") and the third generation's handling of vague time skips.
 import { esc, card, hint, acts, val, empty, pill } from '../ui/kit.js';
 import { namedDate, anchoredDate, startMs } from '../core/clock.js';
+import { dayOn } from '../core/v3time.js';
 import { plain, spendPlain, stamped, spendStamped } from '../core/once.js';
 
 const DAY = 86400000;
@@ -16,7 +17,7 @@ const iso = (d) => d.toISOString().slice(0, 10);
 // Day 1's date. The story's own last readable date wins (it carries the story's year, e.g. 1525); the start date the
 // person typed is used only while the story has named no readable date.
 const startOf = (env) => {
-    const sc = env.peek?.('scene'), a = sc && !sc.vague ? anchoredDate(sc) : null;
+    const sc = env.peek?.('scene'), mine = startMs(env.store.start), a = sc && !sc.vague ? anchoredDate(sc, mine == null ? null : new Date(mine).getUTCFullYear()) : null;
     if (a != null && !Number.isNaN(a)) return a - (sc.day - 1) * DAY;
     return startMs(env.store.start);
 };
@@ -24,7 +25,7 @@ const startOf = (env) => {
 export const dateOf = (start, day) => new Date(start + (day - 1) * DAY);
 const dayOfIso = (start, s) => { const t = Date.parse(`${s}T00:00:00Z`); return Number.isNaN(t) ? null : Math.round((t - start) / DAY) + 1; };
 const marks = (env) => (Array.isArray(env.store.marks) ? env.store.marks : []).filter((m) => m?.date && m?.label);
-const fmtEN = (d) => `${WD_EN[d.getUTCDay()]}, ${MON_EN[d.getUTCMonth()]} ${d.getUTCDate()}, ${d.getUTCFullYear()}`;
+const fmtEN = (d, wd = d.getUTCDay()) => `${WD_EN[wd]}, ${MON_EN[d.getUTCMonth()]} ${d.getUTCDate()}, ${d.getUTCFullYear()}`;
 // D-day words: D-3 · D-DAY · D+100
 export const ddayLabel = (day, today) => (day === today ? 'D-DAY' : day > today ? `D-${day - today}` : `D+${today - day}`);
 
@@ -37,7 +38,9 @@ export function today(env) {
     if (start == null || !sc) return null;
     if (sc.fz) return { date: null, fuzzy: { since: dateOf(start, sc.fz.from), unit: sc.fz.unit }, day: sc.day };
     const named = anchoredDate(sc, dateOf(start, sc.day).getUTCFullYear());
-    return { date: named != null ? new Date(named) : dateOf(start, sc.day), fuzzy: null, day: sc.day };
+    // the story's own weekday wins (v3 keeps it apart from the date), else the calendar's
+    const wd = sc.cal ? dayOn(sc.cal, sc.day)?.wd ?? null : null, date = named != null ? new Date(named) : dateOf(start, sc.day);
+    return { date, fuzzy: null, day: sc.day, wd: wd ?? date.getUTCDay() };
 }
 // Marked days from today on, nearest first; a yearly one counts its next turn. [{ label, in, mark }]
 function upcoming(env, now, span = 14) {
@@ -90,7 +93,7 @@ export default {
         if (!T) { cycle(); return state.length || now.length ? { state, now } : null; }
         if (T.fuzzy) state.push(`Calendar: some ${{ d: 'days', w: 'weeks', mo: 'months', y: 'years' }[T.fuzzy.unit] ?? 'days'} after ${fmtEN(T.fuzzy.since)}; the exact date is not known yet. Do not name one unless the story settles it.`);
         else {
-            state.push(`Calendar: today is ${fmtEN(T.date)}.`);
+            state.push(`Calendar: today is ${fmtEN(T.date, T.wd)}.`);
             for (const m of upcoming(env, T.date, 1)) state.push(`${m.in === 0 ? 'Today' : 'Tomorrow'} is marked on the calendar: ${m.label}${m.years > 0 ? ` (${m.years} years)` : ''}.`);
             const note = st.notes?.[iso(T.date)];
             if (note?.text && note.tell) state.push(`On today's page of the calendar the user wrote: ${String(note.text).slice(0, 80)}.`);
@@ -107,7 +110,7 @@ export default {
         if (!T) return [];
         if (T.fuzzy) return [`📅 ${T.fuzzy.since.getUTCMonth() + 1}/${T.fuzzy.since.getUTCDate()} + 며칠`];
         const pin = marks(env).find((m) => m.pin), start = startOf(env);
-        const out = [`📅 ${T.date.getUTCMonth() + 1}/${T.date.getUTCDate()} ${WD_KO[T.date.getUTCDay()]}`];
+        const out = [`📅 ${T.date.getUTCMonth() + 1}/${T.date.getUTCDate()} ${WD_KO[T.wd ?? T.date.getUTCDay()]}`];
         if (pin) { const d = dayOfIso(start, pin.date); if (d != null) out.push(`📌 ${ddayLabel(d, T.day)}`); }
         return out;
     },

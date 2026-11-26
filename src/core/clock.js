@@ -1,3 +1,4 @@
+import { dayOn, utc } from './v3time.js';
 // Story time: how a `time:` line moves the day counter. Shared by the scene app and by apps that watch `time`.
 export const TOD = ['dawn', 'morning', 'noon', 'afternoon', 'evening', 'night', 'midnight'];
 // words a reader writes instead of the listed ones
@@ -52,7 +53,10 @@ export function namedDate(text, yearIn) {
 }
 // The last date the story named keeps counting after days pass: «November 25» on day 3, now day 5 -> November 27.
 // S needs { day, date, anchor: { day, date } }. -> UTC ms, or null when no readable date was ever named.
-export function anchoredDate(S, year = new Date().getUTCFullYear()) {
+export function anchoredDate(S, year = null) {
+    // kept by the third generation's engine (scene app): its date, its year rules
+    if (S?.cal) { const o = dayOn(S.cal, S.day, Number.isInteger(year) && year >= 1000 ? year : null); return o ? utc(o.y, o.m, o.d).getTime() : null; }
+    year = okYear(year);
     if (S?.date) { const t = namedDate(S.date, year); if (t != null) return t; }
     const a = S?.anchor;
     if (!a?.date || !Number.isInteger(a.day)) return null;
@@ -64,6 +68,11 @@ export function anchoredDate(S, year = new Date().getUTCFullYear()) {
 // calendar's start date. -> UTC ms or null. Shown instead of a bare day count.
 export function dayDate(sc, day, start = '') {
     if (!sc || !Number.isFinite(day)) return null;
+    if (sc.cal) {
+        if (sc.cal.doy != null) { const s0 = startMs(start), o = dayOn(sc.cal, day, s0 == null ? null : new Date(s0).getUTCFullYear()); return o ? utc(o.y, o.m, o.d).getTime() : null; }
+        const t = startMs(start);
+        return t == null ? null : t + (day - 1) * 86400000;
+    }
     const now = sc.vague ? null : anchoredDate(sc);
     if (now != null && !Number.isNaN(now)) return now + (day - sc.day) * 86400000;
     const t = startMs(start);

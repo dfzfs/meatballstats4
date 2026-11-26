@@ -1,7 +1,28 @@
 // 🧭 Scene: when, where, who is present, weather. Small and common, so it lives in the core and loads only when on.
 import { clip } from '../core/text.js';
 import { skipInMessage } from '../core/skip.js';
-import { applyTime, anchoredDate, namedDate, dayKo } from '../core/clock.js';
+import { applyTime, anchoredDate, dayKo } from '../core/clock.js';
+import { newCal, parseTime, applyDate, readDate, FUZZY_NOM, V } from '../core/v3time.js';
+
+// v3 ledger1 setDate: a date may jump far ahead only when this reply also said a long time passed
+function setDate(S, p, force, i) {
+    const cal = S.cal, r = applyDate(cal, p, force, S.longI === i ? 275 : 120);
+    if (r !== 'kept' && cal.doy != null && !cal.fz) {
+        const off = cal.n - cal.an;
+        // a year the text names counts even when the date itself was already right (v3 kept years per reply instead)
+        if (p.y != null) cal.y = p.y - Math.floor((cal.doy + off) / 365);
+        // a full date with its weekday («November 17, 1525 (Saturday)»): the story's weekday from here on
+        if (p.d != null && p.wd != null) cal.wd = ((p.wd - off) % 7 + 7) % 7;
+    }
+    return r;
+}
+// the scene's own fields follow the engine: day (1-based), the vague stretch
+function sync(S) {
+    const cal = S.cal;
+    S.day = cal.n + 1;
+    S.vague = !!cal.fz; S.fz = cal.fz ? { from: cal.fz.from + 1, unit: cal.fz.unit } : null;
+    if (!cal.fz && cal.doy != null) S.anchor = { day: S.day, date: 'cal' };   // older code checks that a date is known
+}
 import { cueOr, slow } from '../core/cadence.js';
 import { esc, row, card, person, hint, acts, val, TOD, TOD_KO, room } from '../ui/kit.js';
 
@@ -30,31 +51,34 @@ export default {
     rules: [
         '"with" = only people physically present at the end; vague time passed = +?d, never an invented number.',
     ],
-    start: () => ({ gist: '', gists: [], near: {}, mood: '', day: 1, hrs: 0, tod: '', date: '', anchor: null, loc: '', with: [], weather: '', vague: false, fz: null, trail: [] }),
+    start: () => ({ gist: '', gists: [], near: {}, mood: '', day: 1, hrs: 0, tod: '', date: '', anchor: null, cal: newCal(), loc: '', with: [], weather: '', vague: false, fz: null, trail: [] }),
     check: ({ k, v }) => (k === 'loc' || k === 'date' || k === 'weather' ? v.length <= 120 : true),
     reduce(S, { k, v, i }) {
         if (k === 'near') { const m = String(v).match(/^(.+?)\s*[—–-]\s*(.+)$/); if (m) (S.near ??= {})[clip(m[1].trim(), 60)] = clip(m[2].trim(), 80); return; }
         if (k === 'mood') { S.mood = clip(v, 60); return; }
         if (k === 'gist') { S.gist = clip(v, 220); (S.gists ??= []).push({ v: S.gist, day: S.day, i }); if (S.gists.length > 40) S.gists.shift(); return; }
-        if (k === 'time') { applyTime(S, v); S.todI = i; }
-        else if (k === 'date') {
-            const d = clip(v, 60);
-            // the reader often writes only the new date («11월 26일») without «+1d»: a later date than the one being
-            // counted means that many days went by (a date in January after December is the next year)
-            if (!S.vague && S.anchor?.date) {
-                const before = anchoredDate(S), after = before == null ? null : namedDate(d, new Date(before).getUTCFullYear());
-                if (after != null && !Number.isNaN(after)) {
-                    let n = Math.round((after - before) / 86400000);
-                    if (n < -300) n += 365;
-                    if (n > 0 && n <= 400) { S.day += n; S.hrs = 0; if (S.todI !== i) S.tod = ''; }
-                }
-            }
-            // only a date that can be read («November 17», «11월 17일») becomes the anchor; a bare «Wednesday» or «November»
-            // is shown but must not wipe the last readable date (that made the calendar fall back to a guessed year)
-            const readable = namedDate(d, 2000) != null;
-            S.date = d;
-            if (readable) { S.vague = false; S.fz = null; S.anchor = { day: S.day, date: S.date }; }
-        }   // a named date ends a vague stretch, and later days count on from it
+        if (k === 'time') {
+            // time of day, hours and «night → morning» as before; the day count and the date follow the third generation's engine
+            const cal = (S.cal ??= newCal()), was = S.day, t = parseTime(v, V);
+            applyTime(S, v); S.todI = i;
+            if (t.fuzzy || S.fz && !cal.fz) {
+                const nom = FUZZY_NOM[t.fuzzy || S.fz?.unit] || FUZZY_NOM.d, RANK = { d: 0, w: 1, mo: 2, y: 3 }, u = t.fuzzy || S.fz?.unit || 'd';
+                if (!cal.fz) cal.fz = { from: cal.n, unit: u, nom };
+                else { cal.fz.nom += nom; if ((RANK[u] ?? 0) > (RANK[cal.fz.unit] ?? 0)) cal.fz.unit = u; }
+                cal.n += nom;
+            } else cal.n += Math.max(0, S.day - was);
+            if ((t.days || 0) >= 30 || t.fuzzy === 'mo' || t.fuzzy === 'y') S.longI = i;   // a long skip lets a date jump far ahead
+            if (t.date) setDate(S, t.date, false, i);
+            sync(S);
+        } else if (k === 'date') {
+            // «!» in front: the person wrote it (✏️ 고치기) — it wins over the count
+            const force = String(v).startsWith('!'), d = clip(String(v).replace(/^!\s*/, ''), 60), p = readDate(d);
+            if (!p) return;                                   // nothing readable («spring»): kept as it was
+            S.cal ??= newCal();
+            const r = setDate(S, p, force, i);
+            if (r !== 'kept') S.date = d;
+            sync(S);
+        }
         else if (k === 'weather') S.weather = clip(v, 40);
         else if (k === 'loc') {
             S.loc = clip(v, 120);
@@ -147,7 +171,7 @@ export default {
                 if (tod && tod !== S.tod) api.fix('time', tod);
                 if (w !== S.with.join(', ')) api.fix('with', `=${w}`);
                 const dn = Math.round(Number(val(el, '[data-f="day"]'))); if (Number.isFinite(dn) && dn > S.day) api.fix('time', `+${Math.min(dn - S.day, 3650)}d`);
-                for (const f of ['date', 'weather', 'mood']) { const x = val(el, `[data-f="${f}"]`); if (x && x !== (S[f] ?? '')) api.fix(f, x); }
+                for (const f of ['date', 'weather', 'mood']) { const x = val(el, `[data-f="${f}"]`); if (x && x !== (S[f] ?? '')) api.fix(f, f === 'date' ? `!${x}` : x); }
                 const g = val(el, '[data-f="gist"]'); if (g && g !== S.gist) api.fix('gist', g);
                 api.toast('고쳤어요.');
             },
