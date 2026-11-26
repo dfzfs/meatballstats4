@@ -1,6 +1,7 @@
 // The shared ledger: every app's state, rebuilt from the chat in order. Nothing is stored as a running total,
 // so swipes, deletions, edits and branches are always right — the state is whatever the chat on screen adds up to.
 import { fingerprint, isReply } from './text.js';
+import { meToUser } from './parse.js';
 
 // chat: messages · records: { fingerprint: { L: [[key, value, quote?], ...] } } · fixes: { fingerprint: [[key, value], ...] } · reg: active apps
 // -> { appId: state }
@@ -14,9 +15,13 @@ export function fold({ chat = [], records = {}, fixes = {}, reg, envOf = () => (
         const fp = fingerprint(m);
         // what the reader recorded for this reply, then what the person corrected by hand on it
         const lines = [...(records[fp]?.L ?? []), ...(fixes[fp] ?? [])];
-        for (const [k, v, q] of lines) {
+        for (const [k, v0, q] of lines) {
             const app = reg.ownerOf(k);
             if (!app?.reduce) continue;   // the app that owned this key is off: its lines are simply not counted
+            // older records may name the person's own character «당신» / «you»: read as their name (see parse.meToUser)
+            let v = v0;
+            try { v = meToUser(k, v0, envOf(app.id)?.user ?? ''); } catch (e) { v = v0; }
+            if (v == null) continue;
             try { app.reduce(S[app.id], { k, v, q: q ?? '', i }, envOf(app.id)); } catch (e) { /* one bad line never breaks the ledger */ }
             for (const w of reg.watchers(k)) { try { w.reduce(S[w.id], { k, v, q: q ?? '', i, watched: true }, envOf(w.id)); } catch (e) { /* same */ } }
         }

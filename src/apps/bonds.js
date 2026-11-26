@@ -111,7 +111,7 @@ export default {
     keys: [
         { id: 'touch', line: 'touch: A>B=none|brush|hand|hug|kiss|more', when: twoPeople,
             rules: ['"touch" counts affection or desire only. Care, treatment, help or a fight is not touch.'] },
-        { id: 'move', line: 'move: A>B=closer|back|wavering|crack|clash|same / inner line (under 12 words, or -)', when: twoPeople, rules: [
+        { id: 'move', line: 'move: A>B=closer|back|wavering|crack|clash|same / inner line (under 12 words, or -)   | "exact quote, 12+ characters" (needed for every move but same)', when: twoPeople, rules: [
             'Relationship — inner reading, in your head only (do not output this list): for each pair and direction, silently check what they did · what they would usually do but did not · gap between words and actions · who moved first and the balance of power · forms of address · tone · distance · misunderstanding · scratches and blow-ups · what was revealed. Last: is this a mood, or did the relationship move? Write only the single sharpest one as the inner line.',
             'Relationship: read [NEW TEXT] as the stretch to judge. <director> is reference only; judge what was actually written (a plain statement in it that something already happened counts as evidence).',
             'Only pairs who actually dealt with each other, present together, in the stretch. One "move" line per direction. People in flashbacks, memories or talk are not "dealing with each other" now.',

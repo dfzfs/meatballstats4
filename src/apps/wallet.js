@@ -47,6 +47,9 @@ const openLoans = (st) => (Array.isArray(st.loans) ? st.loans : []).filter((l) =
 // what a loan comes to now: simple interest per 30 story days since it was taken (rate in %, 0 = none)
 export const owedNow = (l, day) => { const r = Number(l?.rate) || 0, from = l?.from ?? day; return r > 0 && day != null && from != null ? Math.round(l.owed * (1 + (r / 100) * Math.max(0, Math.floor((day - from) / 30)))) : l.owed; };
 const label = (S, x) => `${x}${(S.qty?.[x.toLowerCase()] ?? 1) > 1 ? ` ×${S.qty[x.toLowerCase()]}` : ''}`;
+// the amount is known only once the person set «처음 가진 돈» or the story stated a total («=300»): before that,
+// spending is only counted, never judged «not enough» (a story where money was never set would else hear «broke»)
+const known = (S, env) => (env?.store?.startCash !== undefined && env?.store?.startCash !== '' && env?.store?.startCash !== null) || !!S?.total;
 const unitOf = (env) => (env.store.unit ? ` ${env.store.unit}` : '');
 
 export default {
@@ -74,7 +77,8 @@ export default {
             if (!x) return;
             // spending more than there is is flagged; with the strict rule on it is refused (second generation)
             const had = S.cash + regularTotal(env?.store ?? {}, S.clock.day);   // what is really there: counted cash plus regular money so far
-            if (x.sign === '-' && x.n > had) {
+            if (x.sign === '=') S.total = true;
+            if (x.sign === '-' && x.n > had && known(S, env)) {
                 S.short.push({ need: x.n, had, why: why(v), i, refused: !!env?.store?.strict });
                 if (S.short.length > 10) S.short.shift();
                 if (env?.store?.strict) return;
@@ -98,11 +102,13 @@ export default {
             if (left > 0) S.qty[key] = left; else { S.items.splice(at, 1); delete S.qty[key]; delete S.gift[key]; }
         }
     },
-    stateLines: (S, env) => [`cash: ${cashOf(S, env)}${unitOf(env)}`, `belongings: ${S.items.length ? S.items.map((x) => label(S, x)).join(', ') : '(none recorded)'}`],
+    stateLines: (S, env) => [`cash: ${known(S, env) ? `${cashOf(S, env)}${unitOf(env)}` : 'not set (record spending and income as usual)'}`, `belongings: ${S.items.length ? S.items.map((x) => label(S, x)).join(', ') : '(none recorded)'}`],
     note(S, env) {
         const st = env.store, who = env.user || 'The user character', cash = cashOf(S, env), u = unitOf(env), day = dayOf(env), state = [], now = [];
-        if (cash !== 0 || S.items.length || S.log.length || Number(st.startCash) || openLoans(st).length) state.push(`${who} has ${fmt(cash)}${u}${S.items.length ? ` and carries: ${S.items.slice(-15).map((x) => label(S, x)).join(', ')}` : ''}. Nothing else is owned.`);
-        if (cash > 0 && S.short.length) state.push(`Anything costing more than ${fmt(cash)}${u} cannot be bought outright.`);   // only once a reply has overspent
+        const k = known(S, env);
+        if (!k && S.items.length) state.push(`${who} carries: ${S.items.slice(-15).map((x) => label(S, x)).join(', ')}.`);
+        if (k && (cash !== 0 || S.items.length || S.log.length || Number(st.startCash) || openLoans(st).length)) state.push(`${who} has ${fmt(cash)}${u}${S.items.length ? ` and carries: ${S.items.slice(-15).map((x) => label(S, x)).join(', ')}` : ''}. Nothing else is owned.`);
+        if (k && cash > 0 && S.short.length) state.push(`Anything costing more than ${fmt(cash)}${u} cannot be bought outright.`);   // only once a reply has overspent
         if (Number(st.meal) > 0) state.push(`Prices: a plain meal costs about ${fmt(st.meal)}${u}; keep other prices in proportion.`);
         for (const l of openLoans(st).slice(0, 3)) {
             const left = l.due != null && day != null ? l.due - day : null;
@@ -110,11 +116,11 @@ export default {
         }
         // the story tried to spend money that is not there: say so once, for the next reply
         const s = S.short.at(-1);
-        if (s && s.i === env.last) now.push(s.refused ? `${who} cannot afford ${s.why || 'that'} (${fmt(s.need)}${u}; has ${fmt(s.had)}${u}). It did not happen: find another way, haggle, or go without.` : `${who} could not really afford ${s.why || 'that'} (${fmt(s.need)}${u}; had ${fmt(s.had)}${u}). Do not gloss over it: it is owed, unpaid, or comes back to bite.`);
-        else if (cash <= 0 && S.log.length) now.push(`${who} has no money left. Anything that costs money needs another way.`);
+        if (k && s && s.i === env.last) now.push(s.refused ? `${who} cannot afford ${s.why || 'that'} (${fmt(s.need)}${u}; has ${fmt(s.had)}${u}). It did not happen: find another way, haggle, or go without.` : `${who} could not really afford ${s.why || 'that'} (${fmt(s.need)}${u}; had ${fmt(s.had)}${u}). Do not gloss over it: it is owed, unpaid, or comes back to bite.`);
+        else if (k && cash <= 0 && S.log.length) now.push(`${who} has no money left. Anything that costs money needs another way.`);
         return { state, now };
     },
-    hud: (S, env) => { const c = cashOf(S, env), late = openLoans(env.store).some((l) => l.due != null && dayOf(env) != null && l.due < dayOf(env)); return [`💰 ${fmt(c)}`, ...(late ? ['⚠ 빚 연체'] : [])]; },
+    hud: (S, env) => { if (!known(S, env) && !openLoans(env.store).length) return S.log.length ? [`💰 ${signed(S.log.reduce((a, l) => a + l.d, 0))}`] : []; const c = cashOf(S, env), late = openLoans(env.store).some((l) => l.due != null && dayOf(env) != null && l.due < dayOf(env)); return [`💰 ${fmt(c)}`, ...(late ? ['⚠ 빚 연체'] : [])]; },
     chip: ({ k, v }) => (k === 'cash' ? `💰 ${v.trim().startsWith('=') ? `= ${fmt(num(v).n)}` : signed(num(v).sign === '-' ? -num(v).n : num(v).n)}` : k === 'got' ? `🎒 +${itemOf(v).name}` : `🎒 −${itemOf(v).name}`),
     widget: (S, env) => { const c = cashOf(S, env); return `<div class="mb4-money"><b>${fmt(c)}</b> <small>${esc(env.store.unit ?? '')}</small>${S.log.length ? `<span class="mb4-pill ${S.log.at(-1).d < 0 ? 'bad' : 'good'}">${signed(S.log.at(-1).d)}</span>` : ''}</div>${S.items.length ? `<div class="mb4-chips">${S.items.slice(-5).map((x) => `<span class="mb4-chip">${esc(label(S, x))}</span>`).join('')}${S.items.length > 5 ? `<span class="mb4-chip">+${S.items.length - 5}</span>` : ''}</div>` : ''}`; },
     render(el, api) {
@@ -127,7 +133,7 @@ export default {
         for (const name of S.items) { const it = { name, from: S.gift?.[name.toLowerCase()] ?? '' }; (groups.get(kindOf(it)) ?? groups.set(kindOf(it), []).get(kindOf(it))).push(it); }
         const bag = GROUPS.filter(([g]) => groups.has(g)).map(([g, t]) => `${groups.size > 1 ? `<div class="mb4-hint">${t} ${groups.get(g).length}</div>` : ''}<div class="mb4-chips">${groups.get(g).map((x) => `<span class="mb4-chip">${esc(label(S, x.name))}${x.from ? ` <small>· ${esc(x.from)}</small>` : ''}<button class="mb4-x" data-act="drop" data-v="${esc(x.name)}" aria-label="하나 빼기">✕</button></span>`).join('')}</div>`).join('');
         const loans = st.loans.filter((l) => !l.paid);
-        el.innerHTML = `<div class="mb4-hero"><small>가진 돈</small><div class="mb4-hero-n">${fmt(cash)} <small>${esc(st.unit ?? '')}</small></div>${fx ? `<small>${fx}</small>` : ''}
+        el.innerHTML = `<div class="mb4-hero"><small>${known(S, env) ? '가진 돈' : '들어오고 나간 돈 · 처음 가진 돈을 ⚙️ 돈 규칙에서 정하면 모자란지도 셈해요'}</small><div class="mb4-hero-n">${fmt(cash)} <small>${esc(st.unit ?? '')}</small></div>${fx ? `<small>${fx}</small>` : ''}
             <div class="mb4-btnrow"><input class="mb4-input mb4-short" data-f="amt" type="number" min="0" placeholder="금액"><button class="mb4-btn" data-act="plus">＋ 받음</button><button class="mb4-btn ghost" data-act="minus">− 씀</button></div></div>
         ${S.short.length ? card('', `⚠ 가진 돈보다 큰 지출이 ${S.short.length}번 있었어요.${st.strict ? ' 「엄격하게」라서 그 지출은 빼고 셌어요.' : ''}${S.short.slice(-2).reverse().map((s) => `<div class="mb4-quote"><b>${esc(s.why || '지출')} ${fmt(s.need)}</b> · 그때 가진 돈 ${fmt(s.had)} <small>#${s.i}</small></div>`).join('')}`, 'warn') : ''}
         ${card('👜 가방', `${S.items.length ? bag : hint('가진 물건이 아직 없어요.')}
