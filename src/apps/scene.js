@@ -1,7 +1,7 @@
 // 🧭 Scene: when, where, who is present, weather. Small and common, so it lives in the core and loads only when on.
 import { clip } from '../core/text.js';
 import { skipInMessage } from '../core/skip.js';
-import { applyTime, anchoredDate } from '../core/clock.js';
+import { applyTime, anchoredDate, dayKo } from '../core/clock.js';
 import { cueOr, slow } from '../core/cadence.js';
 import { esc, row, card, person, hint, acts, val, TOD, TOD_KO, room } from '../ui/kit.js';
 
@@ -79,7 +79,7 @@ export default {
         const recap = env?.cfg?.recap && (S.gists ?? []).length > 1 ? [`Story so far, oldest first: ${S.gists.slice(-4, -1).map((g) => g.v).join(' → ')}`] : [];
         return has ? { state: [`Now: ${when}${S.vague ? ' (exact count unknown)' : ''}. ${facts}`.trim(), ...recap] } : null;
     },
-    hud: (S) => [`🕰 ${S.day}일째${S.tod ? ` · ${TOD_KO[S.tod]}` : ''}`, S.loc ? `📍 ${room(S.loc)}` : ''],
+    hud: (S, env) => { const d = S.date || dayKo(S, S.day, env?.peekStore?.('calendar')?.start); const t = [d ? `📆 ${d}` : '', S.tod ? `🕰 ${TOD_KO[S.tod]}` : ''].filter(Boolean).join(' · '); return [t, S.loc ? `📍 ${room(S.loc)}` : '']; },
     chip({ k, v }) {
         if (k === 'time') return `🕰 ${v.replace(/\b(dawn|morning|noon|afternoon|evening|night|midnight)\b/g, (w) => TOD_KO[w])}`;
         if (k === 'loc') return `📍 ${room(v)}`;
@@ -94,17 +94,17 @@ export default {
     widgetTitle: '같이 있는 사람',
     render(el, api) {
         const S = api.state(), G = S.gists ?? [];
-        el.innerHTML = `<div class="mb4-hero mb4-sum"><small>지금 이야기는</small><p class="mb4-sum-t">${esc(S.gist || '아직 요약이 없어요. 답이 몇 번 오가면 한 줄로 적어 둬요.')}</p><div class="mb4-hero-m">${[`📆 ${S.day}일째`, S.tod ? `🕰 ${TOD_KO[S.tod]}` : '', S.loc ? `📍 ${esc(room(S.loc))}` : '', S.with.length ? `👥 ${S.with.map(esc).join(', ')}` : '👤 혼자', S.weather ? `⛅ ${esc(S.weather)}` : '', S.mood ? `🌫 ${esc(S.mood)}` : ''].filter(Boolean).join('<i>·</i>')}</div></div>
-        ${G.length > 1 ? card('📜 이야기 흐름', `<ol class="mb4-trail">${G.slice(-12).reverse().map((g) => `<li><b>${esc(g.v)}</b><small>${g.day}일째</small></li>`).join('')}</ol>`) : ''}
+        el.innerHTML = `<div class="mb4-hero mb4-sum"><small>지금 이야기는</small><p class="mb4-sum-t">${esc(S.gist || '아직 요약이 없어요. 답이 몇 번 오가면 한 줄로 적어 둬요.')}</p><div class="mb4-hero-m">${[(S.date || dayKo(S, S.day, api.env.peekStore?.('calendar')?.start)) ? `📆 ${esc(S.date || dayKo(S, S.day, api.env.peekStore?.('calendar')?.start))}` : '', S.tod ? `🕰 ${TOD_KO[S.tod]}` : '', S.loc ? `📍 ${esc(room(S.loc))}` : '', S.with.length ? `👥 ${S.with.map(esc).join(', ')}` : '👤 혼자', S.weather ? `⛅ ${esc(S.weather)}` : '', S.mood ? `🌫 ${esc(S.mood)}` : ''].filter(Boolean).join('<i>·</i>')}</div></div>
+        ${G.length > 1 ? card('📜 이야기 흐름', `<ol class="mb4-trail">${G.slice(-12).reverse().map((g) => `<li><b>${esc(g.v)}</b>${dayKo(S, g.day, api.env.peekStore?.('calendar')?.start) ? `<small>${dayKo(S, g.day, api.env.peekStore?.('calendar')?.start)}</small>` : ''}</li>`).join('')}</ol>`) : ''}
         ${card('', `
-            ${row('📆', '날', `${S.day}일째${S.date ? ` · ${esc(S.date)}` : !S.vague && S.anchor?.date ? ` · ${(() => { const t = anchoredDate(S); return t == null ? `${esc(S.anchor.date)}에서 ${S.day - S.anchor.day}일 뒤` : `${new Date(t).getUTCMonth() + 1}월 ${new Date(t).getUTCDate()}일`; })()}` : ''}${S.vague ? ' · 며칠인지 흐림' : ''}`)}
+            ${row('📆', '날', `${esc(S.date || dayKo(S, S.day, api.env.peekStore?.('calendar')?.start) || '아직 몰라요')}${S.vague ? ' · 며칠인지 흐림' : ''}`)}
             ${row('🕰', '때', esc(TOD_KO[S.tod] ?? '아직 몰라요'))}
             ${row('📍', '장소', esc(S.loc || '아직 몰라요'))}
             ${row('⛅', '날씨', esc(S.weather || '아직 몰라요'))}
             ${row('🌫', '분위기', esc(S.mood || '아직 몰라요'))}`)}
         ${Object.keys(S.near ?? {}).length ? card('장소끼리 위치', Object.entries(S.near).map(([a, b]) => row('🧭', a, esc(b))).join('')) : ''}
         ${card('같이 있는 사람', S.with.length ? `<div class="mb4-people">${S.with.map((n) => person(n, '', `<button class="mb4-x" data-act="out" data-v="${esc(n)}" aria-label="빼기">✕</button>`)).join('')}</div>` : hint('지금은 혼자예요.'))}
-        ${card('지나온 곳', S.trail.length ? `<ol class="mb4-trail">${S.trail.slice(-8).reverse().map((t) => `<li><b>${esc(room(t.loc))}</b><small>${t.day}일째 · ${esc(t.loc)}</small></li>`).join('')}</ol>` : hint('장소가 바뀌면 여기 쌓여요.'))}
+        ${card('지나온 곳', S.trail.length ? `<ol class="mb4-trail">${S.trail.slice(-8).reverse().map((t) => `<li><b>${esc(room(t.loc))}</b><small>${[dayKo(S, t.day, api.env.peekStore?.('calendar')?.start), esc(t.loc)].filter(Boolean).join(' · ')}</small></li>`).join('')}</ol>` : hint('장소가 바뀌면 여기 쌓여요.'))}
         <details class="mb4-card mb4-edcard"><summary>✏️ 틀린 곳 직접 고치기</summary>
             <label class="mb4-label">장소<input class="mb4-input" data-f="loc" maxlength="120" placeholder="큰 곳 > 작은 곳 > 방" value="${esc(S.loc)}"></label>
             <label class="mb4-label">때<select class="mb4-input" data-f="tod"><option value="">그대로</option>${TOD.map((t) => `<option value="${t}" ${t === S.tod ? 'selected' : ''}>${TOD_KO[t]}</option>`).join('')}</select></label>

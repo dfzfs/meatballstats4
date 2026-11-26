@@ -90,7 +90,7 @@ export default {
         el.innerHTML = `${!env.peek('bonds') ? card('', '💞 관계를 켜야 누가 연인인지 알 수 있어요.', 'warn') : ''}
         ${who ? `<div class="mb4-hero mb4-center"><div class="mb4-hero-n">${face(who)}</div><div class="mb4-big">${esc(who)}</div><small>이 사람만 내 폰을 만져요</small></div>` : empty('💌', '아직 연인이 없어요', '💞 관계에서 연인 · 약혼 · 부부가 되면 시작돼요')}
         ${L.length > 1 ? card('누구로 할까요 (한 명만)', `<div class="mb4-chips">${L.map((n) => `<button class="mb4-opt${n === who ? ' on' : ''}" data-act="who" data-v="${esc(n)}">${face(n)} ${esc(n)}</button>`).join('')}</div>`) : ''}
-        ${log.length ? card('몰래 한 것', log.slice(0, 12).map((x, n) => `<div class="mb4-row"><span class="mb4-row-k">${KINDS[x.k].icon}${x.day ? ` <small>${x.day}일째</small>` : ''}</span><span class="mb4-row-v">${esc(x.t)}${x.on ? ` <small>(${x.on}일째에)</small>` : ''}${x.undone ? ` ${pill('되돌림')}` : ''}${x.caught ? ` ${pill('들킴', 'love')}` : ''}</span></div>
+        ${log.length ? card('몰래 한 것', log.slice(0, 12).map((x, n) => `<div class="mb4-row"><span class="mb4-row-k">${KINDS[x.k].icon}</span><span class="mb4-row-v">${esc(x.t)}${x.undone ? ` ${pill('되돌림')}` : ''}${x.caught ? ` ${pill('들킴', 'love')}` : ''}</span></div>
             ${n === 0 && !x.undone ? `<div class="mb4-btnrow tight"><button class="mb4-btn ghost sm" data-act="caught" data-v="${(st.log ?? []).length - 1}" ${x.caught ? 'disabled' : ''}>😳 들켰다고 하기</button><button class="mb4-btn ghost sm" data-act="undo" data-v="${(st.log ?? []).length - 1}">↩ 되돌리기</button></div>` : ''}`).join('')) : ''}
         ${card('설정', `<label class="mb4-sw"><span><b>켜기</b></span><input type="checkbox" data-act="on" ${cfg.on !== false ? 'checked' : ''}><i></i></label>
             <div class="mb4-btnrow tight">${RATES.map(([v, n]) => `<button class="mb4-btn ${(Number(cfg.rate) || 0.1) === v ? '' : 'ghost '}sm" data-act="rate" data-v="${v}">${n}</button>`).join('')}</div>
@@ -103,9 +103,9 @@ export default {
         optWire(el, cfg, () => { api.save(); api.redraw(); });
         const nm = Object.entries(st.names ?? {});
         api.kit.editMore(el, api, [
-            { name: 'log', list: st.log ?? [], max: 12, label: (x) => `${KINDS[x.k]?.icon ?? '💌'} 몰래 한 것${x.day ? ` · ${x.day}일째` : ''}`, get: (x) => x.t, set: (x, t) => { x.t = t.slice(0, 200); } },
+            { name: 'log', list: st.log ?? [], max: 12, label: (x) => `${KINDS[x.k]?.icon ?? '💌'} 몰래 한 것`, get: (x) => x.t, set: (x, t) => { x.t = t.slice(0, 200); } },
             { name: 'nick', list: nm, label: ([n]) => `📞 ${n}의 연락처 이름`, get: ([, v]) => v, set: ([n], t) => { st.names[n] = t.slice(0, 40); }, remove: ([n]) => { delete st.names[n]; } },
-            { name: 'cal', list: st.cal ?? [], label: () => '📅 달력에 적은 것: 날(일째) | 내용', get: (c) => `${c.day} | ${c.text}`, set: (c, t) => { const [d, x] = api.kit.two(t); if (+d > 0) c.day = Math.round(+d); if (x) c.text = x.slice(0, 120); } },
+            { name: 'cal', list: st.cal ?? [], label: () => '📅 달력에 적은 것: 날 번호 | 내용', get: (c) => `${c.day} | ${c.text}`, set: (c, t) => { const [d, x] = api.kit.two(t); if (+d > 0) c.day = Math.round(+d); if (x) c.text = x.slice(0, 120); } },
             ...(st.note?.text ? [{ name: 'note', obj: st.note, keys: [['text', '📝 홈 화면 쪽지']] }] : []),
             { name: 'title', obj: st, keys: [['title', '🔤 상태 줄 제목 (비우면 없음)']] },
         ]);

@@ -6,7 +6,7 @@ import { esc } from '../core/text.js';
 import * as kit from './kit.js';
 import { ACCENTS, fonts, fontOf, loadFonts, paint, isDark } from '../st/look.js';
 import { trCfg, CATS as TR_CATS, ENGINES as TR_ENGINES, LANGS as TR_LANGS } from '../core/tr.js';
-import { anchoredDate } from '../core/clock.js';
+import { anchoredDate, dayKo } from '../core/clock.js';
 const { TOD_KO, room } = kit;
 
 let R = null;                 // the runtime (engine + app switches)
@@ -231,7 +231,7 @@ const trOn = () => { const m = cfg().tr?.mode; return m === 'free' || m === 'ai'
 function clock() {
     const S = R.engine.reg.has('scene') && hasChat() ? R.engine.state('scene') : null;
     const T = R.engine.reg.has('touch') && hasChat() ? R.engine.envOf('touch').store : null;
-    if (S) return `${T?.title ? `${T.title} · ` : ''}${S.day}일째${S.tod ? ` ${TOD_KO[S.tod]}` : ''}`;
+    if (S) { const d = S.date || dayKo(S, S.day, R.engine.reg.has('calendar') ? R.engine.envOf('calendar').store.start : ''); const t = [T?.title, d, S.tod ? TOD_KO[S.tod] : ''].filter(Boolean).join(' · '); if (t) return t; }
     if (T?.title) return T.title;
     const d = new Date();
     return `${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`;
@@ -266,8 +266,8 @@ function hero() {
     else if (S && env?.store.start) { const t = Date.parse(`${env.store.start}T00:00:00Z`); if (!Number.isNaN(t)) { const d = new Date(t + (S.day - 1) * 86400000); date = `${d.getUTCMonth() + 1}월 ${d.getUTCDate()}일 ${'일월화수목금토'[d.getUTCDay()]}요일`; } }
     if (!S) return `<div class="mb4-hero mb4-home-hero"><div class="mb4-hero-n">😼 미트볼</div><div class="mb4-hero-s">${chat ? `켠 앱 ${E.reg.size}개` : '채팅을 열면 기록이 시작돼요'}</div></div>`;
     return `<div class="mb4-hero mb4-home-hero" data-go="app:scene">
-        <div class="mb4-hero-n">${S.tod ? TOD_KO[S.tod] : `${S.day}일째`}</div>
-        <div class="mb4-hero-s">${[S.date || date || `이야기 ${S.day}일째`, String(S.weather ?? '').split(/[,，]/)[0].trim().slice(0, 16)].filter(Boolean).map(esc).join(' · ')}</div>
+        <div class="mb4-hero-n">${S.tod ? TOD_KO[S.tod] : (S.date || date) ? esc(String(S.date || date).split(' ').slice(0, 2).join(' ')) : '😼'}</div>
+        <div class="mb4-hero-s">${[S.date || date, String(S.weather ?? '').split(/[,，]/)[0].trim().slice(0, 16)].filter(Boolean).map(esc).join(' · ')}</div>
         <div class="mb4-hero-m">${[S.loc ? `📍 ${esc(room(S.loc))}` : '📍 아직 몰라요', S.with.length ? `👥 ${S.with.length}명` : '', W ? `💰 ${Number(W.cash).toLocaleString('en-US')}` : ''].filter(Boolean).join('<i>·</i>')}</div>
     </div>`;
 }

@@ -57,7 +57,7 @@ export default {
             <button class="mb4-btn wide" data-act="draw">🃏 한 장 뽑기 (AI 0회)</button>`}
         ${card('뽑을 종류', `<div class="mb4-chips">${Object.entries(KIND).map(([k, [n]]) => `<button class="mb4-btn ${okKind(k) ? '' : 'ghost '}sm" data-act="kind" data-v="${k}">${n}</button>`).join('')}</div>
             <label class="mb4-sw"><span><b>저절로 뽑히게</b><small>카드가 꺼지고 답이 열 번쯤 지나면 코드가 한 장 뽑아요</small></span><input type="checkbox" data-act="auto" ${cfg.auto ? 'checked' : ''}><i></i></label>`)}
-        ${(st.past ?? []).length ? card('지나간 카드', st.past.filter((p) => DECK[p.n]).slice().reverse().slice(0, 8).map((p) => `<div class="mb4-row mb4-dim"><span class="mb4-row-v">${DECK[p.n][1]} ${esc(DECK[p.n][2])} <small>${KIND[DECK[p.n][0]][0]}${p.day ? ` · ${p.day}일째` : ''}</small></span></div>`).join('')) : ''}
+        ${(st.past ?? []).length ? card('지나간 카드', st.past.filter((p) => DECK[p.n]).slice().reverse().slice(0, 8).map((p) => `<div class="mb4-row mb4-dim"><span class="mb4-row-v">${DECK[p.n][1]} ${esc(DECK[p.n][2])} <small>${KIND[DECK[p.n][0]][0]}</small></span></div>`).join('')) : ''}
         ${!d && !(st.past ?? []).length ? empty('🃏', '아직 뽑은 카드가 없어요') : ''}
         ${optCard(cfg, 'deck', D_DECK, { title: '카드', aiLabel: '이 카드가 걸리면 AI에게 하는 말 (영어로 쓰면 더 잘 알아들어요). 새 카드는 다음 답 한 번만 걸려요.' })}
         ${hint('축복 · 저주는 서너 답 동안, 사건은 바로 다음 답 한 번이에요. 같은 답을 다시 뽑아도 카드는 줄지 않아요.')}`;

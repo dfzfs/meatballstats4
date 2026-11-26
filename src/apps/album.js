@@ -6,8 +6,8 @@ import { esc, card, hint, acts, empty } from '../ui/kit.js';
 
 // id, icon, name, how to get it (shown), test(ctx) -> true when earned
 const ACH = [
-    ['day7', '🗓', '한 주', '이야기 속 7일째가 되기', (c) => (c.scene?.day ?? 0) >= 7],
-    ['day30', '📆', '한 달', '이야기 속 30일째가 되기', (c) => (c.scene?.day ?? 0) >= 30],
+    ['day7', '🗓', '한 주', '이야기 속에서 일주일이 지나기', (c) => (c.scene?.day ?? 0) >= 7],
+    ['day30', '📆', '한 달', '이야기 속에서 한 달이 지나기', (c) => (c.scene?.day ?? 0) >= 30],
     ['wander', '🧭', '방랑자', '다른 장소 5곳 지나기', (c) => new Set((c.scene?.trail ?? []).map((t) => t.loc)).size >= 5 || Object.keys(c.map?.P ?? {}).length >= 5],
     ['cartog', '🗺', '지도 제작자', '지도에 장소 12곳', (c) => Object.keys(c.map?.P ?? {}).length >= 12],
     ['crowd', '👥', '마당발', '인물 10명 만나기', (c) => Object.keys(c.people?.list ?? {}).length >= 10],
@@ -51,15 +51,15 @@ export default {
         const tab = st._tab === 'shots' ? 'shots' : 'ach';
         const sc = env.peek('scene');
         el.innerHTML = `<div class="mb4-btnrow tight" style="margin-bottom:10px"><button class="mb4-btn ${tab === 'ach' ? '' : 'ghost '}sm" data-act="tab" data-v="ach">🏆 업적 ${Object.keys(got).length}/${ACH.length}</button><button class="mb4-btn ${tab === 'shots' ? '' : 'ghost '}sm" data-act="tab" data-v="shots">📸 추억 ${st.shots.length}</button></div>
-        ${tab === 'ach' ? `<div class="mbx-ach">${ACH.map(([id, ic, name, how]) => `<div class="mbx-a${got[id] ? ' on' : ''}${news.has(id) ? ' new' : ''}"><span>${got[id] ? ic : '🔒'}</span><b>${esc(name)}</b><small>${got[id] ? `${got[id].day ? `${got[id].day}일째` : '달성'}` : esc(how)}</small></div>`).join('')}</div>
+        ${tab === 'ach' ? `<div class="mbx-ach">${ACH.map(([id, ic, name, how]) => `<div class="mbx-a${got[id] ? ' on' : ''}${news.has(id) ? ' new' : ''}"><span>${got[id] ? ic : '🔒'}</span><b>${esc(name)}</b><small>${got[id] ? '달성' : esc(how)}</small></div>`).join('')}</div>
             ${hint('다른 앱이 이미 아는 것으로만 셈해요. 꺼 둔 앱의 업적은 그 앱을 켜야 열려요.')}`
         : `<button class="mb4-btn wide" data-act="shot">📸 방금 장면 남기기</button>
             <input class="mb4-input" data-f="cap" maxlength="60" placeholder="한 줄 제목 (비워도 돼요)" style="margin-top:6px">
-            ${st.shots.length ? st.shots.slice().reverse().map((x, n) => card(`${esc(x.cap || `${x.day ?? '?'}일째`)}${x.loc ? ` <small>📍 ${esc(x.loc)}</small>` : ''}`, `<p class="mbx-shot">${esc(x.text)}</p><div class="mb4-btnrow tight"><small class="mb4-dim" style="flex:1">${x.day ? `${x.day}일째` : ''}${x.with?.length ? ` · 👥 ${esc(x.with.join(', '))}` : ''}</small><button class="mb4-x" data-act="del" data-v="${st.shots.length - 1 - n}" aria-label="지우기">✕</button></div>`)).join('') : empty('📸', '아직 남긴 장면이 없어요', '마음에 드는 답이 오면 눌러서 남겨요')}`}`;
+            ${st.shots.length ? st.shots.slice().reverse().map((x, n) => card(`${esc(x.cap || '남긴 장면')}${x.loc ? ` <small>📍 ${esc(x.loc)}</small>` : ''}`, `<p class="mbx-shot">${esc(x.text)}</p><div class="mb4-btnrow tight"><small class="mb4-dim" style="flex:1">${x.with?.length ? `👥 ${esc(x.with.join(', '))}` : ''}</small><button class="mb4-x" data-act="del" data-v="${st.shots.length - 1 - n}" aria-label="지우기">✕</button></div>`)).join('') : empty('📸', '아직 남긴 장면이 없어요', '마음에 드는 답이 오면 눌러서 남겨요')}`}`;
         if (news.size) { st.news = []; api.save(); }
         if (tab === 'shots') api.kit.editMore(el, api, [
-            { name: 'cap', list: st.shots, label: (x) => `제목 · ${x.day ?? '?'}일째`, get: (x) => x.cap || '', set: (x, t) => { x.cap = t.slice(0, 60); } },
-            { name: 'text', list: st.shots, rows: 4, label: (x) => `장면 글 · ${x.cap || `${x.day ?? '?'}일째`}`, get: (x) => x.text, set: (x, t) => { x.text = t.slice(0, 900); }, del: false },
+            { name: 'cap', list: st.shots, label: (x) => '제목', get: (x) => x.cap || '', set: (x, t) => { x.cap = t.slice(0, 60); } },
+            { name: 'text', list: st.shots, rows: 4, label: (x) => `장면 글 · ${x.cap || '남긴 장면'}`, get: (x) => x.text, set: (x, t) => { x.text = t.slice(0, 900); }, del: false },
         ]);
         acts(el, {
             tab: (v) => { st._tab = v; api.save(); api.redraw(); },
