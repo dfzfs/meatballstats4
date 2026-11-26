@@ -4,6 +4,7 @@
 // day, an optional cycle, "someone close notices a note") and the third generation's handling of vague time skips.
 import { esc, card, hint, acts, val, empty, pill } from '../ui/kit.js';
 import { namedDate, anchoredDate } from '../core/clock.js';
+import { plain, spendPlain, stamped, spendStamped } from '../core/once.js';
 
 const DAY = 86400000;
 const WD_KO = ['일', '월', '화', '수', '목', '금', '토'];
@@ -74,11 +75,11 @@ export default {
         const user = env.user || 'the user', cd = cycleOn(st.cycle, T.day);
         if (cd && st.cycle.tell) { state.push(`${user} is on their period (day ${cd}).`); if (cd <= 3) now.push(`People close to ${user} know or notice it and act on it naturally: care, warmth, food, rest.`); }
         // one reply only: someone close notices a calendar note (the person pressed it)
-        const pk = st.peek && st.peek.at === env.last ? st.peek : null;
+        const pk = stamped(st, 'peek', env);
         if (pk?.who && pk.text) now.push(`${pk.who} may notice ${user}'s calendar note for ${pk.md}: "${String(pk.text).slice(0, 80)}" and bring it up naturally if it fits.`);
         return state.length || now.length ? { state, now } : null;
     },
-    onReply(env) { if (env.store?.peek && (env.last ?? 0) > env.store.peek.at) { delete env.store.peek; return true; } return false; },
+    onReply(env) { return spendStamped(env.store ?? {}, 'peek', env); },
     hud(_S, env) {
         const T = today(env);
         if (!T) return [];

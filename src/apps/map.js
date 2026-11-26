@@ -67,6 +67,15 @@ function unsee(S, who, i) {
     S.seen[who] = s.was;
 }
 
+// the map is full: the least visited place, longest ago, makes room (never where we are now)
+function evict(S) {
+    const out = Object.entries(S.P).filter(([k]) => k !== S.cur).sort((a, b) => (a[1].n - b[1].n) || ((a[1].i ?? 0) - (b[1].i ?? 0)))[0]?.[0];
+    if (!out) return;
+    delete S.P[out];
+    for (const e of Object.keys(S.E)) if (e.split('|').includes(out)) delete S.E[e];
+    S.route.list = S.route.list.filter((k) => k !== out);
+    for (const [who, x] of Object.entries(S.seen)) if (x.at === out) delete S.seen[who];
+}
 function reduce(S, { k, v, i }) {
     if (k === 'time') { tick(S, v); return; }
     if (k === 'mood') { const P = S.P[S.cur]; if (P) P.mood = clip(v, 40); return; }
@@ -74,7 +83,7 @@ function reduce(S, { k, v, i }) {
         const st = stationOf(S, v); if (!st) return;
         const key = norm(st.name);
         let P = S.P[key];
-        if (!P) { if (Object.keys(S.P).length >= MAX_PLACES) return; P = S.P[key] = { name: clip(st.name, 60), area: clip(st.area, 60), n: 0, first: S.day, last: S.day, i, rooms: {}, ppl: {} }; }
+        if (!P) { if (Object.keys(S.P).length >= MAX_PLACES) evict(S); P = S.P[key] = { name: clip(st.name, 60), area: clip(st.area, 60), n: 0, first: S.day, last: S.day, i, rooms: {}, ppl: {} }; }
         if (st.area && !P.area) P.area = clip(st.area, 60);
         if (S.cur !== key) {
             P.n += 1;

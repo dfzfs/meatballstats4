@@ -1,6 +1,7 @@
 // Built into Meatball 4 (was a separately installed app). Fetched only when switched on.
 import { todayLuck, fitToday } from '../core/luck.js';
 import { optList } from '../ui/kit.js';
+import { plain, spendPlain, stamped, spendStamped } from '../core/once.js';
 const esc = (s) => String(s ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
 const clip = (s, n) => { const t = String(s ?? '').trim(); return t.length > n ? t.slice(0, n) : t; };
 const hash = (s) => { let h = 2166136261; for (let i = 0; i < s.length; i++) { h ^= s.charCodeAt(i); h = Math.imul(h, 16777619); } return h >>> 0; };
@@ -75,16 +76,16 @@ export default {
     desc: 'AI 답 끝의 선택지를 누르기 쉬운 목록으로 보여 주고, 누르면 입력창에 넣어 줘요.',
     note(_s, env) {
         KINDS = optList(env.cfg, 'kinds', KINDS_BASE);
-        const now = [], p = env.store.picked;
+        const now = [], p = stamped(env.store, 'picked', env);
         // the outcome of a picked gamble / chance / price / trap goes with the next reply once
-        if (p && p.at === env.last && p.result) now.push(`The user chose: "${clip(p.label, 160)}". ${RESULT[p.result]} Do not mention dice or numbers.`);
+        if (p?.result) now.push(`The user chose: "${clip(p.label, 160)}". ${RESULT[p.result]} Do not mention dice or numbers.`);
         if (env.cfg.ask) {
             const kinds = KINDS.filter((k) => env.cfg.kinds?.[k.id] !== false), risks = RISKS.filter((r) => (r.off ? env.cfg.risks?.[r.id] === true : env.cfg.risks?.[r.id] !== false));
             now.push(`End this reply with ${env.cfg.count ?? 3} short numbered options for what the user's character could do next, each a different leaning (${kinds.map((k) => `${k.id}: ${k.ai}`).join('; ')}) and stakes (${risks.map((r) => `${r.id}: ${r.ai}`).join('; ')}). Write each as "1. [leaning|stakes] option". Nothing after the list.`);
         }
         return now.length ? { now } : null;
     },
-    onReply(env) { if (env.store.picked && (env.last ?? 0) > env.store.picked.at) { delete env.store.picked; return true; } return false; },
+    onReply(env) { return spendStamped(env.store, 'picked', env); },
     hud: (_s, env) => { const n = current(env).length; return [...(n ? [`🎯 ${n}`] : []), ...(env.store.picked?.result ? [`🎲 ${{ win: '성공', crit: '대성공', lose: '실패', fumble: '대실패', trap: '함정!', price: '대가' }[env.store.picked.result]}`] : [])]; },
     widget: (_s, env) => current(env).slice(0, 3).map((c, n) => `<div class="mb4-row"><span class="mb4-row-k">${n + 1}</span><span class="mb4-row-v">${esc(clip(c.label, 60))}</span></div>`).join(''),
     render(el, api) {

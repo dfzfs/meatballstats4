@@ -58,11 +58,12 @@ export default {
             // a jump written in days or longer: they lived normally in between, so the story opens a few hours after the last meal, sleep and wash
             if (JUMP.test(String(v))) for (const n of NEEDS) S[n.id] = clamp(START - n.rate * AFTER_SKIP_H * sp);
             else for (const n of NEEDS) {
+                if (n.id === 'rest' && S.sleptAt === i) continue;   // the hours passed are the sleep itself (slept came first in this reply)
                 if (n.id === 'social') S.social = clamp(S.social + (S.co > 0 ? 8 * h : -n.rate * h * sp));
                 else S[n.id] = clamp(S[n.id] - n.rate * h * sp);
             }
         } else if (k === 'ate') { S.food = clamp(S.food + (/snack|bite|간식/i.test(v) ? 25 : /feast|잔치|배불리/i.test(v) ? 100 : 55)); mark('🍞'); }
-        else if (k === 'slept') { const h = hoursIn(`+${String(v).replace(/^\+/, '')}`); S.rest = /nap|낮잠/i.test(v) ? clamp(S.rest + 30) : h && h < 5 ? clamp(S.rest + h * 14) : 100; mark('😴'); }
+        else if (k === 'slept') { S.sleptAt = i; const h = hoursIn(`+${String(v).replace(/^\+/, '')}`); S.rest = /nap|낮잠/i.test(v) ? clamp(S.rest + 30) : h && h < 5 ? clamp(S.rest + h * 14) : 100; mark('😴'); }
         else if (k === 'washed') { S.clean = 100; mark('🫧'); }
     },
     stateLines: (S, env) => { const L = live(env).filter((n) => n.id !== 'social'); return L.length ? [`needs: ${L.map((n) => `${n.id} ${Math.round(S[n.id])}/100`).join(', ')}`] : []; },

@@ -2,6 +2,7 @@
 const esc = (s) => String(s ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
 const clip = (s, n) => { const t = String(s ?? '').trim(); return t.length > n ? t.slice(0, n) : t; };
 import { cycleOn } from './calendar.js';
+import { plain, spendPlain, stamped, spendStamped } from '../core/once.js';
 const one = (t) => String(t ?? '').replace(/\s*\n+\s*/g, ' ').trim();
 
 // 📞 Contacts: text a character from the phone. One model call per tap, never on its own.
@@ -57,7 +58,7 @@ export default {
     desc: '이야기 속 인물에게 문자를 보내고 답장을 받아요. 주고받은 문자는 다음 답에 한 번 알려 줘요.',
     // Told to the main model once, by the next reply, then spent.
     note(_s, env) {
-        const f = env.store.fresh, st = env.store, now = [];
+        const st = env.store, f = plain(st, 'fresh', env), now = [];
         if (f && st.tell !== false) now.push(f.letter ? `A letter from ${f.who} has reached ${env.user}: "${clip(f.them, 300)}". ${env.user} has read it.` : `Since the last reply, ${env.user} and ${f.who} exchanged text messages. ${env.user}: "${clip(f.me, 200)}" — ${f.who}: "${clip(f.them, 300)}". The characters know this happened.`);
         // letters that arrived with the story's days (no call: the reply was written when it was sent, and waits)
         const day = env.peek?.('scene')?.day;
@@ -67,7 +68,7 @@ export default {
     onReply(env) {
         const st = env.store, day = env.peek?.('scene')?.day;
         let ch = false;
-        if (st.fresh) { st.fresh = null; ch = true; }
+        if (spendPlain(st, 'fresh', env)) ch = true;
         for (const L of Object.values(st.threads ?? {})) for (const m of L) if (m.letter && !m.me && !m.told && day != null && day >= m.arrive) { m.told = true; ch = true; }
         return ch;
     },

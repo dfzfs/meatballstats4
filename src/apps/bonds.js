@@ -4,6 +4,7 @@
 // Everything is counted from quoted records, folded per reply; only plain "may" lines go to the main model.
 import { clip, quoteOk } from '../core/text.js';
 import { twoPeople } from '../core/cadence.js';
+import { plain, spendPlain, stamped, spendStamped } from '../core/once.js';
 import { esc, card, steps, bar, empty, hint, face, pill, acts } from '../ui/kit.js';
 
 const LEVELS = ['none', 'brush', 'hand', 'hug', 'kiss', 'more'];
@@ -208,7 +209,7 @@ export default {
         const recent = Object.values(S.pairs).filter((P) => last - P.i <= 12 || (here && present(P))).sort((x, y) => y.i - x.i).slice(0, 3);
         const state = [], now = [], top = [], special = [];
         // the person's own button for this reply (one-shot)
-        const pr = st.press && st.press.at === last ? st.press : null;
+        const pr = stamped(st, 'press', env);
         if (pr && T.press[pr.kind]) top.push(fill(T.press[pr.kind], { a: pr.a, b: pr.b }));
         for (const P of recent) {
             const fr = isFriend(P), lvl = fr ? Math.min(P.lvl, 2) : P.lvl;
@@ -260,7 +261,7 @@ export default {
         const out = { state: [...new Set(state)].slice(0, 3), now: [...new Set([...top, ...now, ...special.slice(0, top.length ? 0 : 1)])].slice(0, 5) };
         return out.state.length || out.now.length ? out : null;
     },
-    onReply(env) { if (env.store?.press && (env.last ?? 0) > env.store.press.at) { delete env.store.press; return true; } return false; },
+    onReply(env) { return spendStamped(env.store ?? {}, 'press', env); },
     chip({ k, v }) {
         if (k === 'lead') return `🧭 ${clip(v, 16)} 주도`;
         const [lhs, rhs] = split(v) ?? ['', v], p = pair(lhs, k === 'tie' ? '-' : '>');

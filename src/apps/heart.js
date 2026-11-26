@@ -3,6 +3,7 @@
 // 💞 Bonds already records (move · touch · feel · refuse · yield · tie) and from who is present (🧭 Scene's «with»).
 // Scores are per direction (what A feels toward B), so two people can differ.
 import { clip } from '../core/text.js';
+import { plain, spendPlain, stamped, spendStamped } from '../core/once.js';
 import { esc, card, bar, hint, acts, empty, pill, face } from '../ui/kit.js';
 
 const START = { a: 20, t: 20 };
@@ -72,8 +73,8 @@ export default {
     note(S, env) {
         const me = env.user, st = env.store, now = [], state = [];
         // a card the person answered: the outcome rides with the next reply once
-        const c = st.card;
-        if (c && c.at === env.last) now.push(c.kind === 'breakup' ? `${me} tells ${c.who} it is over between them. ${c.who} takes it as ${c.who} would (${c.yes ? 'with quiet acceptance' : 'badly — refusing to accept it at first'}); from this reply on they are no longer together.`
+        const c = stamped(st, 'card', env);   // a reroll of that reply gets the same answer
+        if (c) now.push(c.kind === 'breakup' ? `${me} tells ${c.who} it is over between them. ${c.who} takes it as ${c.who} would (${c.yes ? 'with quiet acceptance' : 'badly — refusing to accept it at first'}); from this reply on they are no longer together.`
             : `${me} ${c.kind === 'confess' ? 'confesses their feelings to' : 'proposes to'} ${c.who}. ${c.who} ${c.yes ? 'ACCEPTS — warmly, in their own way' : 'DECLINES — kindly or awkwardly, in their own way; it does not end what is between them'}. Write that outcome; do not reverse it.`);
         if (env.cfg.tell !== false) {
             const here = new Set(env.peek?.('scene')?.with ?? S.here);
@@ -84,7 +85,7 @@ export default {
         }
         return now.length || state.length ? { state, now } : null;
     },
-    onReply(env) { const c = env.store.card; if (c && (env.last ?? 0) > c.at) { env.store.card = null; return true; } return false; },
+    onReply(env) { return spendStamped(env.store, 'card', env); },
     hud(S, env) { const me = env.user, top = Object.entries(S.d).filter(([k]) => k.endsWith(`>${me}`)).sort((a, b) => b[1].a - a[1].a)[0]; return top && top[1].hist.length ? [`💗 ${top[0].split('>')[0]} ${top[1].a}`] : []; },
     widget(S, env) { const me = env.user; return Object.entries(S.d).filter(([k, d]) => k.endsWith(`>${me}`) && d.hist.length).sort((a, b) => b[1].a - a[1].a).slice(0, 3).map(([k, d]) => `<div class="mb4-gauge"><span>${face(k.split('>')[0])} ${esc(k.split('>')[0])}</span><span class="mb4-meter"><i class="good" style="width:${d.a}%"></i></span><b>${d.a}</b></div>`).join(''); },
     widgetTitle: '호감',
