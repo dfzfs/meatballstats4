@@ -75,8 +75,8 @@ export function slipped(cfg, lastText, broke = []) {
 const shows = (g, texts) => (g.signs ?? []).some((w) => w.length >= 2 && texts.some((t) => t.toLowerCase().includes(w.toLowerCase())));
 const ownWords = (t) => String(t ?? '').split(/[,，、\n]/).map((x) => x.trim()).filter((x) => x.length >= 2).slice(0, 10);
 
-// what the person typed for an OOC reply: 「다음 답 한 번」, else a scene box not used yet
-const oocAsk = (st) => st.once || (st.sceneAt == null ? st.scene : '') || '';
+// what the person typed for an OOC reply: 「다음 답 한 번」, else the scene box (whether or not a reply already used it)
+const oocAsk = (st) => st.once || st.scene || '';
 
 export default {
     api: 1,
@@ -137,7 +137,7 @@ export default {
         // the OOC answer arrived: its question is spent (a scene box used as the question is emptied, so it doesn't steer the story)
         if (st.ooc === 'once') {
             st.oocAsk = oocAsk(st); st.oocAt = last;
-            if (!st.once && st.sceneAt == null && st.scene) { st.scene = ''; delete st.sceneAt; }
+            if (!st.once && st.scene) { st.scene = ''; delete st.sceneAt; }
             if (st.once) { st.once = ''; delete st.onceLast; }
             st.ooc = false; ch = true;
         } else if (!reroll && st.oocAt != null && last > st.oocAt) { delete st.oocAt; delete st.oocAsk; ch = true; }

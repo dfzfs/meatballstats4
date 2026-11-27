@@ -59,7 +59,7 @@ test('🎬 OOC with the request in 「이 장면 동안」: it is sent, then emp
     const { setup, chatOf } = await import('./harness.mjs');
     const t = await setup({ apps: ['director'], chat: chatOf([{ reply: 'The baker closed the shutters.' }, { user: 'ok' }]) });
     const env = () => t.E.envOf('director'), st = env().store;
-    st.ooc = 'once'; st.scene = 'List the districts of the harbor town with an emoji each.';
+    st.ooc = 'once'; st.scene = 'List the districts of the harbor town with an emoji each.'; st.sceneAt = 0;   // the box was already used by an earlier reply
     t.E.touch(); t.E.refresh();
     assert.match(t.note().now, /List the districts of the harbor town/);
     assert.doesNotMatch(t.note().now, /For the current scene/);
