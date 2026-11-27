@@ -1,6 +1,7 @@
 // Built into Meatball 4 (was a separately installed app). Fetched only when switched on.
 import { tick as clockTick, newClock } from '../core/clock.js';
-import { geoPrompt, parseGeo, geoText, matcher, geoSvg, wireZoom, zoomStep, GEO_CSS } from '../ui/mapgeo.js';
+import { geoPrompt, parseGeo, geoText, matcher, wireZoom, zoomStep } from '../ui/mapgeo.js';
+import { elevSVG, buildFloors, ELEV_CSS } from '../ui/elev.js';
 //
 // 🗺 Map — the second generation's map, carried over: places are stations, the ways between them are lines
 // (coloured, bent at 45°), people are pins, a tapped place shows the way there, who is there, its rooms as a
@@ -216,23 +217,26 @@ function lineNodes(places, o) {
     return { svg, ext };
 }
 // where each station goes: along its connections on a grid (right -> down -> up -> left -> diagonals)
-function layout(places) {
-    const flat = new Map(), ns = places.map((p) => p.name), byN = new Map(places.map((p) => [norm(p.name), p]));
+function layout(places, fixed = new Map()) {
+    const flat = new Map(), ns = [...[...fixed.keys()].filter((n) => places.some((p) => p.name === n)), ...places.map((p) => p.name).filter((n) => !fixed.has(n))], byN = new Map(places.map((p) => [norm(p.name), p]));
     const adj = new Map(ns.map((n) => [n, new Set()]));
     for (const p of places) for (const q of p.near ?? []) { const t = byN.get(norm(q)); if (t && t.name !== p.name) { adj.get(p.name).add(t.name); adj.get(t.name).add(p.name); } }
     const used = new Set(), put = (n, gx, gy) => { flat.set(n, { x: gx * STEP, y: gy * STEP }); used.add(`${gx},${gy}`); };
     const D = [[1, 0], [0, 1], [0, -1], [-1, 0], [1, 1], [1, -1], [-1, 1], [-1, -1]];
-    let col = 0;
+    for (const [n, g] of fixed) if (ns.includes(n) && !used.has(`${g.gx},${g.gy}`)) put(n, g.gx, g.gy);
+    let col = fixed.size ? Math.max(...[...flat.values()].map((v) => v.x / STEP)) + 3 : 0;
+    const grown = new Set();
     for (const start of ns) {
-        if (flat.has(start)) continue;
-        put(start, col, 3); const q = [start];
+        if (grown.has(start)) continue;
+        if (!flat.has(start)) put(start, col, 3);
+        const q = [start]; grown.add(start);
         while (q.length) {
             const cur = q.shift(), c = flat.get(cur), cx = c.x / STEP, cy = c.y / STEP;
             for (const nb of adj.get(cur)) {
                 if (flat.has(nb)) continue;
                 const d = D.find(([dx, dy]) => !used.has(`${cx + dx * 2},${cy + dy * 2}`) && !used.has(`${cx + dx},${cy + dy}`)) ?? [1, 0];
                 let gx = cx + d[0] * 2, gy = cy + d[1] * 2; while (used.has(`${gx},${gy}`)) gx += 2;
-                put(nb, gx, gy); q.push(nb);
+                put(nb, gx, gy); q.push(nb); grown.add(nb);
             }
         }
         col = Math.max(...[...flat.values()].map((v) => v.x / STEP)) + 3;
@@ -303,12 +307,9 @@ function placeCard(S, M, st, p, path, ui) {
     if (p.area) L.push(rl('🗾', `<span data-trc="place">${esc(p.area)}</span> <small>안에 있어요</small>`));
     for (const [a, b] of Object.entries(M.near)) if (norm(a) === p.key || norm(b).includes(p.key)) L.push(rl('🧭', `<span data-trc="place">${esc(a)}</span> <small data-trc="phrase">${esc(b)}</small>`));
     if (st.note?.[p.key]) L.push(rl('📝', esc(st.note[p.key])));
-    // 🛗 inside: narrow, like a lift's button panel (upper floors on top), with the photo beside it
-    const fl = [...p.floors].reverse();
-    const lift = fl.length ? `<div class="mbx-lift">${fl.map((f) => `<div class="mbx-fl${isHere && norm(S.room) === norm(f.name) ? ' on' : ''}"><b class="mb4-notr">${esc(f.b || [...f.name][0].toUpperCase())}</b><span data-trc="place">${esc(f.name)}</span></div>`).join('')}</div>` : '';
     const ph = st.photo?.[p.key];
     const photo = okPhoto(ph) ? `<div class="mbx-photo"><img src="${esc(ph)}" alt="${esc(p.name)}" loading="lazy"></div>` : `<button class="mbx-photo empty" data-act="edit" data-v="${esc(p.name)}">🖼<small>사진 넣기</small></button>`;
-    const bld = `<div class="mbx-bld${lift ? '' : ' nolift'}">${lift}${photo}</div>`;
+    const bld = `<div class="mbx-bld nolift">${photo}</div>`;
     const others = M.places.filter((q) => q.key !== p.key);
     const linked = new Set(p.near.map(norm));
     const edit = ui.edit !== p.key ? '' : `<div class="mbx-edit">
@@ -320,36 +321,81 @@ function placeCard(S, M, st, p, path, ui) {
     </div>`;
     return `<section class="mb4-card mbx-place"><h5 class="mb4-card-h"><span class="mb4-notr">${PLACE_KINDS[p.kind]}</span> <span data-trc="place">${esc(p.name)}</span>${isHere ? ' <small class="mbx-here">지금 여기</small>' : ''}</h5>
         ${L.join('')}${bld}
-        <div class="mb4-btnrow">${isHere ? '' : btn('🚶 여기로 가기', 'go', p.name, 'sm')}${btn('✏️ 고치기', 'edit', p.name)}</div>${edit}</section>`;
+        <div class="mb4-btnrow">${p.fls?.length ? btn(`🏢 건물 안 보기 <small>${p.fls.length}층</small>`, 'inside', p.name, 'sm') : ''}${isHere ? '' : btn('🚶 여기로 가기', 'go', p.name, 'sm')}${btn('✏️ 고치기', 'edit', p.name)}</div>${edit}</section>`;
 }
 
 function view(S, env, st, ui = {}) {
     const sc = env.peek?.('scene');
     if (!sc) return env.kit.empty('🧭', '「장면」 앱을 켜 주세요', '지도는 장면 앱이 적어 둔 장소를 읽어서 그려요');
     const M = model(S, env, st);
-    const add = `<details class="mb4-card mbx-add"${ui.add ? ' open' : ''}><summary>＋ 장소 직접 넣기</summary><div class="mb4-btnrow"><input class="mb4-input" data-f="newplace" maxlength="60" placeholder="아직 안 가 본 곳 이름">${btn('넣기', 'add', '', 'sm')}</div><p class="mb4-hint">넣은 곳은 흐리게 보이다가, 이야기에서 실제로 가면 진해져요.</p></details>`;
-    if (!M.places.length) return env.kit.empty('🗺', '아직 지나온 곳이 없어요', '장소가 바뀌면 역이 하나씩 생겨요') + add;
-    const { pos, pairs, adj } = layout(M.places);
+    const add = `<details class="mb4-card mbx-add"${ui.add ? ' open' : ''}><summary>＋ 장소 직접 넣기</summary><div class="mb4-btnrow"><input class="mb4-input" data-f="newplace" maxlength="60" placeholder="아직 안 가 본 곳 이름">${btn('넣기', 'add', '', 'sm')}</div><p class="mb4-hint">넣은 곳은 흐리게 보여요. 실제로 가면 진하게 바뀌어요.</p></details>`;
+    // 🧭 a geography look (if asked for): its places join as faint stations, its ways as lines, its floors as the
+    // building's floors, and its compass spots give every station its place on the grid (zones stacked by height)
+    const G = st.geo, find = G ? matcher(G) : null, fixed = new Map();
+    if (G) {
+        const recOf = new Map();
+        for (const p of M.places) { const g = find(p.name); if (g && !recOf.has(g.name)) recOf.set(g.name, p); if (g && !p.area) p.area = g.zone; }
+        for (const g of G.places) if (!recOf.has(g.name)) { const p = { key: norm(g.name), name: g.name, area: g.zone, visits: 0, first: 0, last: 0, i: -1, rooms: [], ppl: {}, near: [], kind: PLACE_KINDS[g.kind] ? g.kind : guessKind(g.name), floors: [], mood: '', geo: true }; if (!M.byKey.has(p.key)) { M.places.push(p); M.byKey.set(p.key, p); recOf.set(g.name, p); } }
+        for (const l of G.links) { const A = recOf.get(find(l.a)?.name), B = recOf.get(find(l.b)?.name); if (A && B && A !== B && !(st.cuts ?? []).includes(pairKey(A.key, B.key))) { if (!A.near.includes(B.name)) A.near.push(B.name); if (!B.near.includes(A.name)) B.near.push(A.name); } }
+        // zones stacked by height, each just below the last one (no empty bands between them)
+        const zs = [...G.zones].sort((x, y) => x.level - y.level).map((z) => norm(z.name));
+        const inZ = (z) => G.places.filter((g) => g.x != null && recOf.get(g.name) && Math.max(0, zs.indexOf(norm(g.zone))) === z);
+        let top = 0;
+        for (let z = 0; z < Math.max(1, zs.length); z++) {
+            const gs = inZ(z); if (!gs.length) continue;
+            const y0 = Math.min(...gs.map((g) => g.y)), x0 = Math.min(...gs.map((g) => g.x));
+            for (const g of gs) fixed.set(recOf.get(g.name).name, { gx: (g.x - x0) * 2, gy: top + (g.y - y0) * 2 });
+            top += (Math.max(...gs.map((g) => g.y)) - y0) * 2 + 4;
+        }
+    }
+    for (const p of M.places) p.fls = buildFloors(p.rooms, G ? find(p.name)?.floors ?? [] : []);
+    if (!M.places.length) return env.kit.empty('🗺', '아직 지나온 곳이 없어요', '장소가 바뀌면 역이 하나씩 생겨요') + geoTools(st, ui) + add;
     const cur = M.byKey.get(S.cur), sel = M.byKey.get(norm(ui.sel)) ?? cur ?? M.places.at(-1);
-    const path = route(adj, cur?.name, sel.name), onPath = new Set(path.slice(1).map((n, i) => pairKey(path[i], n)));
+    // 구역 tabs (first generation): one area at a time, or all
+    const areas = [...new Set(M.places.map((p) => p.area).filter(Boolean))];
+    // opens on the area you are in (all of them at once gets too small to read); 「전체」 shows everything
+    const area = ui.area === '*' ? '' : areas.includes(ui.area) ? ui.area : areas.length > 1 && areas.includes(cur?.area) ? cur.area : '';
+    const shown = area ? M.places.filter((p) => p.area === area) : M.places;
+    const { pos, pairs } = layout(shown, fixed);
+    const allAdj = new Map(M.places.map((p) => [p.name, new Set()])), byNm = new Map(M.places.map((p) => [norm(p.name), p.name]));
+    for (const p of M.places) for (const q of p.near) { const b = byNm.get(norm(q)); if (b && b !== p.name) { allAdj.get(p.name).add(b); allAdj.get(b).add(p.name); } }
+    const path = route(allAdj, cur?.name, sel.name), onPath = new Set(path.slice(1).map((n, i) => pairKey(path[i], n)));
     for (const e of pairs) e.route = onPath.has(e.key);
     const net = lineEdges(pairs, pos);
     const today = S.route.day === S.day ? S.route.list.map((k) => M.byKey.get(k)?.name).filter(Boolean) : [];
-    const nodes = lineNodes(M.places, { pos, here: cur?.name, sel: sel.name, net, pins: (p) => M.at.get(p.key) ?? [], order: today.length > 1 ? (n) => today.lastIndexOf(n) + 1 : null });
-    const [x0, y0, x1, y1] = nodes.ext, pad = 4;
-    const svg = `<svg class="mbx-map" viewBox="${R(x0 - pad)} ${R(y0 - pad)} ${R(x1 - x0 + pad * 2)} ${R(y1 - y0 + pad * 2)}" preserveAspectRatio="xMidYMid meet" role="img" aria-label="지도"><g class="edges">${net.svg}</g>${nodes.svg}</svg>`;
+    const nodes = lineNodes(shown, { pos, here: cur?.name, sel: sel.name, net, pins: (p) => M.at.get(p.key) ?? [], order: today.length > 1 ? (n) => today.lastIndexOf(n) + 1 : null });
+    const [x0, y0, x1, y1] = nodes.ext, pad = 4, w = Math.max(x1 - x0 + pad * 2, STEP * 6), hh = Math.max(y1 - y0 + pad * 2, STEP * 4.5);   // a few stations never blow up to fill the box
+    const fit = [R((x0 + x1) / 2 - w / 2), R((y0 + y1) / 2 - hh / 2), R(w + 10), R(hh)].join(' ');   // +10: room for the ＋－ buttons on the right
+    const svg = `<svg class="mbx-map" viewBox="${fit}" data-fit="${fit}" preserveAspectRatio="xMidYMid meet" role="img" aria-label="지도"><g class="edges">${net.svg}</g>${nodes.svg}</svg>`;
     const tools = `${M.everyone.length ? btn('📍 핀 인물', 'pinpick') : ''}${M.hidden.length ? btn(`👁 숨긴 곳 ${M.hidden.length}`, 'unhide') : ''}`;
     let h = `<div class="mbx-maphead"><span>📍 지금 <b data-trc="place">${esc(cur?.name ?? '어딘가')}</b>${S.room && cur ? ` <small data-trc="place">${esc(S.room)}</small>` : ''}${sc.tod ? ` · ${TOD_KO[sc.tod] ?? ''}` : ''}</span><span class="mb4-btnrow tight">${tools}</span></div>`;
-    if (ui.pinpick) h += `<div class="mb4-card"><p class="mb4-hint">지도에 띄울 사람 (꺼 둔 사람은 핀이 안 떠요)</p><div class="mb4-chips">${M.everyone.map((n) => `<button class="mb4-btn sm ${!Array.isArray(st.pins) || st.pins.includes(n) ? '' : 'ghost'}" data-act="pin" data-v="${esc(n)}">${env.face?.(n) ?? '🙂'} <span data-trc="name">${esc(n)}</span></button>`).join('')}</div><div class="mb4-btnrow">${btn('모두 띄우기', 'pinall')}${btn('닫기', 'pinpick')}</div></div>`;
-    h += `<div class="mbx-mapwrap">${svg}</div>`;
+    if (ui.pinpick) h += `<div class="mb4-card"><p class="mb4-hint">지도에 띄울 사람 (꺼 둔 사람은 핀이 안 떠요)</p><div class="mb4-chips">${M.everyone.map((n) => `<button class="mb4-btn sm ${!Array.isArray(st.pins) || st.pins.includes(n) ? '' : 'ghost'}" data-act="pin" data-v="${esc(n)}">${env.face?.(n) ?? '🙂'} <span data-trc="name">${esc(n)}</span></button>`).join('')}</div></div>`;
+    // 🏢 inside a building: the cross-section, every floor on one picture
+    if (ui.inside && sel && norm(ui.inside) === sel.key && sel.fls.length) {
+        const hereIn = sel.key === S.cur, room = hereIn ? norm(S.room ?? '') : '';
+        const atF = (f) => !!room && (room.startsWith(norm(f.name)) || f.rooms.some((r) => room.includes(norm(r.name))));
+        const pic = elevSVG(sel.fls, { me: '📍', at: atF, on: (f, r) => !!room && (room.includes(norm(r.name)) || (r.whole && atF(f))), act: '', pinsAt: (f, r) => (hereIn ? (M.at.get(sel.key) ?? []).filter((x) => x.now && room && atF(f) && room.includes(norm(r.name))) : []) });
+        return h + `<div class="mbx-mapwrap inside"><div class="mbx-inbar">${btn('← 지도로', 'outside', '', 'sm')}<b><span class="mb4-notr">${PLACE_KINDS[sel.kind]}</span> <span data-trc="place">${esc(sel.name)}</span>${hereIn && S.room ? ` · <span data-trc="place">${esc(S.room)}</span>` : ''}</b>${hereIn ? ' <small class="mbx-here">지금 여기</small>' : ''}</div>${pic}</div>`
+            + env.kit.hint('건물을 앞에서 자른 그림이에요. 위가 높은 층, 땅 밑은 지하예요. 이야기에 나온 방(「3층 사무실」처럼)과 🧭 지리 분석이 정리한 층이 들어가요.') + placeCard(S, M, st, sel, path, ui);
+    }
+    if (areas.length) h += `<div class="mbx-areas">${[['*', '전체'], ...areas.map((x) => [x, x])].map(([v, t]) => `<button class="mb4-btn sm ${(area || '*') === v ? '' : 'ghost'}" data-act="area" data-v="${esc(v)}"><span data-trc="place">${esc(t)}</span>${v !== '*' && cur?.area === v ? ' 📍' : ''}</button>`).join('')}</div>`;
+    h += `<div class="mbx-mapwrap">${svg}<div class="mbx-ctl"><button data-act="zoom" data-v="in" aria-label="확대">＋</button><button data-act="zoom" data-v="out" aria-label="축소">－</button><button data-act="zoom" data-v="here" aria-label="지금 위치">◎</button><button data-act="zoom" data-v="fit" aria-label="전체 보기">⤢</button></div></div><p class="mb4-hint">끌어서 옮기고, 두 손가락 · 휠 · 버튼으로 확대해요. 건물은 눌러서 「🏢 건물 안 보기」.</p>`;
     const who = [...M.at.entries()].flatMap(([key, L]) => L.map((x) => ({ ...x, pl: M.byKey.get(key).name })));
     if (who.length) h += `<div class="mbx-pinrow">${who.map((x) => `<button class="mbx-pin" data-act="mapsel" data-v="${esc(x.pl)}" title="${esc(x.why)}">${x.e} <span data-trc="name">${esc(x.name)}</span> <small data-trc="place">${esc(clip(x.pl, 14))}</small></button>`).join('')}</div>`;
     h += placeCard(S, M, st, sel, path, ui);
     if (today.length > 1) h += `<section class="mb4-card"><h5 class="mb4-card-h">오늘 다닌 길</h5><p class="mbx-today" data-trc="place">${today.map((n, i) => `<b class="mb4-notr">${i + 1}</b> ${esc(n)}`).join(' → ')}</p></section>`;
     const trail = [...M.places].filter((p) => p.visits).sort((a, b) => b.i - a.i);
     h += `<details class="mb4-card"><summary>🧾 다녀온 곳 전부 (${trail.length})</summary><ol class="mb4-trail">${trail.map((p) => `<li data-act="mapsel" data-v="${esc(p.name)}"><b><span class="mb4-notr">${PLACE_KINDS[p.kind]}</span> <span data-trc="place">${esc(p.name)}</span></b><small>${p.visits}번${p.area ? ` · <span data-trc="place">${esc(p.area)}</span>` : ''}</small></li>`).join('')}</ol></details>`;
-    h += add;
-    return h + env.kit.hint('역 = 장소, 선 = 실제로 오간 길이에요. 색이 진할수록 자주 간 곳이고, 숫자는 오늘 다닌 순서예요. AI를 부르지 않아요.');
+    h += geoTools(st, ui) + add;
+    return h + env.kit.hint('역 = 장소, 선 = 실제로 오간 길이에요. 색이 진할수록 자주 간 곳이고, 숫자는 오늘 다닌 순서예요. 흐린 역은 아직 안 가 본 곳이에요.');
+}
+// 🧭 the geography look: ask (one model call), edit its lines, put the last one back
+function geoTools(st, ui) {
+    const G = st.geo;
+    return `<details class="mb4-card"${ui.raw ? ' open' : ''}><summary>🧭 지리 분석 ${G ? `<small>· 구역 ${G.zones.length} · 장소 ${G.places.length} · #${G.at ?? '?'}까지 보고 정리</small>` : '<small>· 역 자리를 실제 방향 · 높이대로</small>'}</summary>
+        <p class="mb4-hint">AI가 이야기 밖(OOC)에서 설정과 지금까지의 이야기를 읽고, 장소의 구역 · 방향 · 높이 · 층 · 이어진 길을 정리해요. 그걸로 역 자리를 잡고, 아직 안 가 본 곳도 흐린 역으로 넣어요. AI 1회, 이야기에는 아무것도 안 들어가요.</p>
+        <div class="mb4-btnrow"><button class="mb4-btn sm" data-act="geo"${ui.busy ? ' disabled' : ''}>${ui.busy ? '정리하는 중…' : G ? '🧭 다시 분석' : '🧭 지리 분석'}</button>${st.geoPrev ? btn('↩ 이전 분석으로', 'geoundo') : ''}${G ? btn('지우기', 'geoclear') : ''}</div>
+        ${G ? `<textarea class="mb4-input mbg-raw" data-f="georaw">${esc(geoText(G))}</textarea><div class="mb4-btnrow">${btn('고친 내용 적용', 'geosave', '', 'sm')}</div><p class="mb4-hint">ZONE: 이름 | 높이(0이 제일 위) | 메모 · PLACE: 이름 | 구역 | x,y (0~9, 서→동, 북→남) | 종류 | 층 | 메모 · LINK: 장소 - 장소 | 가는 법</p>` : ''}</details>`;
 }
 
 const CSS = `
@@ -370,9 +416,9 @@ const CSS = `
 .mbx-map .node .halo{fill:none;stroke:var(--hi);stroke-width:.5;stroke-dasharray:1.1 1.1}
 .mbx-map .node:hover .stn{stroke-width:1.6}
 .mbx-map .node text{fill:var(--fg);paint-order:stroke;stroke:var(--bg);stroke-width:1px;stroke-linejoin:round;font-family:inherit}
-.mbx-map .node text.lb{font-size:3.1px;font-weight:700}
+.mbx-map .node text.lb{font-size:3.7px;font-weight:700}
 .mbx-map .node.here text.lb{fill:var(--hi)}
-.mbx-map .node text.lb .pf{font-size:2.3px;fill:var(--sub);font-weight:600}
+.mbx-map .node text.lb .pf{font-size:2.6px;fill:var(--sub);font-weight:600}
 .mbx-map .node.v1 .stn{fill:color-mix(in srgb,var(--c,var(--sub)) 22%,var(--bg))}
 .mbx-map .node.v2 .stn{fill:color-mix(in srgb,var(--c,var(--sub)) 48%,var(--bg))}
 .mbx-map .node.v3 .stn{fill:color-mix(in srgb,var(--c,var(--sub)) 78%,var(--bg))}
@@ -413,51 +459,6 @@ const CSS = `
 .mb4-app-map .mb4-trail li{cursor:pointer}
 `;
 
-// ═════ 🗺 the zone map, from the last 🧭 geography look (st.geo) ═════
-function geoView(S, env, st, ui) {
-    const sc = env.peek?.('scene');
-    if (!sc) return env.kit.empty('🧭', '「장면」 앱을 켜 주세요', '지도는 장면 앱이 적어 둔 장소를 읽어서 그려요');
-    const G = st.geo, busy = ui.busy ? ' disabled' : '';
-    const ask = `<button class="mb4-btn${G ? ' ghost sm' : ''}" data-act="geo"${busy}>${ui.busy ? '정리하는 중…' : G ? '🧭 다시 분석' : '🧭 지리 분석해서 지도 만들기'}</button>`;
-    if (!G) return `<section class="mb4-card"><h5 class="mb4-card-h">🗺 구역 지도</h5><p class="mb4-hint">AI가 이야기 밖(OOC)에서 설정과 지금까지의 이야기를 읽고, 구역 · 높낮이 · 방향 · 건물의 층을 정리해 지도를 그려요. AI 1회. 이야기에는 아무것도 안 들어가요.</p><div class="mb4-btnrow">${ask}</div></section>`;
-    const M = model(S, env, st), find = matcher(G), here = M.byKey.get(S.cur), hereG = here ? find(here.name) : null;
-    const seen = new Set(), ppl = new Map(), recOf = new Map(), lost = [];
-    for (const p of M.places) {
-        const g = find(p.name);
-        if (!g) { if (p.visits) lost.push(p.name); continue; }
-        const k = g.name.toLowerCase().replace(/\s+/g, ' ');
-        if (p.visits) seen.add(k);
-        (recOf.get(k) ?? recOf.set(k, []).get(k)).push(p);
-        for (const x of M.at.get(p.key) ?? []) (ppl.get(k) ?? ppl.set(k, []).get(k)).push(x.e);
-    }
-    const sel = G.places.find((p) => p.name === ui.gsel) ?? hereG ?? G.places[0];
-    // one zone at a time (where the story is, unless another was chosen); 「전체」 stacks them all
-    const zone = ui.gzone ?? hereG?.zone ?? G.zones[0]?.name ?? '';
-    const svg = geoSvg(G, { here: hereG?.name ?? '', seen, sel: sel?.name ?? '', ppl, icons: PLACE_KINDS, zone });
-    const zchips = G.zones.length > 1 ? `<div class="mbg-zones">${[['', '전체'], ...[...G.zones].sort((a, b) => a.level - b.level).map((z) => [z.name, z.name])].map(([v, t]) => `<button class="mb4-btn sm ${norm(zone) === norm(v) ? '' : 'ghost'}" data-act="gzone" data-v="${esc(v)}"><span data-trc="place">${esc(t)}</span>${v && hereG && norm(hereG.zone) === norm(v) ? ' 📍' : ''}</button>`).join('')}</div>` : '';
-    const since = Math.max(0, (env.replies ?? 0) - (G.n ?? 0));
-    let h = `<div class="mbx-maphead"><span>📍 지금 <b data-trc="place">${esc(hereG?.name ?? here?.name ?? '어딘가')}</b>${S.room ? ` <small data-trc="place">${esc(S.room)}</small>` : ''}${sc.tod ? ` · ${TOD_KO[sc.tod] ?? ''}` : ''}</span><span class="mb4-btnrow tight">${ask}</span></div>`;
-    h += `${zchips}<div class="mbg-wrap">${svg}<div class="mbg-ctl"><button data-act="gzoom" data-v="in" aria-label="확대">＋</button><button data-act="gzoom" data-v="out" aria-label="축소">－</button><button data-act="gzoom" data-v="here" aria-label="지금 위치">◎</button><button data-act="gzoom" data-v="fit" aria-label="전체 보기">⤢</button></div></div><p class="mb4-hint">끌어서 옮기고, 두 손가락 · 휠 · ＋－로 확대해요.</p>`;
-    if (sel) {
-        const k = sel.name.toLowerCase().replace(/\s+/g, ' '), recs = recOf.get(k) ?? [], visits = recs.reduce((a, p) => a + (p.visits || 0), 0);
-        const rooms = [...new Set(recs.flatMap((p) => p.rooms))], inGeo = new Set(sel.floors.flatMap((f) => f.rooms.map((r) => r.toLowerCase())));
-        const extra = rooms.filter((r) => !inGeo.has(r.toLowerCase()));
-        const isHere = hereG && hereG.name === sel.name, roomNow = isHere ? String(S.room ?? '').toLowerCase() : '';
-        const floors = [...sel.floors, ...(extra.length ? [{ lv: '그 밖', rooms: extra }] : [])];
-        const ways = G.links.filter((l) => [l.a, l.b].some((x) => find(x) === sel)).map((l) => { const o = find(l.a) === sel ? l.b : l.a; return `<button class="mb4-chip" data-act="geosel" data-v="${esc(find(o)?.name ?? o)}">↔ <span data-trc="place">${esc(o)}</span>${l.how ? ` · ${esc(l.how)}` : ''}</button>`; });
-        const who = recs.flatMap((p) => M.at.get(p.key) ?? []);
-        h += `<section class="mb4-card"><h5 class="mb4-card-h">${PLACE_KINDS[sel.kind] ?? '📍'} <span data-trc="place">${esc(sel.name)}</span> <small>· <span data-trc="place">${esc(sel.zone)}</span>${visits ? ` · ${visits}번 감` : ' · 아직 안 가 봄'}</small></h5>`
-            + (sel.note ? `<p class="mb4-hint">${esc(sel.note)}</p>` : '')
-            + (who.length ? `<div class="mb4-chips">${who.map((x) => `<span class="mb4-chip">${x.e} <span data-trc="name">${esc(x.name)}</span>${x.now ? '' : ' <small>마지막</small>'}</span>`).join('')}</div>` : '')
-            + (floors.length ? `<div class="mbg-floors">${floors.map((f) => `<div class="mbg-floor"><b>${esc(f.lv || '·')}</b><span>${f.rooms.map((r) => `<span class="${roomNow && roomNow.includes(r.toLowerCase()) ? 'on' : ''}" data-trc="place">${esc(r)}</span>`).join(' · ')}</span></div>`).join('')}</div>` : '')
-            + (ways.length ? `<div class="mb4-chips" style="margin-top:6px">${ways.join('')}</div>` : '')
-            + `<div class="mb4-btnrow">${isHere ? '' : btn('🚶 여기로 간다', 'go', sel.name)}</div></section>`;
-    }
-    if (lost.length) h += `<section class="mb4-card"><p class="mb4-hint">🗂 아직 지도에 없는 곳: <span data-trc="place">${lost.map(esc).join(', ')}</span> — 다시 분석하면 들어가요.</p></section>`;
-    h += `<details class="mb4-card"${ui.raw ? ' open' : ''}><summary>✏️ 분석 결과 직접 고치기</summary><textarea class="mb4-input mbg-raw" data-f="georaw">${esc(geoText(G))}</textarea><div class="mb4-btnrow">${btn('적용', 'geosave', '', 'sm')}${st.geoPrev ? btn('↩ 이전 분석으로', 'geoundo') : ''}</div><p class="mb4-hint">ZONE: 이름 | 높이(0이 제일 위) | 메모 · PLACE: 이름 | 구역 | x,y (0~9, 서→동, 북→남) | 종류 | 층 | 메모 · LINK: 장소 - 장소 | 가는 법</p></details>`;
-    return h + env.kit.hint(`🧭 #${G.at ?? '?'} 답까지 보고 정리한 지도예요${since ? ` · 그 뒤 ${since}답 지났어요` : ''}. 위가 높은 곳, 칸 안은 위가 북쪽이에요. ● 지금 · ○ 가 본 곳 · ◌ 아직 안 가 본 곳.`);
-}
-
 const ui = { sel: '', edit: '', pinpick: false, add: false };
 const toggle = (list, v) => (list.includes(v) ? list.filter((x) => x !== v) : [...list, v]);
 
@@ -471,14 +472,11 @@ export default {
     widgetTitle: '오늘 다닌 길',
     render(el, api) {
         const st = api.store, env = { peek: api.env.peek, kit: api.kit, face: api.kit.face };
-        if (ui.st !== st) Object.assign(ui, { st, sel: '', edit: '', pinpick: false, add: false, gsel: '', busy: false, raw: false, gzone: undefined, gvb: null });   // another chat: start fresh
+        if (ui.st !== st) Object.assign(ui, { st, sel: '', edit: '', pinpick: false, add: false, busy: false, raw: false, area: null, vb: null, inside: '' });   // another chat: start fresh
         const keyOf = (name) => norm(name);
         const save = () => { api.save(); paint(); };
         const paint = () => {
-            const mode = st.mode === 'line' ? 'line' : 'geo', log = api.core?.log?.() ?? [];
-            env.replies = log.length;
-            const tabs = `<div class="mb4-seg mbg-tabs"><button class="${mode === 'geo' ? 'on' : ''}" data-act="mode" data-v="geo">🗺 지도</button><button class="${mode === 'line' ? 'on' : ''}" data-act="mode" data-v="line">🚇 노선도</button></div>`;
-            el.innerHTML = tabs + (mode === 'geo' ? geoView(api.state(), env, st, ui) : view(api.state(), env, st, ui));
+            el.innerHTML = view(api.state(), env, st, ui);
             api.kit.acts(el, {
                 mapsel: (v) => { ui.sel = v; ui.edit = ''; paint(); },
                 edit: (v) => { ui.edit = ui.edit === keyOf(v) ? '' : keyOf(v); if (v) ui.sel = v; paint(); },
@@ -507,10 +505,20 @@ export default {
                     ui.sel = name; ui.add = false; save();
                 },
                 go: (v) => { if (api.say(`${v}(으)로 간다.`)) api.toast('입력창에 적어 뒀어요. 고쳐서 보내면 돼요.'); },
-                mode: (v) => { st.mode = v === 'line' ? 'line' : 'geo'; save(); },
-                geosel: (v) => { ui.gsel = v; paint(); },
-                gzone: (v) => { ui.gzone = v; ui.gvb = null; paint(); },
-                gzoom: (v) => zoomStep(el.querySelector('svg.mbg-map'), v, (vb) => { ui.gvb = vb; }),
+                area: (v) => { ui.area = v; ui.vb = null; paint(); },
+                zoom: (v) => zoomStep(el.querySelector('svg.mbx-map'), v, (vb) => { ui.vb = vb; ui.vbFit = el.querySelector('svg.mbx-map')?.dataset.fit; }),
+                // 🏢 into the building: the map closes in on the station (0.3 s), then the cross-section opens
+                inside: (v) => {
+                    const svg = el.querySelector('svg.mbx-map'), node = [...(svg?.querySelectorAll('g.node') ?? [])].find((g) => g.dataset.v === v);
+                    const done = () => { ui.inside = v; ui.sel = v; paint(); };
+                    let bb = null; try { bb = node?.getBBox?.(); } catch (e) { bb = null; }
+                    if (!bb || !bb.width || typeof requestAnimationFrame !== 'function' || window.matchMedia?.('(prefers-reduced-motion: reduce)').matches) return done();
+                    const from = svg.getAttribute('viewBox').split(/\s+/).map(Number), side = Math.max(14, bb.width, bb.height) * 1.25, to = [bb.x + bb.width / 2 - side / 2, bb.y + bb.height / 2 - side / 2, side, side], t0 = performance.now();
+                    const step = (now) => { if (!svg.isConnected) return done(); const k = Math.min(1, (now - t0) / 320), e = 1 - (1 - k) ** 3; svg.setAttribute('viewBox', from.map((x, i) => Math.round((x + (to[i] - x) * e) * 100) / 100).join(' ')); if (k < 1) requestAnimationFrame(step); else done(); };
+                    requestAnimationFrame(step);
+                },
+                outside: () => { ui.inside = ''; paint(); },
+                geoclear: () => { st.geoPrev = st.geo; delete st.geo; save(); },
                 // 🧭 one model call, out of character: the setting's layout, kept until asked again
                 geo: async () => {
                     if (ui.busy) return;
@@ -523,7 +531,7 @@ export default {
                     if (!G.places.length) { api.toast('지도를 못 받았어요. 다시 눌러 주세요.', 'warning'); paint(); return; }
                     if (st.geo) st.geoPrev = st.geo;
                     st.geo = { ...G, at: log.at(-1)?.i ?? 0, n: log.length };
-                    ui.gsel = ''; api.toast(`🧭 구역 ${G.zones.length}개, 장소 ${G.places.length}곳을 정리했어요.`); save();
+                    ui.raw = true; ui.vb = null; api.toast(`🧭 구역 ${G.zones.length}개, 장소 ${G.places.length}곳을 정리했어요.`); save();
                 },
                 geosave: () => {
                     const G = parseGeo(api.kit.val(el, '[data-f="georaw"]'));
@@ -533,12 +541,13 @@ export default {
                 geoundo: () => { if (!st.geoPrev) return; [st.geo, st.geoPrev] = [st.geoPrev, st.geo]; save(); },
             });
             el.querySelector('.mbx-add')?.addEventListener('toggle', (e) => { ui.add = e.target.open; });
-            // the zone map moves by hand; where it was left is kept across repaints (same zone)
-            const g = el.querySelector('svg.mbg-map');
-            if (g) { if (ui.gvb && ui.gvbZone === g.dataset.fit) g.setAttribute('viewBox', ui.gvb.join(' ')); wireZoom(g, (vb) => { ui.gvb = vb; ui.gvbZone = g.dataset.fit; }); }
+            // the map moves by hand (first generation); where it was left stays across repaints while the drawing is the same
+            const g = el.querySelector('svg.mbx-map');
+            if (g) { if (ui.vb && ui.vbFit === g.dataset.fit) g.setAttribute('viewBox', ui.vb.join(' ')); wireZoom(g, (vb) => { ui.vb = vb; ui.vbFit = g.dataset.fit; }); }
+            el.querySelector('[data-f="georaw"]')?.closest('details')?.addEventListener('toggle', (e) => { ui.raw = e.target.open; });
         };
         paint();
     },
-    css: CSS + GEO_CSS,
-    _t: { reduce, stationOf, layout, route, floorsOf, view, model, guessKind, geoView },
+    css: CSS + ELEV_CSS + '.mbg-raw{width:100%;min-height:150px;font:12px/1.4 ui-monospace,monospace}',
+    _t: { reduce, stationOf, layout, route, floorsOf, view, model, guessKind },
 };

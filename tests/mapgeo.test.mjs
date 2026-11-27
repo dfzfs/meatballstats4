@@ -27,7 +27,7 @@ test('the answer is read into zones, places, floors and ways; anything else is i
     assert.equal(find('Lighthouse'), null);
 });
 
-test('🧭 one tap: asks once, draws zones top to bottom, marks where the story is, keeps the old one for ↩', async () => {
+test('🗺 first-generation map: 🧭 look adds unvisited stations · ways · areas, ＋－ zoom, 🏢 building cross-section, ↩', async () => {
     page();
     const t = await setup({ apps: ['scene', 'map'], chat: chatOf([{ reply: 'a' }, { user: 'b' }, { reply: 'c' }]) });
     t.record(0, [['loc', 'Hilltop > Bell Tower Inn > kitchen']]);
@@ -35,37 +35,39 @@ test('🧭 one tap: asks once, draws zones top to bottom, marks where the story 
     const api = await apiFor(t.E, 'map');
     let asked = '';
     api.ask = async (p) => { asked = p; return ANSWER; };
-    const el = document.createElement('div'), def = t.E.reg.get('map');
+    const el = document.createElement('div'), def = t.E.reg.get('map'), tap = (sel) => el.querySelector(sel).dispatchEvent(new window.Event('click', { bubbles: true }));
     def.render(el, api);
-    el.querySelector('[data-act="geo"]').dispatchEvent(new window.Event('click', { bubbles: true }));
+    assert.ok(el.querySelector('svg.mbx-map'), 'the line map is the map');
+    assert.ok(el.querySelector('[data-act="zoom"][data-v="in"]') && el.querySelector('[data-act="zoom"][data-v="fit"]'));
+    tap('[data-act="geo"]');
     await new Promise((r) => setTimeout(r, 20));
-    assert.match(asked, /OOC/);
-    assert.match(asked, /Do NOT continue the story/);
-    assert.match(asked, /Bell Tower Inn/, 'the places already visited go into the question');
-    assert.equal(api.store.geo.places.length, 3);
-    const zones = () => [...el.querySelectorAll('.mbg-map .zn')].map((x) => x.textContent);
-    assert.deepEqual(zones().map((z) => z.split(' ·')[0]), ['Hilltop'], 'opens on the zone where the story is');
-    assert.ok(el.querySelector('[data-act="gzone"][data-v="Lower Harbor"]'));
-    el.querySelector('[data-act="gzone"][data-v=""]').dispatchEvent(new window.Event('click', { bubbles: true }));
-    assert.deepEqual(zones().map((z) => z.split(' ·')[0]), ['Hilltop', 'Lower Harbor'], '「전체」: highest on top');
-    assert.ok(el.querySelector('[data-act="gzoom"][data-v="in"]') && el.querySelector('[data-act="gzoom"][data-v="fit"]'));
-    // one zone shown: a way leading out of it is marked on the place it leaves from
-    el.querySelector('[data-act="gzone"][data-v="Hilltop"]').dispatchEvent(new window.Event('click', { bubbles: true }));
-    assert.match(el.querySelector('.mbg-map .pl[data-v="Clinic"] .out')?.textContent ?? '', /Fish Market · cliff lift/);
-    assert.ok(el.querySelector('.mbg-map .pl.here[data-v="Clinic"]'), 'the clinic is where the story is');
-    el.querySelector('[data-act="gzone"][data-v="Lower Harbor"]')?.dispatchEvent(new window.Event('click', { bubbles: true }));
-    assert.ok(el.querySelector('.mbg-map .pl.unseen[data-v="Fish Market"]'), 'not visited yet');
-    el.querySelector('[data-act="geosel"][data-v="Clinic"]')?.dispatchEvent(new window.Event('click', { bubbles: true }));
-    assert.match(el.textContent, /3F\s*ward · office/);
-    // asked again with a different answer: the first is kept for ↩
+    assert.match(asked, /OOC/); assert.match(asked, /Do NOT continue the story/); assert.match(asked, /Bell Tower Inn/);
+    // the market nobody has been to yet is now a (faint) station, joined by the cliff lift
+    const st = (n) => el.querySelector(`svg.mbx-map g.node[data-v="${n}"]`);
+    assert.ok(!st('Fish Market'), 'opens on the area you are in');
+    tap('[data-act="area"][data-v="*"]');
+    assert.ok(st('Fish Market') && st('Fish Market').classList.contains('new'));
+    assert.ok(el.querySelector('[data-act="area"][data-v="Lower Harbor"]'), 'areas from the zones');
+    // ＋ narrows the view; ⤢ puts it back
+    const svg = el.querySelector('svg.mbx-map'), vb0 = svg.getAttribute('viewBox');
+    tap('[data-act="zoom"][data-v="in"]');
+    assert.notEqual(svg.getAttribute('viewBox'), vb0);
+    tap('[data-act="zoom"][data-v="fit"]');
+    assert.equal(svg.getAttribute('viewBox'), vb0);
+    // 🏢 the clinic: floors from the story (3F office) and the look (3F ward, office)
+    tap('[data-act="mapsel"][data-v="Clinic"]');
+    tap('[data-act="inside"][data-v="Clinic"]');
+    const elev = el.querySelector('svg.mbx-elev');
+    assert.ok(elev, 'cross-section open');
+    assert.match(elev.textContent, /3F/); assert.match(elev.textContent, /ward/); assert.match(elev.textContent, /office/);
+    assert.ok(elev.querySelector('.rm.on'), 'the room the story is in is marked');
+    tap('[data-act="outside"]');
+    assert.ok(el.querySelector('svg.mbx-map'));
+    // asked again: the first look is kept for ↩
     api.ask = async () => 'ZONE: Hilltop | 0 |\nPLACE: Clinic | Hilltop | 5,5 | work | - | x';
-    el.querySelector('[data-act="geo"]').dispatchEvent(new window.Event('click', { bubbles: true }));
+    tap('[data-act="geo"]');
     await new Promise((r) => setTimeout(r, 20));
     assert.equal(api.store.geo.places.length, 1);
-    assert.equal(api.store.geoPrev.places.length, 3);
-    el.querySelector('[data-act="geoundo"]').dispatchEvent(new window.Event('click', { bubbles: true }));
+    tap('[data-act="geoundo"]');
     assert.equal(api.store.geo.places.length, 3);
-    // the subway view is still there
-    el.querySelector('[data-act="mode"][data-v="line"]').dispatchEvent(new window.Event('click', { bubbles: true }));
-    assert.ok(el.querySelector('.mbx-map'));
 });
