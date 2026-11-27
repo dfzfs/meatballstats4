@@ -67,28 +67,31 @@ test('older saved plans carry over', async () => {
     assert.deepEqual(st.items.map((x) => [x.who, x.rep, x.day, x.how, x.doneOn]), [['*', 'once', 2, '시장', { 2: true }], ['미루', 'once', 3, '', {}]]);
 });
 
-test('the screen: 👥 공동 holds everyone\'s blocks in time order; a person\'s tab only theirs; now is marked; a tap ticks the day off', async () => {
+test('the screen: 👥 공동 holds everyone in time order; overlapping blocks share one group, one short line each; details open on tap', async () => {
     page();
     const t = await setup({ apps: ['scene', 'people', 'schedule'], chat: CHAT(), user: '보리', char: '미루' });
     t.record(0, LINES0); t.record(2, LINES2);
     const st = t.E.envOf('schedule').store;
     Object.assign(st, { seeded: true, sel: ['미루'], items: [
-        { who: '*', rep: 'daily', time: '18:00–19:00', tod: 'evening', what: '다 같이 저녁' },
-        { who: '미루', rep: 'daily', time: '13:00–17:00', tod: 'afternoon', what: '가게 보기', how: '계산대' },
-        { who: '보리', rep: 'daily', time: '07:00–08:00', tod: 'morning', what: '편지 쓰기' }] });
+        { who: '*', rep: 'daily', time: '18:00–19:00', tod: 'evening', what: '저녁' },
+        { who: '미루', rep: 'daily', time: '13:00–17:00', tod: 'afternoon', what: '가게', how: '계산대' },
+        { who: '보리', rep: 'daily', time: '07:00–08:30', tod: 'morning', what: '산책' },
+        { who: '미루', rep: 'daily', time: '07:30–12:30', tod: 'morning', what: '회진' },
+        { who: '*', rep: 'daily', time: '07:30–08:30', tod: 'morning', what: '아침' }] });
     const el = document.createElement('div');
     const draw = async () => (await import(src('apps/schedule.js'))).default.render(el, await apiFor(t.E, 'schedule', { draw: () => draw() }));
     const tick = () => new Promise((r) => setTimeout(r, 20));
     await draw();
-    const titles = () => [...el.querySelectorAll('.mb4-sch-ev .mb4-sch-b > b')].map((b) => b.textContent);
-    assert.deepEqual([...el.querySelectorAll('.mb4-sch-tab')].map((b) => b.textContent.trim()), ['👥공동', `${'🤔'}보리 (나)`.replace('🤔', el.querySelectorAll('.mb4-sch-tab i')[1].textContent), `${el.querySelectorAll('.mb4-sch-tab i')[2].textContent}미루`, '＋ 사람']);
-    assert.deepEqual(titles(), ['편지 쓰기', '가게 보기', '다 같이 저녁']);
-    assert.match(el.querySelector('.mb4-sch-ev').querySelector('.mb4-sch-t').innerHTML, /07:00<br>–08:00/);
-    assert.match(el.querySelector('.mb4-sch-now').textContent, /지금 · 오후[\s\S]*가게 보기[\s\S]*🚶\s*계산대[\s\S]*매일/);
-    [...el.querySelectorAll('[data-act="view"]')].find((b) => b.dataset.v === '미루').click(); await tick();
-    assert.deepEqual(titles(), ['가게 보기']);
-    el.querySelector('[data-act="done"]').click(); await tick();
+    const groups = () => [...el.querySelectorAll('.mb4-sch-ev')].map((g) => [g.querySelector('.mb4-sch-t').textContent, [...g.querySelectorAll('.mb4-sch-row > b')].map((b) => b.textContent)]);
+    assert.deepEqual(groups(), [['아침', ['산책', '아침', '회진']], ['오후', ['가게']], ['저녁', ['저녁']]]);
+    assert.match(el.querySelector('.mb4-sch-now').textContent, /지금 · 오후[\s\S]*가게/);
+    assert.equal(el.querySelectorAll('.mb4-sch-more').length, 0, 'details stay closed');
+    [...el.querySelectorAll('[data-act="open"]')].find((b) => b.textContent.includes('가게')).click(); await tick();
+    assert.match(el.querySelector('.mb4-sch-more').textContent, /🚶 계산대[\s\S]*미루 · 매일[\s\S]*✓ 끝냄/);
+    el.querySelector('.mb4-sch-more [data-act="done"]').click(); await tick();
     assert.deepEqual(st.items[1].doneOn, { 2: true }, 'a daily block is ticked off for this day only');
+    [...el.querySelectorAll('[data-act="view"]')].find((b) => b.dataset.v === '미루').click(); await tick();
+    assert.deepEqual(groups().map((g) => g[1]), [['회진'], ['가게']]);
     assert.doesNotMatch(el.textContent, /일째/);
 });
 
@@ -111,7 +114,7 @@ test('🪄 opens a panel with everyone ticked; one press, one call: routines for
     assert.equal(el.querySelector('input[name="mb4-sch-mode"]:checked').value, 'routine');
     el.querySelector('[data-act="magic"]').click(); await tick();
     assert.equal(calls, 1);
-    assert.match(prompt, /ROUTINE[\s\S]*who \| when \| time \| what \| how/);
+    assert.match(prompt, /ROUTINE[\s\S]*who \| when \| time \| what \| how[\s\S]*ONE TO THREE WORDS/);
     assert.deepEqual(st.items.map((x) => `${x.who}:${x.what}`), ['*:직접 넣은 일', '*:다 같이 저녁', '미루:가게 보기', '보리:산책', '소담:꽃시장']);
     el.querySelector('[data-act="panel"][data-v="ai"]').click(); await tick();
     el.querySelector('[data-act="magic"]').click(); await tick();

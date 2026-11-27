@@ -169,24 +169,24 @@ export default {
 .mb4-sch-chk input:focus-visible + span { outline: 2px solid var(--a); outline-offset: 1px; }
 .mb4-phone .mb4-sch-go-btn { width: 100%; margin-top: 12px; min-height: 42px; border-radius: 14px; background: var(--a) !important; color: #fff !important; }
 .mb4-sch-tl { margin: 4px 0 8px; }
-.mb4-sch-ev { position: relative; display: grid; grid-template-columns: 50px 30px 1fr; --c: var(--a); }
-.mb4-sch-t { padding-top: 3px; font-size: 12px; font-weight: 700; line-height: 1.3; color: var(--sub); overflow-wrap: anywhere; }
+.mb4-sch-ev { position: relative; display: grid; grid-template-columns: 50px 26px 1fr; --c: var(--a); }
+.mb4-sch-t { padding-top: 6px; font-size: 12px; font-weight: 700; line-height: 1.3; color: var(--sub); overflow-wrap: anywhere; }
 .mb4-sch-rail { position: relative; display: flex; justify-content: center; }
-.mb4-sch-rail::after { content: ''; position: absolute; top: 26px; bottom: 2px; left: 50%; width: 2px; margin-left: -1px; border-radius: 2px; background: var(--c); }
-.mb4-sch-ev:last-child .mb4-sch-rail::after { bottom: 14px; }
-.mb4-sch-dot { position: relative; z-index: 1; display: grid; place-items: center; width: 24px; height: 24px; padding: 0; border: 2px solid var(--c); border-radius: 50%; background: var(--card); color: var(--c) !important; font-size: 12px !important; font-weight: 800 !important; line-height: 1; }
-.mb4-sch-dot::after { content: ''; width: 10px; height: 10px; border-radius: 50%; background: var(--c); }
-.mb4-sch-ev.done .mb4-sch-dot::after { content: '✓'; width: auto; height: auto; background: none; font-size: 13px; }
-.mb4-sch-ev.tag .mb4-sch-dot::after { width: 6px; height: 6px; }
-.mb4-sch-b { min-width: 0; padding: 1px 0 18px 6px; overflow-wrap: anywhere; }
-.mb4-sch-b > b { display: block; margin-bottom: 4px; font-size: 15.5px; font-weight: 750; line-height: 1.3; color: var(--c); }
-.mb4-sch-ev.done .mb4-sch-b > b { opacity: .55; text-decoration: line-through; }
-.mb4-sch-m { display: flex; align-items: baseline; gap: 7px; font-size: 12.5px; line-height: 1.55; color: var(--sub); }
-.mb4-sch-m i { flex: none; width: 14px; font-style: normal; font-size: 11px; text-align: center; }
-.mb4-sch-who { color: var(--c); font-weight: 700; }
-.mb4-sch-rep { margin-left: 2px; padding: 0 7px; border-radius: 999px; background: color-mix(in srgb, var(--c) 14%, transparent); color: var(--c); font-size: 11px; font-weight: 700; }
-.mb4-sch-go { margin-left: 4px; padding: 0; border: 0; background: none; color: var(--a) !important; font-size: 12px !important; font-weight: 700 !important; }
-.mb4-sch-now { position: relative; margin: 0 -14px; padding: 12px 14px 0; background: linear-gradient(180deg, color-mix(in srgb, var(--a) 16%, transparent), transparent 85%); }
+.mb4-sch-rail::after { content: ''; position: absolute; top: 24px; bottom: 0; left: 50%; width: 2px; margin-left: -1px; background: color-mix(in srgb, var(--sub) 35%, transparent); }
+.mb4-sch-ev:last-child .mb4-sch-rail::after { display: none; }
+.mb4-sch-dot { position: relative; z-index: 1; margin-top: 6px; width: 14px; height: 14px; border: 3px solid var(--c); border-radius: 50%; background: var(--card); }
+.mb4-sch-rows { display: flex; flex-direction: column; gap: 5px; min-width: 0; padding: 0 0 14px 4px; }
+.mb4-sch-row { display: flex; align-items: center; gap: 7px; width: 100%; min-height: 34px; padding: 6px 10px; border: 0; border-left: 4px solid var(--c); border-radius: 10px; background: color-mix(in srgb, var(--c) 13%, var(--card)); color: var(--fg) !important; text-align: left; font-size: 14px !important; line-height: 1.3; }
+.mb4-sch-row > i { flex: none; font-style: normal; font-size: 15px; }
+.mb4-sch-row > b { flex: 1; min-width: 0; font-weight: 700; color: color-mix(in srgb, var(--c) 75%, var(--fg)); overflow-wrap: anywhere; }
+.mb4-sch-row > small { flex: none; font-size: 11.5px; font-weight: 600; color: var(--sub); white-space: nowrap; }
+.mb4-sch-row.done { opacity: .5; } .mb4-sch-row.done > b { text-decoration: line-through; }
+.mb4-sch-row.tag { border-left-style: dashed; }
+.mb4-sch-more { margin: -2px 0 4px; padding: 8px 10px; border-radius: 10px; background: var(--card); font-size: 12.5px; line-height: 1.5; color: var(--sub); overflow-wrap: anywhere; }
+.mb4-sch-more > div { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; margin-top: 6px; }
+.mb4-sch-more button { min-height: 28px; padding: 3px 10px; border: 1px solid var(--line); border-radius: 999px; background: transparent; color: var(--fg) !important; font-size: 12px !important; }
+.mb4-sch-rep { padding: 1px 8px; border-radius: 999px; background: color-mix(in srgb, var(--c) 14%, transparent); color: var(--c); font-size: 11px; font-weight: 700; }
+.mb4-sch-now { position: relative; margin: 0 -14px; padding: 24px 14px 0; background: linear-gradient(180deg, color-mix(in srgb, var(--a) 16%, transparent), transparent 85%); }
 .mb4-sch-now::before { content: ''; position: absolute; left: 0; right: 0; top: 0; height: 1.5px; background: var(--a); }
 .mb4-sch-now::after { content: ''; position: absolute; left: 10px; top: -6px; width: 13px; height: 13px; border-radius: 50%; background: var(--a); }
 .mb4-sch-now > small { position: absolute; right: 14px; top: 3px; font-size: 10.5px; font-weight: 800; color: var(--a); }
@@ -248,24 +248,28 @@ export default {
         // ── the day ──
         const L = collect(S, env, pick).filter(inView).sort((a, b) => a.hour - b.hour || (a.who === SHARED ? -1 : 0) - (b.who === SHARED ? -1 : 0));
         const ICON = { due: '📌', done: '📌', mark: '📅', memo: '📝' };
-        const ev = (e, first) => `<div class="mb4-sch-ev${e.done ? ' done' : ''}${e.kind !== 'own' ? ' tag' : ''}" style="--c:${colorOf(e.who)}">
-            <span class="mb4-sch-t">${first ? esc(e.label).replace('–', '<br>–') : ''}</span>
-            <span class="mb4-sch-rail">${e.kind === 'own' ? `<button class="mb4-sch-dot" data-act="done" data-v="${e.n}" aria-label="${esc(e.title)} ${e.done ? '끝냄 풀기' : '끝냄'}"></button>` : '<i class="mb4-sch-dot"></i>'}</span>
-            <div class="mb4-sch-b"><b>${e.kind !== 'own' ? `${ICON[e.kind]} ` : ''}${esc(e.title)}</b>
-                ${e.how ? `<span class="mb4-sch-m"><i>🚶</i>${esc(e.how)}</span>` : ''}
-                ${e.kind === 'own' ? `<span class="mb4-sch-m"><i>${icoOf(e.who)}</i><span class="mb4-sch-who">${esc(nameOf(e.who))}</span><span class="mb4-sch-rep">${esc(e.rep)}</span></span>` : `<span class="mb4-sch-m"><i>🏷</i>${esc(e.tag)}${e.go && api.isOn(e.go.slice(4)) ? `<button class="mb4-sch-go" data-act="go" data-v="${e.go}">보기 ›</button>` : ''}</span>`}</div></div>`;
+        // blocks are grouped by time of day (새벽 · 아침 · 낮 …), one short line each with its own hours; tapping a line opens its details
+        const span = (e) => { if (e.hour < 0) return [-1, -1]; const m = String(e.time ?? '').match(/\d{1,2}\s*(?::\s*\d{2})?[^\d]+(\d{1,2})\s*(?::\s*(\d{2}))?/); let end = m ? +m[1] + (m[2] ? +m[2] / 60 : 0) : e.hour + 1; if (end < 4) end += 24; if (end <= e.hour) end += 24; return [e.hour, end]; };
+        const clusters = [];
+        for (const e of L) { const [a, z] = span(e), key = a < 0 ? '' : e.tod || todOfHour(a % 24), c = clusters.find((x) => x.key === key); if (c) { c.list.push(e); c.z = Math.max(c.z, z); } else clusters.push({ key, a, z, list: [e] }); }
+        const open = String(st.open ?? '');
+        const row = (e) => {
+            const key = e.kind === 'own' ? `n${e.n}` : `t${e.kind}:${e.title}`, c = colorOf(e.who);
+            const head = `<button class="mb4-sch-row${e.done ? ' done' : ''}${e.kind !== 'own' ? ' tag' : ''}" style="--c:${c}" data-act="open" data-v="${esc(key)}"><i>${e.kind === 'own' ? icoOf(e.who) : ICON[e.kind]}</i><b>${esc(e.title)}</b><small>${e.kind === 'own' ? esc(e.label) : esc(e.tag)}</small></button>`;
+            if (open !== key) return head;
+            const body = e.kind === 'own'
+                ? `${e.how ? `🚶 ${esc(e.how)}` : ''}<div><span class="mb4-sch-rep" style="--c:${c}">${esc(nameOf(e.who))} · ${esc(e.rep)}</span><button data-act="done" data-v="${e.n}">${e.done ? '↩ 안 끝냄' : '✓ 끝냄'}</button></div>`
+                : `<div>${e.go && api.isOn(e.go.slice(4)) ? `<button data-act="go" data-v="${e.go}">${ICON[e.kind]} 보러 가기 ›</button>` : ''}</div>`;
+            return head + `<div class="mb4-sch-more">${body}</div>`;
+        };
         const nowTod = pick === today ? S.tod : '';
-        // blocks in time order; the same time label is written once; the block the story is in now is marked
-        const tl = L.length ? (() => {
-            let out = '', nowOpen = false, last = null;
-            for (const e of L) {
-                const isNow = !!nowTod && e.kind === 'own' && e.tod === nowTod;
-                if (isNow && !nowOpen) { out += `<div class="mb4-sch-now"><small>지금 · ${TOD_KO[nowTod]}</small>`; nowOpen = true; }
-                if (!isNow && nowOpen) { out += '</div>'; nowOpen = false; }
-                out += ev(e, e.label !== last); last = e.label;
-            }
-            return out + (nowOpen ? '</div>' : '');
-        })() : `${nowTod ? `<div class="mb4-sch-now"><small>지금 · ${TOD_KO[nowTod]}</small></div>` : ''}<div class="mb4-sch-empty">${view === SHARED ? '공동' : esc(nameOf(view))} 일정이 비어 있어요<br>🪄 AI로 짜기를 누르거나 직접 넣어요</div>`;
+        const tl = L.length ? clusters.map((c) => {
+            const color = c.list.length === 1 ? colorOf(c.list[0].who) : 'var(--a)';
+            const label = c.key ? TOD_KO[c.key] : '종일';
+            const html = `<div class="mb4-sch-ev" style="--c:${color}"><span class="mb4-sch-t">${label}</span><span class="mb4-sch-rail"><i class="mb4-sch-dot"></i></span><div class="mb4-sch-rows">${c.list.map(row).join('')}</div></div>`;
+            const isNow = !!nowTod && c.key === nowTod;
+            return isNow ? `<div class="mb4-sch-now"><small>지금 · ${TOD_KO[nowTod]}</small>${html}</div>` : html;
+        }).join('') : `${nowTod ? `<div class="mb4-sch-now"><small>지금 · ${TOD_KO[nowTod]}</small></div>` : ''}<div class="mb4-sch-empty">${view === SHARED ? '공동' : esc(nameOf(view))} 일정이 비어 있어요<br>🪄 AI로 짜기를 누르거나 직접 넣어요</div>`;
 
         el.innerHTML = `${scene ? '' : `<section class="mb4-card warn">${esc('🧭 장면 앱을 켜야 이야기 속 날과 때가 흘러요. 지금은 넣은 일정만 보여 줘요.')}</section>`}
         ${top}${tabs}${bar}${panels[st.panel] ?? ''}<div class="mb4-sch-tl">${tl}</div>
@@ -282,6 +286,7 @@ export default {
             pick: (v) => { st.pick = v === 'today' ? today : Math.max(1, +v || today); api.redraw(); },
             view: (v) => { st.view = v; api.redraw(); },
             panel: (v) => { st.panel = st.panel === v ? '' : v; api.redraw(); },
+            open: (v) => { st.open = st.open === v ? '' : v; api.redraw(); },
             go: (v) => api.go(v),
             tell: (_v, b) => { api.cfg.tell = b.checked; api.save(); },
             done: (n) => { const x = st.items[+n]; if (!x) return; x.doneOn = x.doneOn && typeof x.doneOn === 'object' ? x.doneOn : {}; if (x.doneOn[pick]) delete x.doneOn[pick]; else x.doneOn[pick] = true; save(); },
@@ -316,8 +321,8 @@ Timetables:\n${who}
 ${shape}
 One block per line, exactly in this shape:
 who | when | time | what | how
-who: "shared" or one of the names above. time: a 24-hour range like 07:00–09:00 (or a time of day: dawn, morning, noon, afternoon, evening, night, midnight). what: their activity, one short sentence. how: their movement and behaviour in that block — which places and ways they use or avoid, who they see or dodge, habits — one or two short sentences.
-Build it from what is known about these people, their situation and their relationships; keep to the plans already fixed below (do not repeat those). Write "what" and "where" in the language the story is written in. No other text.
+who: "shared" or one of the names above. time: a 24-hour range like 07:00–09:00 (or a time of day: dawn, morning, noon, afternoon, evening, night, midnight). what: ONE TO THREE WORDS naming the activity, like a calendar entry (rounds · walk · breakfast · nap) — never a sentence. how: optional, a few words on where they go or what they avoid in that block (may be left empty).
+Build it from what is known about these people, their situation and their relationships; keep to the plans already fixed below (do not repeat those). Write "what" and "how" in the language the story is written in. No other text.
 ${fixed.length ? `\n[Already fixed — keep, do not repeat]\n${fixed.join('\n')}\n` : ''}
 [What is known]\n${api.facts() || '(nothing recorded)'}
 
