@@ -54,3 +54,18 @@ test('🎬 OOC with the request typed in 「다음 답 한 번」: the request i
     assert.match(now, /Sketch the layout of the harbor town/);
     assert.doesNotMatch(now, /Direction for this reply/, 'not sent a second time as a story direction');
 });
+
+test('🎬 OOC with the request in 「이 장면 동안」: it is sent, then emptied so it doesn\'t steer the story; a reroll stays OOC', async () => {
+    const { setup, chatOf } = await import('./harness.mjs');
+    const t = await setup({ apps: ['director'], chat: chatOf([{ reply: 'The baker closed the shutters.' }, { user: 'ok' }]) });
+    const env = () => t.E.envOf('director'), st = env().store;
+    st.ooc = 'once'; st.scene = 'List the districts of the harbor town with an emoji each.';
+    t.E.touch(); t.E.refresh();
+    assert.match(t.note().now, /List the districts of the harbor town/);
+    assert.doesNotMatch(t.note().now, /For the current scene/);
+    await t.arrive('Districts: …');
+    assert.equal(st.ooc, false);
+    assert.equal(st.scene, '', 'the scene box was the question: emptied');
+    t.setGen('swipe'); t.E.touch(); t.E.refresh();
+    assert.match(t.note().now, /List the districts of the harbor town/, 'rerolling the OOC answer asks again');
+});

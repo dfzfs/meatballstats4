@@ -75,6 +75,9 @@ export function slipped(cfg, lastText, broke = []) {
 const shows = (g, texts) => (g.signs ?? []).some((w) => w.length >= 2 && texts.some((t) => t.toLowerCase().includes(w.toLowerCase())));
 const ownWords = (t) => String(t ?? '').split(/[,，、\n]/).map((x) => x.trim()).filter((x) => x.length >= 2).slice(0, 10);
 
+// what the person typed for an OOC reply: 「다음 답 한 번」, else a scene box not used yet
+const oocAsk = (st) => st.once || (st.sceneAt == null ? st.scene : '') || '';
+
 export default {
     api: 1,
     id: 'director',
@@ -92,9 +95,10 @@ export default {
     stateLines: (_S, env) => allRules(env.cfg ?? {}).filter((r) => r.own && r.mode === 'auto').map((r) => `Watched rule ${r.id}: ${clip(r.text, 160)}`),
     note(S, env) {
         const st = env.store, cfg = env.cfg, state = [], now = [], last = env.last ?? -1, reroll = env.gen === 'swipe' || env.gen === 'regenerate';
-        if (st.ooc) {
-            // the question may be in the chat box or in 「다음 답 한 번」: either way it goes with the OOC line (it used to be dropped)
-            const ask = st.once || (reroll ? st.onceLast : '');
+        const oocAgain = reroll && st.oocAt != null && st.oocAt === last;   // a reroll of the OOC answer stays OOC
+        if (st.ooc || oocAgain) {
+            // the question may be in the chat box, 「다음 답 한 번」 or 「이 장면 동안」: whichever was written goes with the OOC line
+            const ask = oocAgain ? st.oocAsk ?? '' : oocAsk(st);
             return { now: [ask
                 ? `This reply is out of character. Do not continue the story or write any scene. The user asks, as the writer, outside the story: "${clip(ask, 1500)}" Answer that request directly and plainly as the writer (in the user's language unless they ask otherwise), using the story and notes above. Ignore story format, trackers, point of view, pacing and length instructions above.`
                 : 'This reply is out of character: answer the user\'s message as the writer, plainly, outside the story. Ignore story format, trackers and length instructions above; do not continue the scene.'] };
@@ -130,10 +134,16 @@ export default {
     onReply(env) {
         const st = env.store, last = env.last ?? 0, reroll = env.gen === 'swipe' || env.gen === 'regenerate';
         let ch = false;
+        // the OOC answer arrived: its question is spent (a scene box used as the question is emptied, so it doesn't steer the story)
+        if (st.ooc === 'once') {
+            st.oocAsk = oocAsk(st); st.oocAt = last;
+            if (!st.once && st.sceneAt == null && st.scene) { st.scene = ''; delete st.sceneAt; }
+            if (st.once) { st.once = ''; delete st.onceLast; }
+            st.ooc = false; ch = true;
+        } else if (!reroll && st.oocAt != null && last > st.oocAt) { delete st.oocAt; delete st.oocAsk; ch = true; }
         if (st.once) { st.onceLast = st.once; st.once = ''; ch = true; } else if (!reroll && st.onceLast) { delete st.onceLast; ch = true; }
         if (st.scene && st.sceneAt == null) { st.sceneAt = last; ch = true; }
         if (st.redo && !reroll) { delete st.redo; ch = true; }
-        if (st.ooc === 'once') { st.ooc = false; ch = true; }
         return ch;
     },
     hud(_S, env) {
@@ -180,7 +190,7 @@ export default {
             ${last >= 0 ? card('↻ 이유를 붙여 다시 뽑기', `${reasons.length ? `<div class="mb4-chips">${reasons.map((r) => `<button class="mb4-btn ghost sm" data-act="reason" data-v="${esc(r)}">+ ${esc(r)}</button>`).join('')}</div>` : ''}
                 <textarea class="mb4-input" data-act="redotext" rows="2" placeholder="지난 답에서 뭐가 별로였나요?">${esc(st.redo?.idx === last ? st.redo.text : '')}</textarea>
                 <div class="mb4-btnrow"><button class="mb4-btn sm" data-act="redo">↻ 이 이유로 다시 뽑기</button>${st.redo?.idx === last ? pill('다시 뽑을 때마다 붙어요', 'good') : ''}</div>`) : ''}
-            ${card('💬 OOC', `<div class="mb4-btnrow"><button class="mb4-btn ${st.ooc ? '' : 'ghost '}sm" data-act="ooc">${st.ooc ? '✓ 다음 답은 OOC로 (누르면 취소)' : '다음 답은 OOC로 물어보기'}</button></div>${hint('물어볼 말은 위 「다음 답 한 번」 칸이나 채팅창에 쓰면 돼요. 켜 두면 이야기 대신 작가로서 답해요.')}`)}`;
+            ${card('💬 OOC', `<div class="mb4-btnrow"><button class="mb4-btn ${st.ooc ? '' : 'ghost '}sm" data-act="ooc">${st.ooc ? '✓ 다음 답은 OOC로 (누르면 취소)' : '다음 답은 OOC로 물어보기'}</button></div>${hint('물어볼 말은 위 「다음 답 한 번」이나 「이 장면 동안」 칸, 또는 채팅창에 쓰면 돼요. 켜 두면 이야기 대신 작가로서 답하고, 쓴 질문은 그 답에서 다 써요.')}`)}`;
         } else if (tab === 'style') {
             const cur = JSON.stringify({ size: pickOf(cfg, 'size')[0], reach: pickOf(cfg, 'reach')[0], boost: Object.keys(cfg.boost).filter((k) => cfg.boost[k]).sort() });
             const setOn = (x) => JSON.stringify({ size: x.size ?? 'auto', reach: x.reach ?? 'auto', boost: [...(x.boost ?? [])].sort() }) === cur;
