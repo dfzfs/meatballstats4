@@ -430,6 +430,8 @@ function mountApp(body, id) {
         go: (v) => go(v), isOn: (other) => R.isOn(other), here: () => view,
         // a model call the person asked for by tapping (one call; '' when paused or failed)
         ask: (prompt, max) => E.ask(prompt, max),
+        // 📘 what a setting book can be built from: list(saved) for the picking screen, read(saved) -> { text, chars } (whole, never cut)
+        sources: { list: async (saved) => (await E.host?.sourceList?.(saved)) ?? [], read: async (saved) => (await E.host?.sources?.(saved)) ?? { text: '', chars: 0 } },
         // the application's lorebook text the recent chat brings in ('' when none); for an app's own prompt
         lore: async (budget) => (await E.host?.lore?.(budget)) ?? '',
         // what Meatball currently knows, as the English lines it would send (for an app's own prompt)

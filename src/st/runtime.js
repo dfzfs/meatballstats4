@@ -34,7 +34,65 @@ const MODS = new Map();       // built-in app modules imported so far: id -> def
 const STYLES = new Map();     // id -> <style> of an app that brought its own CSS
 let listening = false;
 
+// ───── 📘 sources for the setting book: everything picked is read whole, nothing is cut ─────
+async function wiMod() { try { return await import('/scripts/world-info.js'); } catch (e) { return null; } }
+async function linkedBooks() {
+    const c = ctx(), ch = c.characters?.[c.characterId] ?? {}, wi = await wiMod();
+    const on = new Set([c.chatMetadata?.world_info, ch.data?.extensions?.world].filter(Boolean));
+    for (const n of wi?.selected_world_info ?? []) on.add(n);
+    const file = ch.avatar && String(ch.avatar).replace(/\.[^.]+$/, '');
+    for (const x of wi?.world_info?.charLore ?? []) if (x?.name === file) for (const n of x.extraBooks ?? []) on.add(n);
+    return { on, all: [...new Set([...(wi?.world_names ?? []), ...on])] };
+}
+const loreText = (e) => `[LORE${e.constant ? ' ALWAYS' : ''} ${(e.key ?? []).join(', ') || e.comment || ''}]\n${String(e.content ?? '')}`;
+function chatPart(kind) {
+    const c = ctx(), ch = c.characters?.[c.characterId] ?? {}, chat = (c.chat ?? []).filter((m) => !m.is_system);
+    const cards = c.groupId ? (c.groups ?? []).find((g) => g.id === c.groupId)?.members?.map((av) => c.characters?.find((x) => x.avatar === av)).filter(Boolean) ?? [] : [ch];
+    if (kind === 'card') return cards.map((x) => { const t = [x.description, x.personality, x.scenario, x.mes_example].filter(Boolean).join('\n'); return t ? `[CARD ${x.name ?? ''}]\n${t}` : ''; }).filter(Boolean).join('\n\n');
+    if (kind === 'persona') { const t = c.powerUserSettings?.persona_description ?? ''; return t ? `[USER ${c.name1 ?? ''}]\n${t}` : ''; }
+    if (kind === 'first') { const t = chat[0]?.mes ?? ch.first_mes ?? ''; return t ? `[FIRST MESSAGE]\n${t}` : ''; }
+    if (kind === 'recent') { const r = chat.slice(Math.max(1, chat.length - 6)); return r.length ? `[RECENT CHAT]\n${r.map((m) => `${m.name}: ${String(m.mes ?? '')}`).join('\n')}` : ''; }
+    return '';
+}
+const SRC_BASE = [['card', '🃏 캐릭터 카드'], ['persona', '🙋 내 페르소나'], ['first', '💬 첫 메시지'], ['recent', '🕰 최근 대화 6개']];
+// for the picking screen: [{ id, label, size, on, linked, n?, items?: [{ id: 'wx:book:uid', title, keys, always, size, on }] }]
+// saved = the ids switched on, plus 'wx:…' for single entries taken out (null = the defaults)
+async function sourceList(saved = null) {
+    const c = ctx(), { on, all } = await linkedBooks(), out = [];
+    for (const [id, label] of SRC_BASE) { const t = chatPart(id); out.push({ id, label, size: t.length, on: saved ? saved.includes(id) : !!t, linked: true }); }
+    const skip = new Set((saved ?? []).filter((x) => x.startsWith('wx:')));
+    for (const name of all) {
+        let size = 0; const items = [];
+        try {
+            const wb = await c.loadWorldInfo?.(name);
+            for (const e of Object.values(wb?.entries ?? {})) {
+                if (e.disable) continue;
+                const t = loreText(e), xid = `wx:${name}:${e.uid}`;
+                items.push({ id: xid, title: e.comment || (e.key ?? []).join(', ') || `#${e.uid}`, keys: (e.key ?? []).join(', '), always: !!e.constant, size: t.length, on: !skip.has(xid) });
+                size += t.length;
+            }
+        } catch (e) { /* could not be read */ }
+        out.push({ id: `wi:${name}`, label: `📚 ${name}`, size, n: items.length, items, on: saved ? saved.includes(`wi:${name}`) : on.has(name), linked: on.has(name) });
+    }
+    return out;
+}
+// the text of everything picked, whole: -> { text, chars }
+async function sources(saved = null) {
+    const c = ctx(), want = saved ? new Set(saved) : new Set([...SRC_BASE.map((x) => x[0]), ...[...(await linkedBooks()).on].map((n) => `wi:${n}`)]);
+    const L = [], lore = [];
+    for (const [id] of SRC_BASE) if (want.has(id)) { const t = chatPart(id); if (t) L.push(t); }
+    for (const id of want) {
+        if (!id.startsWith('wi:')) continue;
+        const name = id.slice(3);
+        try { const wb = await c.loadWorldInfo?.(name); for (const e of Object.values(wb?.entries ?? {})) { if (e.disable || want.has(`wx:${name}:${e.uid}`)) continue; lore.push({ on: !!e.constant, t: loreText(e) }); } } catch (e) { /* no such book */ }
+    }
+    lore.sort((x, y) => y.on - x.on);   // always-on (world) entries first
+    const text = [...L, ...lore.map((x) => x.t)].join('\n\n');
+    return { text, chars: text.length };
+}
+
 const host = {
+    sourceList, sources,
     chat: () => ctx().chat ?? [],
     store, cfg, saveChat, saveCfg, names, cardKey, toast,
     put(slot, text) { const s = SLOT[slot]; try { ctx().setExtensionPrompt(s.key, text || '', IN_CHAT, s.depth, false, SYSTEM); } catch (e) { console.warn('[meatball] could not place the note', e); } },

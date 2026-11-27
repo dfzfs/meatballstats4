@@ -165,7 +165,7 @@ export class Engine {
                 const upto = job.i;
                 const states = fold({ chat: this.host.chat(), records: st.ev, fixes: st.fix ?? {}, reg: this.reg, envOf: this.envOf, upto });
                 const turn = { text: turnText({ reply: job.reply, user: job.user }), at: job.i, read: Object.keys(st.ev).length, force: !!force };
-                const prompt = buildClassifierPrompt({ reg: this.reg, states, envOf: this.envOf, reply: job.reply, user: job.user, turn });
+                const prompt = this.withBrief(buildClassifierPrompt({ reg: this.reg, states, envOf: this.envOf, reply: job.reply, user: job.user, turn }));
                 const ks = sigOf(this.reg, states, this.envOf, turn);   // the keys really asked this time (conditional ones only when due)
                 if (!prompt) break;
                 let answer = '';
@@ -244,7 +244,7 @@ export class Engine {
                 if (!jobs.length) continue;
                 const states = fold({ chat: this.host.chat(), records: st.ev, fixes: st.fix ?? {}, reg: this.reg, envOf: this.envOf, upto: jobs[0].i });
                 const turn = { text: turnText({ jobs }), at: jobs[0].i, read: Object.keys(st.ev).length, force: false };
-                const prompt = buildClassifierPrompt({ reg: this.reg, states, envOf: this.envOf, jobs, turn });
+                const prompt = this.withBrief(buildClassifierPrompt({ reg: this.reg, states, envOf: this.envOf, jobs, turn }));
                 const ks = sigOf(this.reg, states, this.envOf, turn);
                 if (!prompt) break;
                 let answer = '';
@@ -293,8 +293,12 @@ export class Engine {
         return n;
     }
     // A model call the person asked for by tapping (a text reply, a headline…). Never made on its own.
+    // What apps want every Meatball model call to know (📘 the setting book): kind = 'ask' (a tap call) | 'read' (the reader)
+    withBrief(prompt) { if (!prompt) return prompt; const ref = this.brief('read'); return ref ? `${ref}\n\n${prompt}` : prompt; }
+    brief(kind) { const L = []; for (const a of this.reg.list()) { if (!a.brief) continue; try { const t = a.brief(this.envOf(a.id), kind); if (t) L.push(String(t)); } catch (e) { /* optional */ } } return L.join('\n\n'); }
     async ask(prompt, max = 400) {
         if (this.paused()) return '';
+        { const ref = this.brief('ask'); if (ref) prompt = `${prompt}\n\n${ref}`; }
         this.stats.taps = (this.stats.taps ?? 0) + 1;
         try {
             const out = String(await this.host.ask(prompt, max) ?? '').trim();

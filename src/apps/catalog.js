@@ -25,7 +25,7 @@ export const BUILTIN = [
     { id: 'memo', icon: '📝', name: '메모', tab: '메모', color: '#43aa8b', cost: 'zero', desc: '이 채팅에서 AI가 늘 기억했으면 하는 걸 적어 둬요. 적은 그대로만 보내요.' },
     { id: 'record', icon: '📒', name: '기록', tab: '답 기록', color: '#e9c46a', cost: 'zero', desc: '답마다 무엇이 적혔는지 한눈에 보고, 틀리게 읽은 답만 골라 다시 읽혀요.' },
     { id: 'choices', icon: '🎯', name: '선택지', color: '#ef476f', cost: 'tap', desc: 'AI 답 끝의 선택지를 누르기 쉬운 목록으로 보여 주고, 누르면 입력창에 넣어 줘요.' },
-    { id: 'lore', icon: '📖', name: '설정집', tab: '설정집', color: '#8d6e63', cost: 'zero', desc: '세계 · 장소 · 물건 · 규칙을 적어 두면, 그 말이 나온 답에만 골라서 AI에 알려 줘요.' },
+    { id: 'lore', icon: '📘', name: '설정집', tab: '설정집', color: '#8d6e63', cost: 'tap', desc: '카드 · 로어북 · 대화를 통째로 읽어 설정집 한 권을 만들어요. 미트볼이 AI를 부를 때마다 이 설정집이 잘리지 않고 다 들어가요.' },
     { id: 'custom', icon: '🧩', name: '내 칸', tab: '내 칸', color: '#5e60ce', cost: 'low', desc: '내가 정한 것을 따로 적게 해요(예: 명성, 마나, 수상함). 칸을 만들 때만 읽기에 한 줄이 늘어요.' },
     // 재미
     { id: 'fate', icon: '🃏', name: '운명', tab: '운명 카드', color: '#3d348b', cost: 'zero', desc: '축복 · 저주 · 사건 카드를 뽑아요. 몇 답 동안 이야기에 스며들다 저절로 꺼져요.' },
@@ -45,6 +45,7 @@ export const BUILTIN = [
 // tabs are those apps (each still switches on and off by itself, so an unused part costs nothing).
 export const SHELVES = [
     { id: 'state', icon: '📋', name: '상태', hint: '지금 이야기가 어떤지', entries: [
+        { id: 'lore', apps: ['lore'] },
         { id: 'scene', apps: ['scene'] },
         { id: 'cast', front: true, icon: '👥', name: '인물', color: '#4d908e', desc: '사람마다 소개 · 차림새 · 관계 · 호감 · 비밀 · 속마음을 한 장에', apps: ['people', 'look', 'bonds', 'heart', 'secrets', 'mind'] },
         { id: 'plan', icon: '📆', name: '일정', color: '#7a6ad8', desc: '공동 일정 안에 사람별 루틴. 달력과 약속도 같이 떠요', apps: ['schedule', 'calendar', 'todo'] },
@@ -55,7 +56,7 @@ export const SHELVES = [
         { id: 'helper', apps: ['helper'] },
         { id: 'director', apps: ['director'] },
         { id: 'echo', apps: ['echo'] },
-        { id: 'memo', icon: '📝', name: '메모', color: '#43aa8b', desc: 'AI가 기억했으면 하는 것. 늘 보내는 메모와, 그 말이 나올 때만 꺼내는 설정집', apps: ['memo', 'lore'] },
+        { id: 'memo', apps: ['memo'] },
         { id: 'record', icon: '📒', name: '기록', color: '#e9c46a', desc: '답마다 무엇이 적혔는지, 그리고 이룬 것과 남긴 장면', apps: ['record', 'album'] },
         { id: 'choices', apps: ['choices'] },
     ] },
@@ -77,8 +78,8 @@ export const GROUPS = SHELVES.map((s) => ({ id: s.id, name: s.name, hint: s.hint
 
 // First-run question: 「어떤 롤플을 해요?」
 export const PRESETS = [
-    { id: 'story', icon: '📖', name: '이야기만 편하게', desc: '가장 가볍게. 상황 요약만 적어 두고 되풀이를 막아요.', apps: ['scene', 'people', 'echo', 'record', 'helper'] },
-    { id: 'romance', icon: '💕', name: '연애 · 관계 중심', desc: '천천히 가까워지고, 비밀은 지켜요.', apps: ['scene', 'people', 'bonds', 'secrets', 'look', 'mind', 'echo', 'record', 'helper'] },
-    { id: 'sim', icon: '🎒', name: '생활 · 모험 시뮬', desc: '돈 · 수치 · 생활 · 약속을 세고, 판정은 주사위로.', apps: ['scene', 'people', 'wallet', 'stats', 'life', 'todo', 'calendar', 'schedule', 'map', 'dice', 'record', 'helper'] },
-    { id: 'direct', icon: '🎬', name: '내가 감독', desc: '몰래 지시를 넣고, 선택지 · 장치로 이야기를 굴려요.', apps: ['director', 'memo', 'secrets', 'echo', 'scene', 'choices', 'twist', 'record', 'helper'] },
+    { id: 'story', icon: '📖', name: '이야기만 편하게', desc: '가장 가볍게. 상황 요약만 적어 두고 되풀이를 막아요.', apps: ['lore', 'scene', 'people', 'echo', 'record', 'helper'] },
+    { id: 'romance', icon: '💕', name: '연애 · 관계 중심', desc: '천천히 가까워지고, 비밀은 지켜요.', apps: ['lore', 'scene', 'people', 'bonds', 'secrets', 'look', 'mind', 'echo', 'record', 'helper'] },
+    { id: 'sim', icon: '🎒', name: '생활 · 모험 시뮬', desc: '돈 · 수치 · 생활 · 약속을 세고, 판정은 주사위로.', apps: ['lore', 'scene', 'people', 'wallet', 'stats', 'life', 'todo', 'calendar', 'schedule', 'map', 'dice', 'record', 'helper'] },
+    { id: 'direct', icon: '🎬', name: '내가 감독', desc: '몰래 지시를 넣고, 선택지 · 장치로 이야기를 굴려요.', apps: ['lore', 'director', 'memo', 'secrets', 'echo', 'scene', 'choices', 'twist', 'record', 'helper'] },
 ];
