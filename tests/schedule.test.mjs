@@ -113,9 +113,11 @@ test('🪄 opens a panel with everyone ticked; one press, one call: routines for
     el.querySelector('[data-act="panel"][data-v="ai"]').click(); await tick();
     assert.deepEqual([...el.querySelectorAll('[data-ai]')].map((x) => [x.dataset.ai, x.checked]), [['*', true], ['보리', true], ['소담', true], ['미루', true]]);
     assert.equal(el.querySelector('input[name="mb4-sch-mode"]:checked').value, 'routine');
+    el.querySelector('[data-f="wish"]').value = '둘은 아침마다 같이 걷는다';
     el.querySelector('[data-act="magic"]').click(); await tick();
     assert.equal(calls, 1);
-    assert.match(prompt, /ROUTINE[\s\S]*who \| when \| time \| what \| how[\s\S]*ONE TO THREE WORDS/);
+    assert.equal(st.wish, '둘은 아침마다 같이 걷는다', 'what was typed is kept for next time');
+    assert.match(prompt, /ROUTINE[\s\S]*who \| when \| time \| what \| how[\s\S]*SHORT PHRASE of about 4 to 10 words[\s\S]*\[What the user wants — follow it closely\]\n둘은 아침마다 같이 걷는다/);
     assert.deepEqual(st.items.map((x) => `${x.who}:${x.what}`), ['*:직접 넣은 일', '*:다 같이 저녁', '미루:가게 보기', '보리:산책', '소담:꽃시장']);
     el.querySelector('[data-act="panel"][data-v="ai"]').click(); await tick();
     el.querySelector('[data-act="magic"]').click(); await tick();

@@ -232,7 +232,8 @@ export default {
             ai: `<div class="mb4-sch-panel"><b>🪄 AI로 일정 짜기</b>
                 <small>누구 일정</small><div class="mb4-sch-chks">${[SHARED, ...order].map((n) => chk(nameOf(n), n, true)).join('')}</div>
                 <small>어떻게</small><div class="mb4-sch-chks">${radio('mb4-sch-mode', 'routine', '🔁 루틴 (평소 하루 · 요일별)', true)}${radio('mb4-sch-mode', 'week', '🗓 이번 주 7일')}${radio('mb4-sch-mode', 'day', `📍 ${esc(pick === today ? '오늘' : dayName(S, pick, start))} 하루`)}</div>
-                ${hint('누를 때 AI를 1번 불러요. 다시 짜면 AI가 짠 것만 바뀌고, 직접 넣은 건 그대로예요.')}
+                <small>바라는 것 (자유롭게 · 비워도 돼요)</small><textarea class="mb4-input" data-f="wish" rows="4" maxlength="2000" placeholder="예: 한 명은 아침형이라 일찍 일어나고, 다른 한 명은 밤늦게까지 가게를 봐요. 주말엔 다 같이 시장에 가요.">${esc(st.wish ?? '')}</textarea>
+                ${hint('누를 때 AI를 1번 불러요. 다시 짜면 AI가 짠 것만 바뀌고, 직접 넣은 건 그대로예요. 적은 말은 저장돼서 다음에도 남아요.')}
                 <button class="mb4-btn mb4-sch-go-btn" data-act="magic">🪄 짜기</button>
                 <small>지우기 (위에서 고른 사람 것만)</small><div class="mb4-sch-chks"><button class="mb4-sch-wipe" data-act="wipe" data-v="ai">${st._wipe === 'ai' ? '⚠ 한 번 더 누르면 지워져요' : '🗑 AI가 짠 것 지우기'}</button><button class="mb4-sch-wipe" data-act="wipe" data-v="all">${st._wipe === 'all' ? '⚠ 한 번 더 누르면 지워져요' : '🗑 전부 지우기'}</button></div></div>`,
             add: `<div class="mb4-sch-panel"><b>＋ 일정 넣기</b>
@@ -291,7 +292,7 @@ export default {
         acts(el, {
             pick: (v) => { st.pick = v === 'today' ? today : Math.max(1, +v || today); api.redraw(); },
             view: (v) => { st.view = v; api.redraw(); },
-            panel: (v) => { st.panel = st.panel === v ? '' : v; st._wipe = ''; api.redraw(); },
+            panel: (v) => { const w = el.querySelector('[data-f="wish"]'); if (w) st.wish = w.value.slice(0, 2000); st.panel = st.panel === v ? '' : v; st._wipe = ''; api.redraw(); },
             open: (v) => { st.open = st.open === v ? '' : v; api.redraw(); },
             // two taps: the first only asks; the second removes every plan (or only the AI's) of the people ticked above
             wipe: (v) => {
@@ -324,6 +325,7 @@ export default {
             magic: async (_v, b) => {
                 const whoList = [...el.querySelectorAll('[data-ai]')].filter((x) => x.checked).map((x) => x.dataset.ai), mode = radioVal('mb4-sch-mode') || 'routine';
                 if (!whoList.length) { api.toast('누구 일정을 짤지 골라 주세요.'); return; }
+                st.wish = val(el, '[data-f="wish"]').slice(0, 2000);
                 b.disabled = true; b.textContent = '🪄 짜는 중…';
                 const days = mode === 'week' ? week.filter((d) => d >= 1) : mode === 'day' ? [pick] : [];
                 const dayLine = (day, n) => { const d = dateAt(S, day, start); return `D${n + 1} = ${['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'][wdOf(S, day, start)]}${d ? ` ${d.toISOString().slice(0, 10)}` : ''}${day === today ? ' (today)' : ''}`; };
@@ -337,9 +339,9 @@ Timetables:\n${who}
 ${shape}
 One block per line, exactly in this shape:
 who | when | time | what | how
-who: "shared" or one of the names above. time: a 24-hour range like 07:00–09:00 (or a time of day: dawn, morning, noon, afternoon, evening, night, midnight). what: ONE TO THREE WORDS naming the activity, like a calendar entry (rounds · walk · breakfast · nap) — never a sentence. how: optional, a few words on where they go or what they avoid in that block (may be left empty).
+who: "shared" or one of the names above. time: a 24-hour range like 07:00–09:00 (or a time of day: dawn, morning, noon, afternoon, evening, night, midnight). what: a SHORT PHRASE of about 4 to 10 words, like a calendar entry with a little context — the activity and where or with whom (e.g. "morning rounds in the surgical ward", "walk alone along the river path") — not a full sentence. how: optional, a few words on how they move or what they avoid in that block (may be left empty).
 Build it from what is known about these people, their situation and their relationships; keep to the plans already fixed below (do not repeat those). Write "what" and "how" in the language the story is written in. No other text.
-${fixed.length ? `\n[Already fixed — keep, do not repeat]\n${fixed.join('\n')}\n` : ''}
+${st.wish ? `\n[What the user wants — follow it closely]\n${st.wish}\n` : ''}${fixed.length ? `\n[Already fixed — keep, do not repeat]\n${fixed.join('\n')}\n` : ''}
 [What is known]\n${api.facts() || '(nothing recorded)'}
 
 [Latest part of the story]\n${clip(env.recent(1)[0] ?? '', 1500)}`, 2000);
