@@ -4,7 +4,12 @@ export { esc };
 
 const FACES = ['🙂', '😊', '😌', '🧐', '😎', '🤔', '😶', '🥰', '😏', '🫡', '🤓', '😇'];
 // The same name always gets the same face.
-export const face = (name) => FACES[parseInt(hash(String(name ?? '')), 36) % FACES.length];
+// A face someone picked in 👥 인물 wins; the phone hands this chat's picks over before it draws (setFaces).
+const CHOSEN = new Map();
+export const setFaces = (map) => { CHOSEN.clear(); for (const [n, e] of Object.entries(map && typeof map === 'object' ? map : {})) if (n && typeof e === 'string' && e.trim()) CHOSEN.set(n, e.trim().slice(0, 8)); };
+export const face = (name) => CHOSEN.get(String(name ?? '')) ?? FACES[parseInt(hash(String(name ?? '')), 36) % FACES.length];
+// emoji offered when picking a face (any other can be typed)
+export const FACE_PICKS = ['🙂', '😊', '😎', '🤓', '😏', '🥰', '😇', '🤔', '😶', '😤', '🥺', '😴', '🤠', '👻', '🐱', '🐶', '🦊', '🐻', '🐰', '🐼', '🐯', '🦁', '🐸', '🐧', '🌸', '⭐', '🔥', '🍀'];
 
 export const pill = (text, tone = '') => `<span class="mb4-pill ${tone}">${esc(text)}</span>`;
 export const bar = (pct, tone = '') => `<span class="mb4-meter"><i class="${tone}" style="width:${Math.max(0, Math.min(100, Math.round(pct)))}%"></i></span>`;

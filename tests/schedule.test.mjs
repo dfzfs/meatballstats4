@@ -1,4 +1,4 @@
-// 📆 Schedule: one timeline per story day, built from its own plans and from what other apps recorded.
+// 📆 Schedule: a timetable with shared time down the middle and each person's plans beside it.
 // Every name and line here is made up for testing.
 import test from 'node:test';
 import assert from 'node:assert/strict';
@@ -6,75 +6,92 @@ import { readFileSync } from 'node:fs';
 import { page, setup, chatOf, apiFor, src } from './harness.mjs';
 
 const CHAT = () => chatOf([{ reply: '3월 2일 아침, 서점.' }, { user: '안녕.' }, { reply: '둘은 강가로 걸었다.' }], '미루');
-const LINES0 = [['date', '3월 2일'], ['time', 'morning'], ['loc', '구시가 > 서점'], ['with', '=미루'], ['gist', 'They open the shop together.'], ['promise', '미루>보리=우산 돌려주기, tomorrow', '내일']];
-const LINES2 = [['time', '+1d afternoon'], ['loc', '강가'], ['with', '+소담']];
+const LINES0 = [['date', '3월 2일'], ['time', 'morning'], ['loc', '구시가 > 서점'], ['with', '=미루'], ['npc', '미루=서점 주인'], ['npc', '소담=꽃집 아르바이트'], ['promise', '미루>보리=우산 돌려주기, tomorrow', '내일']];
+const LINES2 = [['time', '+1d afternoon'], ['loc', '강가'], ['with', '=소담']];
 
-test('the day is folded from the chat: places, people met and the summary land on the right day and time', async () => {
-    const t = await setup({ apps: ['scene', 'todo', 'calendar', 'schedule'], chat: CHAT(), user: '보리', char: '미루' });
+test('the story clock is folded from the chat and follows a swipe', async () => {
+    const t = await setup({ apps: ['scene', 'schedule'], chat: CHAT(), user: '보리', char: '미루' });
     t.record(0, LINES0); t.record(2, LINES2);
-    const S = t.state('schedule');
-    assert.equal(S.day, 2); assert.equal(S.tod, 'afternoon');
-    assert.deepEqual(S.log.map((l) => [l.d, l.t, l.k, l.v]), [[1, 'morning', 'loc', '서점'], [1, 'morning', 'met', '미루'], [1, 'morning', 'gist', 'They open the shop together.'], [2, 'afternoon', 'loc', '강가'], [2, 'afternoon', 'met', '소담']]);
-    // a reply swiped away takes its part of the day with it
+    assert.deepEqual([t.state('schedule').day, t.state('schedule').tod], [2, 'afternoon']);
     t.chat.pop(); t.E.touch();
-    assert.equal(t.state('schedule').day, 1);
-    assert.equal(t.state('schedule').log.length, 3);
+    assert.deepEqual([t.state('schedule').day, t.state('schedule').tod], [1, 'morning']);
 });
 
-test('one timeline: own plans, a person\'s week, a promise falling due and a marked day', async () => {
+test('one day: own plans, a promise falling due and a marked day; the note tells what is left and who is elsewhere', async () => {
     const { collect, default: app } = await import(src('apps/schedule.js'));
     const t = await setup({ apps: ['scene', 'todo', 'calendar', 'schedule'], chat: CHAT(), user: '보리', char: '미루' });
-    t.record(0, LINES0); t.record(2, [['time', '+1d afternoon'], ['loc', '강가'], ['with', '=소담']]);
-    const env = t.E.envOf('schedule');
-    Object.assign(env.store, { sel: ['미루'], items: [{ day: 2, tod: 'evening', what: '저녁 장보기', who: [], where: '시장' }, { day: 3, tod: 'morning', what: '혼자 산책', who: ['보리'] }], rt: { 미루: [{ wd: [], tod: 'afternoon', what: '가게 보기', where: '서점' }, { wd: [0], tod: 'morning', what: '늦잠', where: '' }] } });
+    t.record(0, LINES0); t.record(2, LINES2);
+    Object.assign(t.E.envOf('schedule').store, { sel: ['미루'], items: [
+        { day: 2, tod: 'evening', what: '저녁 장보기', who: [], where: '시장' },
+        { day: 2, tod: 'afternoon', what: '가게 보기', who: ['미루'], where: '서점' },
+        { day: 2, tod: 'morning', what: '아침 산책', who: ['보리'] },
+        { day: 3, tod: 'morning', what: '혼자 산책', who: ['보리'] }] });
     t.md.apps.calendar = { marks: [{ date: '2026-03-03', label: '개업 기념일' }], notes: {}, start: '2026-03-02' };
     t.E.touch();
     const S = t.state('schedule'), kinds = (day) => collect(S, t.E.envOf('schedule'), day).map((e) => `${e.kind}:${e.title}`);
-    assert.deepEqual(kinds(2).filter((x) => !/^(loc|met|gist)/.test(x)), ['own:저녁 장보기', 'rt:가게 보기', 'due:우산 돌려주기', 'mark:개업 기념일']);   // day 2 is Tuesday 3월 3일: the Sunday-only row is not there
-    assert.deepEqual(kinds(3), ['own:혼자 산책', 'rt:가게 보기']);
-    // the main model hears today's plan and where the picked person is by habit — and nothing once switched off
+    assert.deepEqual(kinds(2), ['own:저녁 장보기', 'own:가게 보기', 'own:아침 산책', 'due:우산 돌려주기', 'mark:개업 기념일']);
+    assert.deepEqual(kinds(3), ['own:혼자 산책']);
     const note = t.note().state;
-    assert.match(note, /On today's schedule[^\n]*: evening — everyone together: 저녁 장보기 \(at 시장\)/);
-    assert.match(note, /By habit, right now \(afternoon\): 미루 is at 서점 \(가게 보기\)/);
+    assert.match(note, /On today's schedule[^\n]*evening — everyone together: 저녁 장보기 \(at 시장\)/);
+    assert.doesNotMatch(note, /아침 산책/, 'what is already past is not told');
+    assert.match(note, /Right now \(afternoon\), elsewhere by their schedule: 미루 — 가게 보기 at 서점/);
     t.E.envOf('schedule').cfg.tell = false; t.E.touch();
-    assert.doesNotMatch(t.note().state, /schedule|By habit/);
-    assert.deepEqual(app.hud(S, t.E.envOf('schedule')), ['📆 저녁 · 저녁 장보기']);
+    assert.doesNotMatch(t.note().state, /schedule/);
+    t.E.envOf('schedule').cfg.tell = true;
+    assert.deepEqual(app.hud(S, t.E.envOf('schedule')), ['📆 오후 · 가게 보기']);
 });
 
-test('a week written as lines is read: days, time of day, what, where', async () => {
-    const { parseRoutine } = await import(src('apps/schedule.js'));
-    assert.deepEqual(parseRoutine('1. Mon, Wed | morning | 수업 듣기 | 강의실\n- every | night | 일기 쓰기 |\nweekend | 낮 | 시장 구경 | 시장\nnot a line'), [
-        { wd: [1, 3], tod: 'morning', what: '수업 듣기', where: '강의실' }, { wd: [], tod: 'night', what: '일기 쓰기', where: '' }, { wd: [0, 6], tod: 'noon', what: '시장 구경', where: '시장' }]);
-    assert.deepEqual(parseRoutine('월·수 | 아침 | 수업 | 학교')[0].wd, [1, 3]);
+test('the model\'s week is read: day, who (together / one / two), time, what, where; strangers are dropped', async () => {
+    const { parsePlan } = await import(src('apps/schedule.js'));
+    const rows = parsePlan('D1 | together | evening | 저녁 식사 | 강가 식당\n- D2 | 미루 | 아침 | 가게 열기 | 서점\nD2 | 보리 & 소담 | afternoon | 시장 구경 | 시장\nD3 | 누군가 | noon | 낮잠 | 집\nD9 | together | noon | x | y\nnot a line', [4, 5, 6], ['보리', '미루', '소담']);
+    assert.deepEqual(rows.map((r) => [r.day, r.who, r.tod, r.what, r.where]), [[4, [], 'evening', '저녁 식사', '강가 식당'], [5, ['미루'], 'morning', '가게 열기', '서점'], [5, ['보리', '소담'], 'afternoon', '시장 구경', '시장']]);
+    assert.ok(rows.every((r) => r.ai));
 });
 
-test('the screen: adding a plan, picking a person, 🪄 one call for their week', async () => {
+test('the screen: a line down the middle, me on the left, the next person on the right, shared plans on the line', async () => {
     page();
-    const t = await setup({ apps: ['scene', 'people', 'todo', 'calendar', 'schedule'], chat: CHAT(), user: '보리', char: '미루', answers: ['Tue, Thu | evening | 야간 수업 | 학원\nevery | morning | 가게 열기 | 서점'] });
-    t.record(0, [...LINES0, ['npc', '미루=서점 주인']]); t.record(2, LINES2);
+    const t = await setup({ apps: ['scene', 'people', 'schedule'], chat: CHAT(), user: '보리', char: '미루' });
+    t.record(0, LINES0); t.record(2, LINES2);
+    Object.assign(t.E.envOf('schedule').store, { seeded: true, sel: ['미루'], items: [
+        { day: 2, tod: 'evening', what: '저녁 장보기', who: [] }, { day: 2, tod: 'afternoon', what: '가게 보기', who: ['미루'] },
+        { day: 2, tod: 'afternoon', what: '편지 쓰기', who: ['보리'] }, { day: 2, tod: 'night', what: '같이 산책', who: ['보리', '미루'] }] });
     const el = document.createElement('div');
-    const draw = async () => { const api = await apiFor(t.E, 'schedule', { draw: () => draw() }); api.ask = (p) => t.E.host.ask(p); (await import(src('apps/schedule.js'))).default.render(el, api); };
-    const tickle = () => new Promise((r) => setTimeout(r, 20));
+    const draw = async () => (await import(src('apps/schedule.js'))).default.render(el, await apiFor(t.E, 'schedule', { draw: () => draw() }));
     await draw();
-    assert.equal(el.querySelectorAll('.mb4-sch-day').length, 7);
-    assert.match(el.querySelector('.mb4-sch-slot.now').textContent, /지금\s*오후/);
+    const row = (tod) => [...el.querySelectorAll('.mb4-sch-row')].find((r) => r.querySelector('.mb4-sch-t')?.textContent === tod);
+    assert.equal(el.querySelectorAll('.mb4-sch-row').length, 7, 'every time of day has its row');
+    assert.match(row('오후').querySelector('.mb4-sch-lane.L').textContent, /편지 쓰기/);
+    assert.match(row('오후').querySelector('.mb4-sch-lane.R').textContent, /가게 보기/);
+    assert.ok(row('오후').classList.contains('now'));
+    assert.match(row('저녁').querySelector('.mb4-sch-mids').textContent, /저녁 장보기.*함께/);
+    assert.match(row('밤').querySelector('.mb4-sch-mids').textContent, /같이 산책/, 'a plan of people on both sides sits on the line');
     assert.doesNotMatch(el.textContent, /일째/);
-    // pick a person -> their chip joins the row
-    const box = [...el.querySelectorAll('[data-act="sel"]')].find((x) => x.dataset.v === '미루');
-    box.checked = true; box.dispatchEvent(new Event('change')); await tickle();
-    assert.ok([...el.querySelectorAll('.mb4-sch-p')].some((b) => b.dataset.v === '미루'));
-    // add a shared plan for today's evening
-    el.querySelector('[data-f="what"]').value = '같이 저녁 먹기'; el.querySelector('[data-f="tod"]').value = 'evening';
-    el.querySelector('[data-act="add"]').click(); await tickle();
-    assert.deepEqual(t.E.envOf('schedule').store.items.map((x) => [x.day, x.tod, x.what, x.who]), [[2, 'evening', '같이 저녁 먹기', []]]);
-    assert.match([...el.querySelectorAll('.mb4-sch-slot')].at(-1).textContent, /저녁\s*같이 저녁 먹기/);
-    // tick it off
-    el.querySelector('[data-act="done"]').click(); await tickle();
-    assert.equal(t.E.envOf('schedule').store.items[0].done, true);
-    // 🪄
-    el.querySelector('[data-act="ai"]').click();
-    await tickle();
-    assert.deepEqual(t.E.envOf('schedule').store.rt['미루'].map((r) => [r.wd, r.tod, r.what]), [[[2, 4], 'evening', '야간 수업'], [[], 'morning', '가게 열기']]);
+});
+
+test('🪄 one button, one call: the whole week for everyone; a second press replaces only what the AI made', async () => {
+    page();
+    const A1 = 'D1 | together | evening | 저녁 식사 | 강가 식당\nD1 | 미루 | morning | 가게 열기 | 서점\nD2 | 보리 | noon | 장보기 | 시장';
+    const A2 = 'D1 | together | night | 별 보기 | 언덕';
+    const t = await setup({ apps: ['scene', 'people', 'schedule'], chat: CHAT(), user: '보리', char: '미루', answers: [A1, A2] });
+    t.record(0, LINES0); t.record(2, LINES2);
+    let calls = 0;
+    const el = document.createElement('div');
+    const draw = async () => { const api = await apiFor(t.E, 'schedule', { draw: () => draw() }); api.ask = (p) => { calls++; return t.E.host.ask(p); }; (await import(src('apps/schedule.js'))).default.render(el, api); };
+    const tick = () => new Promise((r) => setTimeout(r, 20));
+    await draw();
+    const st = t.E.envOf('schedule').store;
+    assert.deepEqual(st.sel, ['소담', '미루'], 'the first time, the people in the scene and the story are picked');
+    st.items.push({ day: 2, tod: 'dawn', what: '직접 넣은 일', who: [] });
+    el.querySelector('[data-act="magic"]').click(); await tick();
+    assert.equal(calls, 1);
+    assert.deepEqual(st.items.map((x) => x.what), ['직접 넣은 일', '저녁 식사', '가게 열기', '장보기']);
+    assert.deepEqual(st.items.slice(1).map((x) => x.day), [2, 2, 3], 'D1 is today (story day 2)');
+    el.querySelector('[data-act="magic"]').click(); await tick();
+    assert.equal(calls, 2);
+    assert.deepEqual(st.items.map((x) => x.what), ['직접 넣은 일', '별 보기']);
+    // picking someone off and on
+    [...el.querySelectorAll('[data-act="sel"]')].find((b) => b.dataset.v === '소담').click(); await tick();
+    assert.deepEqual(st.sel, ['미루']);
 });
 
 test('the phone itself cannot be scrolled away by a hidden input taking focus', () => {

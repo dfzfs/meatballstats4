@@ -5,7 +5,7 @@
 import { clip } from '../core/text.js';
 import { resolve, lookalikes } from '../core/names.js';
 import { cueOr, slow } from '../core/cadence.js';
-import { esc, card, person, empty, hint, acts, pill, closeness, foldRest, byHeart, foldUnder, SHOW_AT } from '../ui/kit.js';
+import { esc, card, person, empty, hint, acts, pill, closeness, foldRest, byHeart, foldUnder, SHOW_AT, face, setFaces, FACE_PICKS } from '../ui/kit.js';
 
 const split = (v) => { const i = v.indexOf('='); return i < 0 ? [v.trim(), ''] : [v.slice(0, i).trim(), v.slice(i + 1).trim()]; };
 
@@ -128,9 +128,15 @@ export default {
         const L = Object.values(S.list).filter((p) => !p.gone).sort((a, b) => b.i - a.i).slice(0, 4);
         return L.length ? `<div class="mb4-people">${L.map((p) => person(p.name, p.about)).join('')}</div>` : '';
     },
+    css: `.mb4-facepick { margin: 0 0 10px; } .mb4-facepick > small { display: block; margin-bottom: 4px; color: var(--sub); } .mb4-facepick .mb4-chips { gap: 4px; } .mb4-facepick .mb4-opt { min-width: 36px; padding: 4px 6px; font-size: 18px !important; line-height: 1.2; }`,
     render(el, api) {
         const S = api.state(), st = api.store, here = api.env.peek('scene')?.with ?? [];
         st.notes ??= {};
+        st.faces = st.faces && typeof st.faces === 'object' ? st.faces : {};
+        setFaces(st.faces);
+        const me = api.env.user;
+        // 🙂 a face per person: picked here, shown everywhere (map pins, schedule, contacts, …)
+        const facePick = (n) => `<div class="mb4-facepick"><small>이모티콘</small><div class="mb4-chips">${FACE_PICKS.map((e) => `<button class="mb4-opt${face(n) === e ? ' on' : ''}" data-act="face" data-v="${esc(`${n}|${e}`)}" aria-label="${esc(e)}">${e}</button>`).join('')}</div><div class="mb4-btnrow"><input class="mb4-input mb4-short" data-face="${esc(n)}" maxlength="8" placeholder="다른 것" aria-label="${esc(n)} 이모티콘 직접 넣기"><button class="mb4-btn ghost sm" data-act="faceset" data-v="${esc(n)}">넣기</button>${st.faces[n] ? `<button class="mb4-btn ghost sm" data-act="face" data-v="${esc(`${n}|`)}">↩ 원래대로</button>` : ''}</div></div>`;
         st.alias = st.alias && typeof st.alias === 'object' ? st.alias : {};
         const near = closeness(api.env.peek('bonds'), api.env.peek('heart'), api.env.user);
         const showAt = Number(api.env.peekStore?.('heart')?.showAt) || SHOW_AT;
@@ -140,7 +146,8 @@ export default {
         const L = Object.values(S.list).filter((p) => !q || [p.name, p.about, ...(p.seen ?? [])].some((x) => String(x ?? '').toLowerCase().includes(q))).sort((a, b) => (here.includes(b.name) - here.includes(a.name)) || (near(b.name) - near(a.name)) || b.i - a.i);
         const calls = (n) => Object.entries(S.calls ?? {}).filter(([d]) => d.startsWith(`${n}>`) || d.endsWith(`>${n}`)).map(([d, c]) => `<span class="mb4-chip">${esc(d.replace('>', ' → '))} 「${esc(c.v)}」</span>`).join('');
         const merge = lookalikes(L.map((p) => p.name)).filter(([a, b]) => !st.alias[b.toLowerCase()] && !st.alias[a.toLowerCase()]);
-        el.innerHTML = (Object.keys(S.list).length > 6 || q ? `<input class="mb4-input" data-act="q" placeholder="🔍 이름 · 소개로 찾기" value="${esc(st._q ?? '')}" style="margin-bottom:8px">` : '') + (merge.length ? card('🔀 같은 사람인가요?', merge.slice(0, 4).map(([a, b]) => `<div class="mb4-row"><span class="mb4-row-v">${esc(a)} · ${esc(b)}</span><button class="mb4-btn ghost sm" data-act="merge" data-v="${esc(`${b}|${a}`)}">하나로</button></div>`).join(''), 'warn') : '')
+        const mine = me ? `<details class="mb4-card" ${st._myface ? 'open' : ''} data-myface><summary><span class="mb4-face">${esc(face(me))}</span> 내 이모티콘 <small>${esc(me)}</small></summary>${facePick(me)}</details>` : '';
+        el.innerHTML = mine + (Object.keys(S.list).length > 6 || q ? `<input class="mb4-input" data-act="q" placeholder="🔍 이름 · 소개로 찾기" value="${esc(st._q ?? '')}" style="margin-bottom:8px">` : '') + (merge.length ? card('🔀 같은 사람인가요?', merge.slice(0, 4).map(([a, b]) => `<div class="mb4-row"><span class="mb4-row-v">${esc(a)} · ${esc(b)}</span><button class="mb4-btn ghost sm" data-act="merge" data-v="${esc(`${b}|${a}`)}">하나로</button></div>`).join(''), 'warn') : '')
             + (L.length ? listOf(L.map((p) => [p.name, card('', `
             ${person(p.name, p.about || '아직 소개가 없어요', `${here.includes(p.name) ? pill('지금 여기', 'good') : ''}${p.gone ? pill('떠남', 'bad') : ''}`)}
             ${p.seen?.length ? `<p class="mb4-hint">다르게 적힌 이름: ${esc(p.seen.join(', '))}</p>` : ''}
@@ -153,7 +160,8 @@ export default {
             ${Object.entries(S.owes ?? {}).filter(([d]) => d.startsWith(`${p.name}>`)).map(([d, L]) => `<div class="mb4-row"><span class="mb4-row-k">🧾 ${esc(d.split('>')[1])}에게 빚 · 은혜</span><span class="mb4-row-v">${esc(L.map((x) => x.v).join(' · '))}</span></div>`).join('')}
             ${calls(p.name) ? `<div class="mb4-chips" style="margin:6px 0">${calls(p.name)}</div>` : ''}
             <input class="mb4-input" data-act="memo" data-v="${esc(p.name)}" maxlength="120" placeholder="내 메모 (AI도 같이 봐요)" value="${esc(st.notes[p.name] ?? '')}">
-            <details class="mb4-card mb4-edcard" style="margin-top:8px"><summary>✏️ 직접 고치기</summary>
+            <details class="mb4-card mb4-edcard" style="margin-top:8px"><summary>✏️ 직접 고치기 · 이모티콘</summary>
+                ${facePick(p.name)}
                 <label class="mb4-label">소개<input class="mb4-input" data-pf="about" data-n="${esc(p.name)}" maxlength="100" value="${esc(p.about ?? '')}"></label>
                 <label class="mb4-label">직위 · 신분<input class="mb4-input" data-pf="role" data-n="${esc(p.name)}" maxlength="60" value="${esc(S.roles?.[p.name]?.v ?? '')}"></label>
                 <label class="mb4-label">취향 · 버릇 더하기<input class="mb4-input" data-pf="seed" data-n="${esc(p.name)}" maxlength="80" placeholder="예: 단 걸 싫어함"></label>
@@ -167,7 +175,11 @@ export default {
                 <div class="mb4-btnrow"><input class="mb4-input" data-f="from" maxlength="40" placeholder="다른 이름 (예: 별명)"><input class="mb4-input" data-f="to" maxlength="40" placeholder="원래 이름"><button class="mb4-btn ghost" data-act="alias">합치기</button></div>`)
             + hint('소개는 AI 답에서 읽어 와요. 대소문자 · 조사 · 「간호사 벨」=「벨」처럼 같은 사람은 저절로 합쳐요. 한 글자만 다른 이름은 위에서 물어봐요.');
         const save = () => { api.save(); api.redraw(); };
+        el.querySelector('[data-myface]')?.addEventListener('toggle', (e) => { st._myface = e.currentTarget.open; });
+        const setFace = (n, e) => { if (!n) return; if (e) st.faces[n] = e.slice(0, 8); else delete st.faces[n]; setFaces(st.faces); save(); };
         acts(el, {
+            face: (v) => { const i = v.lastIndexOf('|'); setFace(v.slice(0, i), v.slice(i + 1)); },
+            faceset: (n) => { const box = [...el.querySelectorAll('[data-face]')].find((x) => x.dataset.face === n), t = String(box?.value ?? '').trim(); if (!t) { api.toast('이모티콘을 넣어 주세요.'); return; } if (/[<>"'&]/.test(t) || /^[\p{L}\p{N}\s]+$/u.test(t)) { api.toast('글자 말고 이모티콘을 넣어 주세요.'); return; } setFace(n, [...t].slice(0, 4).join('')); },
             q: (_v, inp) => { st._q = inp.value.trim(); api.redraw(); },
             memo: (_v, inp) => { st.notes[inp.dataset.v] = inp.value.trim(); api.save(); },
             merge: (v) => { const [from, to] = v.split('|'); st.alias[from.toLowerCase()] = to; save(); },

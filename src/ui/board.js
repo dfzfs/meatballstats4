@@ -1,5 +1,6 @@
 // 🗂 the map as a floor guide (층별 안내판): areas stacked by height, places as big tiles you can read without zooming.
 // Everything here is drawn by hand (little SVG icons and faces), so it looks the same on every phone.
+import { face } from './kit.js';
 const esc = (s) => String(s ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[c]);
 const norm = (s) => String(s ?? '').trim().toLowerCase().replace(/\s+/g, ' ');
 const hash = (s) => { let h = 7; for (const ch of String(s)) h = (h * 31 + ch.codePointAt(0)) >>> 0; return h; };
@@ -38,17 +39,8 @@ export function iconOf(kind, name = '') {
     return `<svg class="mbb-ico" viewBox="0 0 24 24" aria-hidden="true">${P[k]}</svg>`;
 }
 
-// ── faces: a small drawn face per person (hair colour and cut from the name, so it stays the same) ──
-const HAIR = ['#3b2b25', '#1f2a44', '#8a5a2b', '#c9a24a', '#a33b3b', '#5b6b7b', '#e8e2d0', '#2e5e4e'];
-const CUT = [
-    (c) => `<path d="M4 12.5a8 8 0 0 1 16 0c-3-2.4-9-3-16 0z" fill="${c}"/>`,
-    (c) => `<path d="M4 13a8 8 0 0 1 16 0c-2-1-3-3-4-3-2 2-6 2-12 3z" fill="${c}"/><path d="M4 13c0 3 0 5 1 7l1-6z" fill="${c}"/><path d="M20 13c0 3 0 5-1 7l-1-6z" fill="${c}"/>`,
-    (c) => `<path d="M4.5 12 6 6l2 3 2-5 2 4 2-4 2 5 2-3 1.5 6c-5-2-10-2-15 0z" fill="${c}"/>`,
-];
-export function faceOf(name, cls = '') {
-    const h = hash(name), hair = HAIR[h % HAIR.length], cut = CUT[(h >>> 3) % CUT.length];
-    return `<svg class="mbb-face ${cls}" viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="13" r="8" fill="#f7d9bd"/>${cut(hair)}<circle cx="9.2" cy="14" r="1.1" fill="#3b2b25"/><circle cx="14.8" cy="14" r="1.1" fill="#3b2b25"/><path d="M10.2 17.2q1.8 1.4 3.6 0" fill="none" stroke="#3b2b25" stroke-width="1" stroke-linecap="round"/><circle cx="7.6" cy="16.2" r="1" fill="#f2a0a0" opacity=".6"/><circle cx="16.4" cy="16.2" r="1" fill="#f2a0a0" opacity=".6"/></svg>`;
-}
+// ── faces: the person's emoji (the same one 👥 인물 shows, or the one picked there) ──
+export function faceOf(name, cls = '') { return `<span class="mbb-face ${cls}" aria-hidden="true">${esc(face(name))}</span>`; }
 
 // ── a strip of scenery behind each area's name, picked from its name and note ──
 const ART = [
@@ -143,7 +135,7 @@ export const BOARD_CSS = `
 .mbb-sub{font-size:12px;color:var(--sub)}
 .mbb-who{display:flex;flex-wrap:wrap;gap:3px 8px;margin-top:3px}
 .mbb-pp{display:inline-flex;align-items:center;gap:3px;font-size:12px;color:var(--sub)}.mbb-pp.now{color:var(--fg);font-weight:600}
-.mbb-face{width:22px;height:22px;flex:none}
+.mbb-face{display:inline-grid;place-items:center;width:22px;height:22px;flex:none;font-size:16px;line-height:1;font-style:normal}
 .mbb-more{font-size:12px;color:var(--sub)}
-.mbx-maphead .mbb-face{width:18px;height:18px;vertical-align:-4px}
+.mbx-maphead .mbb-face{width:18px;height:18px;font-size:14px;vertical-align:-4px}
 `;

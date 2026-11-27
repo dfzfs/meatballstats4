@@ -278,10 +278,12 @@ function model(S, env, st) {
     // people: here now = whoever 🧭 Scene says is present; elsewhere = where each was last seen
     const gone = env.peek?.('people')?.list ?? {}, face = env.face ?? (() => '🙂');
     const pinOK = (n) => !Array.isArray(st.pins) || st.pins.includes(n);
-    const at = new Map(), everyone = new Set([...S.with, ...Object.keys(S.seen)]);
+    const me = String(env.user ?? '').trim();
+    const at = new Map(), everyone = new Set([...(me ? [me] : []), ...S.with, ...Object.keys(S.seen)]);
     const push = (key, x) => { if (byKey.has(key)) (at.get(key) ?? at.set(key, []).get(key)).push(x); };
-    for (const n of S.with) if (pinOK(n)) push(S.cur, { e: face(n), name: n, why: '지금 같이 있어요', now: true });
-    for (const [n, s] of Object.entries(S.seen)) if (!S.with.includes(n) && !gone[n]?.gone && pinOK(n)) push(s.at, { e: face(n), name: n, why: '마지막으로 본 곳', now: false });
+    if (me && S.cur && pinOK(me)) push(S.cur, { e: face(me), name: me, why: '나 · 지금 여기', now: true, me: true });
+    for (const n of S.with) if (n !== me && pinOK(n)) push(S.cur, { e: face(n), name: n, why: '지금 같이 있어요', now: true });
+    for (const [n, s] of Object.entries(S.seen)) if (n !== me && !S.with.includes(n) && !gone[n]?.gone && pinOK(n)) push(s.at, { e: face(n), name: n, why: '마지막으로 본 곳', now: false });
     return { places, byKey, at, everyone: [...everyone].filter((n) => !gone[n]?.gone), hidden: all.filter((p) => hide.has(p.key) && p.key !== S.cur), near };
 }
 
@@ -444,7 +446,7 @@ export default {
     widget(S) { const T = S?.route?.day === S?.day ? S.route.list.map((k) => S.P[k]?.name).filter(Boolean).slice(-4) : []; const cur = S?.P?.[S.cur]; return T.length > 1 ? `<div class="mb4-row"><span class="mb4-row-v" data-trc="place">${T.map((n) => esc(clip(n, 14))).join(' → ')}</span></div>` : cur ? `<div class="mb4-row"><span class="mb4-row-k">📍 지금</span><span class="mb4-row-v" data-trc="place">${esc(cur.name)}</span></div>` : ''; },
     widgetTitle: '오늘 다닌 길',
     render(el, api) {
-        const st = api.store, env = { peek: api.env.peek, kit: api.kit, face: api.kit.face };
+        const st = api.store, env = { peek: api.env.peek, kit: api.kit, face: api.kit.face, user: api.env.user };
         if (ui.st !== st) Object.assign(ui, { st, sel: '', edit: '', pinpick: false, add: false, busy: false, raw: false, zone: '' });   // another chat: start fresh
         const keyOf = (name) => norm(name);
         const save = () => { api.save(); paint(); };
@@ -454,7 +456,7 @@ export default {
                 mapsel: (v) => { ui.sel = v; ui.edit = ''; paint(); },
                 edit: (v) => { ui.edit = ui.edit === keyOf(v) ? '' : keyOf(v); if (v) ui.sel = v; paint(); },
                 pinpick: () => { ui.pinpick = !ui.pinpick; paint(); },
-                pin: (v) => { const S = api.state(), everyone = [...new Set([...S.with, ...Object.keys(S.seen)])]; st.pins = toggle(Array.isArray(st.pins) ? st.pins : everyone, v); save(); },
+                pin: (v) => { const S = api.state(), everyone = [...new Set([...(api.env.user ? [api.env.user] : []), ...S.with, ...Object.keys(S.seen)])]; st.pins = toggle(Array.isArray(st.pins) ? st.pins : everyone, v); save(); },
                 pinall: () => { delete st.pins; save(); },
                 unhide: () => { st.hide = []; save(); },
                 hide: (v) => { st.hide = [...new Set([...(st.hide ?? []), keyOf(v)])]; ui.sel = ''; ui.edit = ''; save(); },

@@ -217,6 +217,7 @@ function openMenu() {
 
 const VIEWS = { ask: ['', drawAsk], home: ['', drawHome], market: ['🛍 마켓', drawMarket], set: ['⚙️ 설정', drawSet], tr: ['🌐 번역 · 용어집', drawTr], look: ['🎨 꾸미기', drawLook] };
 function draw(keepScroll = false) {
+    try { kit.setFaces(R.engine?.reg?.has('people') ? store()?.apps?.people?.faces : null); } catch (e) { kit.setFaces(null); }
     const body = $('.mb4-body'), top = body.scrollTop;
     const isApp = view.startsWith('app:'), isPage = view.startsWith('page:');
     const ent = isPage ? entryInfo(entryOf(view.split(':')[1])) : null;
