@@ -27,7 +27,7 @@ test('the answer is read into zones, places, floors and ways; anything else is i
     assert.equal(find('Lighthouse'), null);
 });
 
-test('🗺 first-generation map: 🧭 look adds unvisited stations · ways · areas, ＋－ zoom, 🏢 building cross-section, ↩', async () => {
+test('🗺 map: 🗂 floor guide by default (areas by height, drawn icons and faces), 🚇 line map with ＋－ zoom, 🏢 cross-section, ↩', async () => {
     page();
     const t = await setup({ apps: ['scene', 'map'], chat: chatOf([{ reply: 'a' }, { user: 'b' }, { reply: 'c' }]) });
     t.record(0, [['loc', 'Hilltop > Bell Tower Inn > kitchen']]);
@@ -37,11 +37,21 @@ test('🗺 first-generation map: 🧭 look adds unvisited stations · ways · ar
     api.ask = async (p) => { asked = p; return ANSWER; };
     const el = document.createElement('div'), def = t.E.reg.get('map'), tap = (sel) => el.querySelector(sel).dispatchEvent(new window.Event('click', { bubbles: true }));
     def.render(el, api);
-    assert.ok(el.querySelector('svg.mbx-map'), 'the line map is the map');
-    assert.ok(el.querySelector('[data-act="zoom"][data-v="in"]') && el.querySelector('[data-act="zoom"][data-v="fit"]'));
+    assert.ok(el.querySelector('.mbb-tile.here[data-v="Clinic"]'), 'the floor guide is the map; here is marked');
+    assert.ok(!el.querySelector('svg.mbx-map'));
     tap('[data-act="geo"]');
     await new Promise((r) => setTimeout(r, 20));
     assert.match(asked, /OOC/); assert.match(asked, /Do NOT continue the story/); assert.match(asked, /Bell Tower Inn/);
+    // areas top (highest) to bottom; the market nobody has been to is a dashed tile in the lower one; the lift between them is named
+    const bands = [...el.querySelectorAll('.mbb-band .mbb-zn b')].map((b) => b.textContent);
+    assert.deepEqual(bands, ['Hilltop', 'Lower Harbor']);
+    assert.ok(el.querySelector('.mbb-tile.new[data-v="Fish Market"]'));
+    assert.match(el.querySelector('.mbb-way').textContent, /Fish Market|Clinic|Bell Tower Inn/);
+    assert.ok(el.querySelector('.mbb-tile svg.mbb-ico'), 'drawn icons, not emoji');
+    // 🚇 the line map is still there
+    tap('[data-act="mode"][data-v="line"]');
+    assert.ok(el.querySelector('svg.mbx-map'), 'line map');
+    assert.ok(el.querySelector('[data-act="zoom"][data-v="in"]') && el.querySelector('[data-act="zoom"][data-v="fit"]'));
     // the market nobody has been to yet is now a (faint) station, joined by the cliff lift
     const st = (n) => el.querySelector(`svg.mbx-map g.node[data-v="${n}"]`);
     assert.ok(!st('Fish Market'), 'opens on the area you are in');
