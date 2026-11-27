@@ -100,7 +100,7 @@ export default {
             // the question may be in the chat box, 「다음 답 한 번」 or 「이 장면 동안」: whichever was written goes with the OOC line
             const ask = oocAgain ? st.oocAsk ?? '' : oocAsk(st);
             return { now: [ask
-                ? `This reply is out of character. Do not continue the story or write any scene. The user asks, as the writer, outside the story: "${clip(ask, 1500)}" Answer that request directly and plainly as the writer (in the user's language unless they ask otherwise), using the story and notes above. Ignore story format, trackers, point of view, pacing and length instructions above.`
+                ? `This reply is out of character. Do not continue the story or write any scene. The user asks, as the writer, outside the story: "${clip(ask, 1500)}" Answer that request directly and plainly as the writer, in the language the story is written in (unless the request asks for another), using the story and notes above. Ignore story format, trackers, point of view, pacing and length instructions above.`
                 : 'This reply is out of character: answer the user\'s message as the writer, plainly, outside the story. Ignore story format, trackers and length instructions above; do not continue the scene.'] };
         }
         if (st.always) state.push(`Standing condition (background, not an event for this reply): ${clip(st.always, 600)}`);
