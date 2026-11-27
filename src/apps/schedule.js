@@ -7,6 +7,8 @@
 // reader), so swipes and deletions move «today» like every other record.
 import { clip } from '../core/text.js';
 import { tick, newClock, dayDate } from '../core/clock.js';
+import { wdOf, onDay } from '../core/plan.js';
+export { wdOf };
 import { esc, hint, acts, val, face, inCast, TOD, TOD_KO } from '../ui/kit.js';
 
 export const SHARED = '*';
@@ -24,24 +26,22 @@ const todIx = (t) => TOD.indexOf(t);
 
 // ───── days ─────
 const dateAt = (S, day, start) => { const t = dayDate(S, day, start); return t == null ? null : new Date(t); };
-// weekday of a story day: from its date, else counted from day 1 as a Monday
-export const wdOf = (S, day, start) => { const d = dateAt(S, day, start); return d ? d.getUTCDay() : (day % 7); };
 const rel = (n) => (n === 0 ? '오늘' : n === 1 ? '내일' : n === -1 ? '어제' : n > 0 ? `${n}일 뒤` : `${-n}일 전`);
 const dayName = (S, day, start) => { const d = dateAt(S, day, start); return d ? `${d.getUTCMonth() + 1}월 ${d.getUTCDate()}일 ${WD[d.getUTCDay()]}요일` : `${rel(day - S.day)} (${WD[wdOf(S, day, start)]})`; };
 export function weekOf(S, day, start) { const first = day - wdOf(S, day, start); return Array.from({ length: 7 }, (_x, n) => first + n); }
 const repText = (x) => (x.rep === 'daily' ? '매일' : x.rep === 'weekly' ? (x.wd?.length === 5 && [1, 2, 3, 4, 5].every((n) => x.wd.includes(n)) ? '평일마다' : x.wd?.length === 2 && x.wd.includes(0) && x.wd.includes(6) ? '주말마다' : `매주 ${(x.wd ?? []).slice().sort((a, b) => ((a + 6) % 7) - ((b + 6) % 7)).map((n) => WD[n]).join('·')}`) : '이날만');
-const onDay = (x, day, wd) => (x.rep === 'daily' ? (x.from ?? 1) <= day : x.rep === 'weekly' ? (x.from ?? 1) <= day && (x.wd ?? []).includes(wd) : x.day === day);
+const REP_ICO = { daily: '🔁', weekly: '🗓', once: '📍' };
 
 // older saved plans ({ day, who: [names] }) -> { rep: 'once', day, who: '*' | name }
 export function migrate(st) {
     st.items = (Array.isArray(st.items) ? st.items : []).filter((x) => x && x.what).map((x) => {
-        if (typeof x.who === 'string' && x.rep) return x.how == null && x.where ? { ...x, how: x.where } : x;
+        if (typeof x.who === 'string' && x.rep) return x;
         const who = Array.isArray(x.who) && x.who.length === 1 ? x.who[0] : SHARED;
-        return { what: x.what, how: x.where ?? '', tod: x.tod ?? '', who, rep: 'once', day: x.day, ...(x.ai ? { ai: true } : {}), doneOn: x.done ? { [x.day]: true } : {} };
+        return { what: x.what, where: x.where ?? '', how: '', tod: x.tod ?? '', who, rep: 'once', day: x.day, ...(x.ai ? { ai: true } : {}), doneOn: x.done ? { [x.day]: true } : {} };
     });
 }
 
-// ───── the model's answer: "who | when | time | what | how" ─────
+// ───── the model's answer: "who | when | time | what | where | how" ─────
 // when: daily · Mon,Wed · weekdays · weekend · D<n> (one of `days`)
 const SHARED_RE = /^(?:shared|together|everyone|all|group|공동|함께|다 ?같이|모두)$/i;
 export function parsePlan(text, { days = [], people = [] } = {}) {
@@ -51,7 +51,7 @@ export function parsePlan(text, { days = [], people = [] } = {}) {
         if (p.length < 4 || !p[3]) continue;
         const who = SHARED_RE.test(p[0]) ? SHARED : low.get(p[0].toLowerCase());
         if (!who) continue;
-        const w = p[1].toLowerCase(), it = { who, what: clip(p[3], 120), how: clip(p.slice(4).join(' | '), 300), ai: true, doneOn: {} };
+        const w = p[1].toLowerCase(), it = { who, what: clip(p[3], 120), where: clip(p[4] ?? '', 60), how: clip(p.slice(5).join(' | '), 300), ai: true, doneOn: {} };
         const dn = w.match(/^d\s*(\d)/);
         if (dn) { if (days[+dn[1] - 1] == null) continue; Object.assign(it, { rep: 'once', day: days[+dn[1] - 1] }); }
         else if (/daily|every ?day|매일/.test(w)) it.rep = 'daily';
@@ -80,7 +80,7 @@ export function collect(S, env, day) {
     const start = env.peekStore?.('calendar')?.start ?? '', d = dateAt(S, day, start), wd = wdOf(S, day, start);
     (Array.isArray(st.items) ? st.items : []).forEach((x, n) => {
         if (!x?.what || typeof x.who !== 'string' || !onDay(x, day, wd)) return;
-        out.push({ kind: 'own', n, who: x.who, tod: x.tod ?? '', time: x.time ?? '', hour: hourOf(x), label: timeLabel(x), title: x.what, how: x.how ?? '', rep: repText(x), done: !!x.doneOn?.[day] });
+        out.push({ kind: 'own', n, who: x.who, tod: x.tod ?? '', time: x.time ?? '', hour: hourOf(x), label: timeLabel(x), title: x.what, where: x.where ?? '', how: x.how ?? '', rep: repText(x), repKind: x.rep, done: !!x.doneOn?.[day] });
     });
     const todo = env.peek?.('todo');
     const cut = (w) => { const t = String(w), i = t.indexOf('='); return i < 0 ? t : t.slice(i + 1).trim().replace(WHEN_TAIL, ''); };
@@ -113,12 +113,12 @@ export default {
         const me = env.user || 'the user', here = new Set([me, ...(env.peek?.('scene')?.with ?? [])]), cur = todIx(S.tod);
         const L = collect(S, env, S.day).filter((e) => e.kind === 'own' && !e.done).sort((a, b) => a.hour - b.hour);
         if (!L.length) return null;
-        const say = (e) => `${e.time || e.tod || 'any time'} — ${e.who === SHARED ? 'everyone together' : e.who}: ${e.title}`;
+        const say = (e) => `${e.time || e.tod || 'any time'} — ${e.who === SHARED ? 'everyone together' : e.who}: ${e.title}${e.where ? ` (at ${e.where})` : ''}`;
         const plans = L.filter((e) => (cur < 0 || todIx(e.tod) < 0 || todIx(e.tod) >= cur) && (e.who === SHARED || here.has(e.who))).slice(0, 5);
         const away = cur < 0 ? [] : L.filter((e) => e.tod === S.tod && e.who !== SHARED && !here.has(e.who)).slice(0, 3);   // by their routine, where the absent are now
         const state = [];
         if (plans.length) state.push(`On today's schedule (plans people remember; they can run late or change, but are not forgotten): ${plans.map(say).join(' ; ')}.`);
-        if (away.length) state.push(`Right now (${S.tod}), by their usual routine: ${away.map((e) => `${e.who} — ${e.title}${e.how ? ` (${clip(e.how, 140)})` : ''}`).join(' ; ')}. Unless the story says otherwise.`);
+        if (away.length) state.push(`Right now (${S.tod}), by their usual routine: ${away.map((e) => `${e.who} — ${e.title}${e.where ? ` at ${e.where}` : ''}${e.how ? ` (${clip(e.how, 140)})` : ''}`).join(' ; ')}. Unless the story says otherwise.`);
         return state.length ? { state } : null;
     },
     hud(S, env) {
@@ -184,11 +184,17 @@ export default {
 .mb4-sch-row > span { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 1px; }
 .mb4-sch-row b { font-size: 14.5px !important; font-weight: 650; line-height: 1.35; color: var(--fg); overflow-wrap: anywhere; }
 .mb4-sch-row small { font-size: 11.5px; color: var(--sub); }
+.mb4-sch-row .mb4-sch-how { opacity: .8; }
+.mb4-sch-badge { flex: none; align-self: flex-start; padding: 1px 7px; border-radius: 999px; background: color-mix(in srgb, var(--a) 13%, transparent); color: var(--a); font-style: normal; font-size: 10.5px; font-weight: 700; white-space: nowrap; }
+.mb4-sch-form > small { display: block; margin: 9px 0 4px; color: var(--sub); font-size: 11.5px; font-weight: 700; }
+.mb4-sch-form .mb4-sch-wds { margin-top: 6px; }
+.mb4-sch-form:not(:has(input[value="weekly"]:checked)) .mb4-sch-wds { display: none; }
+.mb4-sch-form .mb4-btnrow .mb4-btn:first-child { flex: 1; }
 .mb4-sch-row.done { opacity: .5; } .mb4-sch-row.done b { text-decoration: line-through; }
 .mb4-sch-row.tag { border-style: dashed; }
 .mb4-sch-more { margin: -2px 0 2px; padding: 9px 12px; border-radius: 12px; background: color-mix(in srgb, var(--card) 45%, transparent); font-size: 12.5px; line-height: 1.5; color: var(--sub); overflow-wrap: anywhere; }
-.mb4-sch-more > div { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; margin-top: 6px; }
-.mb4-sch-more button { min-height: 28px; padding: 3px 10px; border: 1px solid var(--line); border-radius: 999px; background: transparent; color: var(--fg) !important; font-size: 12px !important; }
+.mb4-sch-more > div:not(.mb4-sch-form) { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; margin-top: 6px; }
+.mb4-sch-more > div:not(.mb4-sch-form) button { min-height: 28px; padding: 3px 10px; border: 1px solid var(--line); border-radius: 999px; background: transparent; color: var(--fg) !important; font-size: 12px !important; }
 .mb4-sch-rep { padding: 1px 8px; border-radius: 999px; background: color-mix(in srgb, var(--a) 14%, transparent); color: var(--a); font-size: 11px; font-weight: 700; }
 .mb4-sch-now { position: relative; margin: 0 -14px; padding: 24px 14px 0; background: linear-gradient(180deg, color-mix(in srgb, var(--a) 16%, transparent), transparent 85%); }
 .mb4-sch-now::before { content: ''; position: absolute; left: 0; right: 0; top: 0; height: 1.5px; background: var(--a); }
@@ -228,6 +234,16 @@ export default {
         // ── panels: AI · add · people ──
         const chk = (name, n, on, attr = 'data-ai') => `<label class="mb4-sch-chk" style="--c:${colorOf(n)}"><input type="checkbox" ${attr}="${esc(n)}" ${on ? 'checked' : ''}><span>${icoOf(n)} ${esc(name)}</span></label>`;
         const radio = (group, v, label, on) => `<label class="mb4-sch-chk"><input type="radio" name="${group}" value="${v}" ${on ? 'checked' : ''}><span>${label}</span></label>`;
+        // one form for a new plan and for changing one (like a calendar app's event sheet)
+        const places = [...new Set([...Object.values(env.peek('map')?.P ?? {}).map((x) => x?.name), ...st.items.map((x) => x.where)].filter(Boolean))].slice(0, 40);
+        const form = (x, key) => { const r = x.rep ?? 'daily', wds = x.wd?.length ? x.wd : [wdOf(S, pick, start)], dn = esc(pick === today ? '오늘' : dayName(S, x.rep === 'once' && x.day ? x.day : pick, start)); return `<div class="mb4-sch-form" data-form="${key}">
+            <input class="mb4-input" data-ff="what" maxlength="120" placeholder="무엇을 하나요" value="${esc(x.what ?? '')}">
+            <div class="mb4-btnrow"><input class="mb4-input" data-ff="time" maxlength="30" placeholder="🕰 07:00–09:00" value="${esc(x.time ?? '')}"><input class="mb4-input" data-ff="where" maxlength="60" placeholder="📍 장소" list="mb4-sch-places" value="${esc(x.where ?? '')}"></div>
+            <small>누구 일정</small><div class="mb4-sch-chks">${[SHARED, ...order].map((n) => `<label class="mb4-sch-chk"><input type="radio" name="mb4-sch-who-${key}" value="${esc(n)}" ${n === (x.who ?? SHARED) ? 'checked' : ''}><span>${icoOf(n)} ${esc(nameOf(n))}</span></label>`).join('')}</div>
+            <small>반복</small><div class="mb4-sch-chks">${[['daily', '🔁 매일'], ['weekly', '🗓 매주'], ['once', `📍 ${dn}만`]].map(([v, t]) => `<label class="mb4-sch-chk"><input type="radio" name="mb4-sch-rep-${key}" value="${v}" ${v === r ? 'checked' : ''}><span>${t}</span></label>`).join('')}</div>
+            <div class="mb4-sch-chks mb4-sch-wds">${[1, 2, 3, 4, 5, 6, 0].map((n) => `<label class="mb4-sch-chk"><input type="checkbox" data-fwd="${n}" ${wds.includes(n) ? 'checked' : ''}><span>${WD[n]}</span></label>`).join('')}</div>
+            <textarea class="mb4-input" data-ff="how" rows="2" maxlength="300" placeholder="메모 · 동선 (비워도 돼요)">${esc(x.how ?? '')}</textarea>
+            <div class="mb4-btnrow"><button class="mb4-btn" data-act="savei" data-v="${key}">${key === 'new' ? '넣기' : '저장'}</button>${key === 'new' ? '' : `<button class="mb4-btn ghost" data-act="done" data-v="${key.slice(1)}">${x.doneOn?.[pick] ? '↩ 안 끝냄' : '✓ 끝냄'}</button><button class="mb4-btn ghost" data-act="deli" data-v="${key}">${st._del === key ? '⚠ 한 번 더' : '🗑'}</button>`}</div></div>`; };
         const panels = {
             ai: `<div class="mb4-sch-panel"><b>🪄 AI로 일정 짜기</b>
                 <small>누구 일정</small><div class="mb4-sch-chks">${[SHARED, ...order].map((n) => chk(nameOf(n), n, true)).join('')}</div>
@@ -236,15 +252,7 @@ export default {
                 ${hint('누를 때 AI를 1번 불러요. 다시 짜면 AI가 짠 것만 바뀌고, 직접 넣은 건 그대로예요. 적은 말은 저장돼서 다음에도 남아요.')}
                 <button class="mb4-btn mb4-sch-go-btn" data-act="magic">🪄 짜기</button>
                 <small>지우기 (위에서 고른 사람 것만)</small><div class="mb4-sch-chks"><button class="mb4-sch-wipe" data-act="wipe" data-v="ai">${st._wipe === 'ai' ? '⚠ 한 번 더 누르면 지워져요' : '🗑 AI가 짠 것 지우기'}</button><button class="mb4-sch-wipe" data-act="wipe" data-v="all">${st._wipe === 'all' ? '⚠ 한 번 더 누르면 지워져요' : '🗑 전부 지우기'}</button></div></div>`,
-            add: `<div class="mb4-sch-panel"><b>＋ 일정 넣기</b>
-                <input class="mb4-input" data-f="what" maxlength="120" placeholder="일과 (무엇을 하나요)">
-                <small>누구 일정</small><div class="mb4-sch-chks">${[SHARED, ...order].map((n) => `<label class="mb4-sch-chk" style="--c:${colorOf(n)}"><input type="radio" name="mb4-sch-who" value="${esc(n)}" ${n === view ? 'checked' : ''}><span>${icoOf(n)} ${esc(nameOf(n))}</span></label>`).join('')}</div>
-                <small>시간</small><input class="mb4-input" data-f="time" maxlength="30" placeholder="예: 07:00–09:00 (비우면 하루 종일)">
-                <small>반복</small><div class="mb4-sch-chks">${radio('mb4-sch-rep', 'daily', '매일 (루틴)', true)}${radio('mb4-sch-rep', 'weekly', '매주 요일')}${radio('mb4-sch-rep', 'once', `${esc(pick === today ? '오늘' : dayName(S, pick, start))}만`)}</div>
-                <div class="mb4-sch-chks" style="margin-top:6px">${[1, 2, 3, 4, 5, 6, 0].map((n) => `<label class="mb4-sch-chk"><input type="checkbox" data-wd="${n}" ${n === wdOf(S, pick, start) ? 'checked' : ''}><span>${WD[n]}</span></label>`).join('')}</div>
-                ${hint('요일은 「매주」일 때만 써요.')}
-                <small>동선 · 행동</small><textarea class="mb4-input" data-f="how" rows="2" maxlength="300" placeholder="어디로 다니고 무엇을 피하는지, 버릇 (비워도 돼요)"></textarea>
-                <button class="mb4-btn mb4-sch-go-btn" data-act="add">넣기</button></div>`,
+            add: `<div class="mb4-sch-panel"><b>＋ 일정 넣기</b>${form({ who: view, rep: 'daily' }, 'new')}</div>`,
             ppl: `<div class="mb4-sch-panel"><b>👥 일정을 볼 사람</b>
                 ${known.length ? `<div class="mb4-sch-chks">${known.map((n) => `<label class="mb4-sch-chk" style="--c:${st.sel.includes(n) ? colorOf(n) : 'var(--a)'}"><input type="checkbox" data-act="sel" data-v="${esc(n)}" ${st.sel.includes(n) ? 'checked' : ''}><span>${face(n)} ${esc(n)}</span></label>`).join('')}</div>` : hint('이야기에 사람이 나오면 여기서 고를 수 있어요.')}
                 ${hint(`${MAX_SEL}명까지. 고른 사람마다 탭이 생기고, 그 사람 일정이 공동 일정 안에 자기 색으로 들어가요.`)}</div>`,
@@ -261,12 +269,11 @@ export default {
         const open = String(st.open ?? '');
         const row = (e) => {
             const key = e.kind === 'own' ? `n${e.n}` : `t${e.kind}:${e.title}`;
-            const head = `<button class="mb4-sch-row${e.done ? ' done' : ''}${e.kind !== 'own' ? ' tag' : ''}${e.who === SHARED && e.kind === 'own' ? ' shared' : ''}" data-act="open" data-v="${esc(key)}"><i>${e.kind === 'own' ? icoOf(e.who) : ICON[e.kind]}</i><span><b>${esc(e.title)}</b><small>${e.kind === 'own' ? `${esc(e.label)} · ${esc(nameOf(e.who))}` : esc(e.tag)}</small></span></button>`;
+            const sub = e.kind === 'own' ? [esc(e.label), esc(nameOf(e.who)), e.where ? `📍 ${esc(e.where)}` : ''].filter(Boolean).join(' · ') : esc(e.tag);
+            const head = `<button class="mb4-sch-row${e.done ? ' done' : ''}${e.kind !== 'own' ? ' tag' : ''}${e.who === SHARED && e.kind === 'own' ? ' shared' : ''}" data-act="open" data-v="${esc(key)}" aria-expanded="${open === key}"><i>${e.kind === 'own' ? icoOf(e.who) : ICON[e.kind]}</i><span><b>${esc(e.title)}</b><small>${sub}</small>${e.how && open !== key ? `<small class="mb4-sch-how">${esc(e.how)}</small>` : ''}</span>${e.kind === 'own' ? `<em class="mb4-sch-badge">${REP_ICO[e.repKind] ?? ''} ${esc(e.rep)}</em>` : ''}</button>`;
             if (open !== key) return head;
-            const body = e.kind === 'own'
-                ? `${e.how ? `🚶 ${esc(e.how)}` : ''}<div><span class="mb4-sch-rep">${esc(e.rep)}</span><button data-act="done" data-v="${e.n}">${e.done ? '↩ 안 끝냄' : '✓ 끝냄'}</button></div>`
-                : `<div>${e.go && api.isOn(e.go.slice(4)) ? `<button data-act="go" data-v="${e.go}">${ICON[e.kind]} 보러 가기 ›</button>` : ''}</div>`;
-            return head + `<div class="mb4-sch-more">${body}</div>`;
+            if (e.kind === 'own') return head + `<div class="mb4-sch-more">${form(st.items[e.n], key)}${e.where && api.isOn('map') ? `<div><button data-act="go" data-v="app:map">🗺 지도에서 「${esc(e.where)}」 보기 ›</button></div>` : ''}</div>`;
+            return head + `<div class="mb4-sch-more"><div>${e.go && api.isOn(e.go.slice(4)) ? `<button data-act="go" data-v="${e.go}">${ICON[e.kind]} 보러 가기 ›</button>` : ''}</div></div>`;
         };
         const nowTod = pick === today ? S.tod : '';
         const ORDER = ['', ...TOD];
@@ -279,21 +286,16 @@ export default {
         }).join('') : `${nowTod ? `<div class="mb4-sch-now"><small>지금 · ${TOD_KO[nowTod]}</small></div>` : ''}<div class="mb4-sch-empty">${view === SHARED ? '공동' : esc(nameOf(view))} 일정이 비어 있어요<br>🪄 AI로 짜기를 누르거나 직접 넣어요</div>`;
 
         el.innerHTML = `${scene ? '' : `<section class="mb4-card warn">${esc('🧭 장면 앱을 켜야 이야기 속 날과 때가 흘러요. 지금은 넣은 일정만 보여 줘요.')}</section>`}
-        ${top}${tabs}${bar}${panels[st.panel] ?? ''}<div class="mb4-sch-tl">${tl}</div>
+        ${top}${tabs}${bar}${panels[st.panel] ?? ''}<div class="mb4-sch-tl">${tl}</div><datalist id="mb4-sch-places">${places.map((x) => `<option value="${esc(x)}">`).join('')}</datalist>
         <label class="mb4-sw"><span><b>오늘 일정을 AI에게도 알려 주기</b><small>오늘 남은 일정과, 다른 곳에 있는 사람이 지금 뭘 하는지 한두 줄로 보내요.</small></span><input type="checkbox" data-act="tell" ${api.cfg.tell !== false ? 'checked' : ''}><i></i></label>`;
 
         const save = () => { api.save(); api.redraw(); };
-        api.kit.editMore(el, api, [
-            { name: 'item', list: st.items, max: 60, label: (x) => `${x.who === SHARED ? '👥 공동' : x.who} · ${repText(x)}${x.rep === 'once' ? ` ${dayName(S, x.day, start)}` : ''} · ${timeLabel(x)}`, get: (x) => x.what, set: (x, t) => { x.what = t.slice(0, 120); } },
-            { name: 'time', list: st.items, max: 60, del: false, label: (x) => `${x.what}: 시간 (예: 07:00–09:00)`, get: (x) => x.time ?? '', set: (x, t) => { const h = startOf(t); if (h != null) { x.time = t.slice(0, 30); x.tod = todOfHour(h); } } },
-            { name: 'how', list: st.items, max: 60, del: false, rows: 2, label: (x) => `${x.what}: 동선 · 행동`, get: (x) => x.how ?? '', set: (x, t) => { x.how = t.slice(0, 300); } },
-        ]);
         const radioVal = (name) => el.querySelector(`input[name="${name}"]:checked`)?.value ?? '';
         acts(el, {
             pick: (v) => { st.pick = v === 'today' ? today : Math.max(1, +v || today); api.redraw(); },
             view: (v) => { st.view = v; api.redraw(); },
             panel: (v) => { const w = el.querySelector('[data-f="wish"]'); if (w) st.wish = w.value.slice(0, 2000); st.panel = st.panel === v ? '' : v; st._wipe = ''; api.redraw(); },
-            open: (v) => { st.open = st.open === v ? '' : v; api.redraw(); },
+            open: (v) => { st.open = st.open === v ? '' : v; st._del = ''; api.redraw(); },
             // two taps: the first only asks; the second removes every plan (or only the AI's) of the people ticked above
             wipe: (v) => {
                 const whoList = [...el.querySelectorAll('[data-ai]')].filter((x) => x.checked).map((x) => x.dataset.ai);
@@ -312,15 +314,23 @@ export default {
                 else if (!b.checked) { st.sel = st.sel.filter((x) => x !== n); if (st.view === n) st.view = SHARED; }
                 save();
             },
-            add: () => {
-                const what = val(el, '[data-f="what"]'), who = radioVal('mb4-sch-who') || SHARED, rep = radioVal('mb4-sch-rep') || 'daily', time = val(el, '[data-f="time"]'), h = startOf(time);
-                const wd = [...el.querySelectorAll('[data-wd]')].filter((x) => x.checked).map((x) => +x.dataset.wd).sort();
+            savei: (key) => {
+                const box = el.querySelector(`[data-form="${CSS.escape(key)}"]`); if (!box) return;
+                const f = (n) => String(box.querySelector(`[data-ff="${n}"]`)?.value ?? '').trim();
+                const what = f('what'), time = f('time'), h = startOf(time), who = radioVal(`mb4-sch-who-${key}`) || SHARED, r = radioVal(`mb4-sch-rep-${key}`) || 'daily';
+                const wd = [...box.querySelectorAll('[data-fwd]')].filter((x) => x.checked).map((x) => +x.dataset.fwd).sort();
                 if (!what) { api.toast('무엇을 하는지 적어 주세요.'); return; }
-                if (rep === 'weekly' && !wd.length) { api.toast('매주 무슨 요일인지 골라 주세요.'); return; }
-                st.items.push({ who, what: what.slice(0, 120), how: val(el, '[data-f="how"]').slice(0, 300), ...(h != null ? { time: time.slice(0, 30), tod: todOfHour(h) } : { tod: '' }), rep, doneOn: {}, ...(rep === 'once' ? { day: pick } : { from: Math.min(pick, today) }), ...(rep === 'weekly' ? { wd } : {}) });
-                if (st.items.length > MAX_ITEMS) st.items.splice(0, st.items.length - MAX_ITEMS);
-                st.panel = ''; st.view = who; save();
+                if (r === 'weekly' && !wd.length) { api.toast('매주 무슨 요일인지 골라 주세요.'); return; }
+                const old = key === 'new' ? null : st.items[+key.slice(1)];
+                const it = { ...(old ?? { doneOn: {} }), who, what: what.slice(0, 120), where: f('where').slice(0, 60), how: f('how').slice(0, 300), rep: r };
+                delete it.time; delete it.wd; delete it.day; delete it.from; delete it.ai;   // changed by hand: it is yours now
+                if (h != null) { it.time = time.slice(0, 30); it.tod = todOfHour(h); } else it.tod = old && !old.time ? old.tod ?? '' : '';
+                if (r === 'once') it.day = old?.rep === 'once' ? old.day : pick; else it.from = old?.from ?? Math.min(pick, today);
+                if (r === 'weekly') it.wd = wd;
+                if (old) st.items[+key.slice(1)] = it; else { st.items.push(it); if (st.items.length > MAX_ITEMS) st.items.splice(0, st.items.length - MAX_ITEMS); st.view = view === SHARED ? SHARED : who; }
+                st.panel = ''; st.open = ''; save();
             },
+            deli: (key) => { if (st._del !== key) { st._del = key; api.redraw(); return; } st.items.splice(+key.slice(1), 1); st._del = ''; st.open = ''; save(); },
             // ONE model call, only because 「짜기」 was pressed: every ticked timetable at once
             magic: async (_v, b) => {
                 const whoList = [...el.querySelectorAll('[data-ai]')].filter((x) => x.checked).map((x) => x.dataset.ai), mode = radioVal('mb4-sch-mode') || 'routine';
@@ -338,11 +348,11 @@ export default {
 Timetables:\n${who}
 ${shape}
 One block per line, exactly in this shape:
-who | when | time | what | how
-who: "shared" or one of the names above. time: a 24-hour range like 07:00–09:00 (or a time of day: dawn, morning, noon, afternoon, evening, night, midnight). what: a SHORT PHRASE of about 4 to 10 words, like a calendar entry with a little context — the activity and where or with whom (e.g. "morning rounds in the surgical ward", "walk alone along the river path") — not a full sentence. how: optional, a few words on how they move or what they avoid in that block (may be left empty).
-Build it from what is known about these people, their situation and their relationships; keep to the plans already fixed below (do not repeat those). Write "what" and "how" in the language the story is written in. No other text.
+who | when | time | what | where | how
+who: "shared" or one of the names above. time: a 24-hour range like 07:00–09:00 (or a time of day: dawn, morning, noon, afternoon, evening, night, midnight). what: a SHORT PHRASE of about 4 to 10 words, like a calendar entry with a little context — the activity and where or with whom (e.g. "morning rounds in the surgical ward", "walk alone along the river path") — not a full sentence. where: the place, a short name — one of the story's places when it fits. how: optional, a few words on how they move or what they avoid in that block (may be left empty).
+Build it from what is known about these people, their situation and their relationships; keep to the plans already fixed below (do not repeat those). Write "what", "where" and "how" in the language the story is written in. No other text.
 ${st.wish ? `\n[What the user wants — follow it closely]\n${st.wish}\n` : ''}${fixed.length ? `\n[Already fixed — keep, do not repeat]\n${fixed.join('\n')}\n` : ''}
-[What is known]\n${api.facts() || '(nothing recorded)'}
+${places.length ? `[Places the story has]\n${places.join(', ')}\n\n` : ''}[What is known]\n${api.facts() || '(nothing recorded)'}
 
 [Latest part of the story]\n${clip(env.recent(1)[0] ?? '', 1500)}`, 2000);
                 const rows = parsePlan(answer, { days, people: order }).filter((x) => whoList.includes(x.who)).map((x) => (x.rep === 'once' ? x : { ...x, from: Math.min(pick, today) }));

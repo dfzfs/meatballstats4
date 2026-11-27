@@ -215,6 +215,9 @@ export default {
         const chatMsgs = api.core?.chat?.() ?? [], undated = R.filter((r) => !r.key).map((r) => r.i), undated0 = undated.length > 0;
         const pick = st.pick && (now || st.pick === 'u') ? st.pick : now ? iso(now) : undated0 ? 'u' : '';
         const loveCal = Array.isArray(env.peekStore?.('touch')?.cal) ? env.peekStore('touch').cal : [];
+        // 📆 one-off plans from the schedule app: a dot on their day and a short list (reading only)
+        const plans = (env.peekStore?.('schedule')?.items ?? []).filter((x) => x?.rep === 'once' && x.what && Number.isFinite(x.day)).map((x) => { const t = dayDate(sc, x.day, st.start ?? ''); return t == null ? null : { key: iso(new Date(t)), what: x.what, who: x.who === '*' ? '공동' : x.who }; }).filter(Boolean).sort((a, b) => a.key.localeCompare(b.key));
+        const planHtml = plans.length ? card('📆 일정에 넣은 날', plans.slice(-8).map((x) => `<div class="mb4-row" data-go="app:schedule"><span class="mb4-row-k">${esc(x.key.slice(5).replace('-', '/'))}</span><span class="mb4-row-v">${esc(x.what)} <small>${esc(x.who)}</small></span></div>`).join('')) : '';
         let grid = '';
         if (now) {
             // the month shown: today's, or the one moved to with ‹ ›
@@ -223,6 +226,7 @@ export default {
             const first = utc(y, m + 1, 1), firstWd = T?.date && T.wd != null ? (((T.wd + Math.round((first - T.date) / DAY)) % 7) + 7) % 7 : first.getUTCDay();
             const marked = new Set(st.marks.flatMap((x) => (x.yearly ? [`${y}${x.date.slice(4)}`, x.date] : [x.date])));
             for (const c of loveCal) marked.add(iso(new Date(start + (c.day - 1) * 86400000)));
+            for (const x of plans) marked.add(x.key);
             const keyOf = (n) => iso(new Date(Date.UTC(y, m, n))), cell = (n) => {
                 const key = keyOf(n), dn = dayOfIso(start, key), cy = st.cycle.on ? (cycleOn(st.cycle, dn, start) ? (cyDays(st.cycle, start).some((s) => dn >= s && dn < s + st.cycle.dur) ? ' cy' : ' cyp') : '') : '';
                 const c = onDay.get(key)?.length ?? 0, lv = !c ? '' : c > 4 ? ' has l3' : c > 1 ? ' has l2' : ' has l1';
@@ -271,7 +275,7 @@ export default {
         ${recHtml}
         ${undated.length ? card('🗂 날짜 모름', `${hint(`${ranges(undated)} — 날짜가 나오기 전이거나 「며칠 뒤」라 날을 몰라요.`)}<div class="mb4-btnrow"><button class="mb4-btn ghost sm" data-act="pick" data-v="u">이 답들 보기</button></div>`) : ''}
         ${listHtml}
-        ${loveHtml}
+        ${loveHtml}${planHtml}
         ${T?.fuzzy ? card('', hint('「며칠 뒤」처럼 흐리게 지나서 지금 날짜를 몰라요. 이야기가 날짜를 말하면 다시 맞춰져요.'), 'warn') : ''}
         ${pick ? card(`📝 ${esc(pick.slice(5).replace('-', '/'))} 메모`, `<textarea class="mb4-input" rows="2" data-act="memo" placeholder="이 날 적어 둘 것">${esc(note.text ?? '')}</textarea>
             <label class="mb4-sw"><span><b>그날이 오면 AI도 알게</b></span><input type="checkbox" data-act="memotell" ${note.tell ? 'checked' : ''}><i></i></label>

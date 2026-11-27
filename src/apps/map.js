@@ -1,4 +1,5 @@
 // Built into Meatball 4 (was a separately installed app). Fetched only when switched on.
+import { nowBy } from '../core/plan.js';
 import { tick as clockTick, newClock } from '../core/clock.js';
 import { geoPrompt, parseGeo, geoText, matcher } from '../ui/mapgeo.js';
 import { elevSVG, buildFloors, ELEV_CSS } from '../ui/elev.js';
@@ -297,6 +298,8 @@ function placeCard(S, M, st, p, path, ui, env) {
     const isHere = p.key === S.cur, here = M.at.get(p.key) ?? [], L = [];
     if (!isHere && path.length > 1) L.push(rl('🚶', `<span data-trc="place">${path.map(esc).join(' → ')}</span> <small>${path.length - 1}곳 거쳐</small>`));
     if (here.length) L.push(rl('👥', here.map((x) => `${faceOf(x.name)} <b data-trc="name">${esc(x.name)}</b> <small>${esc(x.why)}</small>`).join(' · ')));
+    const plan = (env.plan ?? []).filter((x) => x.where && (norm(x.where) === p.key || (p.key.length >= 2 && norm(x.where).includes(p.key))));
+    if (plan.length) L.push(rl('📆', `<small>일정대로면 지금</small> ${plan.slice(0, 4).map((x) => `${x.who === '*' ? '👥' : esc(env.face?.(x.who) ?? '')} <b>${esc(x.who === '*' ? '다 같이' : x.who)}</b> ${esc(x.what)}`).join(' · ')}`));
     if (p.mood) L.push(rl('🌫', `<small>여기 분위기</small> ${esc(p.mood)}`));
     if (st.note?.[p.key]) L.push(rl('📝', esc(st.note[p.key])));
     const ph = st.photo?.[p.key];
@@ -447,7 +450,7 @@ export default {
     widget(S) { const T = S?.route?.day === S?.day ? S.route.list.map((k) => S.P[k]?.name).filter(Boolean).slice(-4) : []; const cur = S?.P?.[S.cur]; return T.length > 1 ? `<div class="mb4-row"><span class="mb4-row-v" data-trc="place">${T.map((n) => esc(clip(n, 14))).join(' → ')}</span></div>` : cur ? `<div class="mb4-row"><span class="mb4-row-k">📍 지금</span><span class="mb4-row-v" data-trc="place">${esc(cur.name)}</span></div>` : ''; },
     widgetTitle: '오늘 다닌 길',
     render(el, api) {
-        const st = api.store, env = { peek: api.env.peek, kit: api.kit, face: api.kit.face, user: api.env.user };
+        const st = api.store, env = { peek: api.env.peek, kit: api.kit, face: api.kit.face, user: api.env.user, plan: api.isOn?.('schedule') ? nowBy(api.env.peekStore?.('schedule')?.items, api.state(), api.env.peekStore?.('calendar')?.start ?? '') : [] };
         if (ui.st !== st) Object.assign(ui, { st, sel: '', edit: '', pinpick: false, add: false, busy: false, raw: false, zone: '' });   // another chat: start fresh
         const keyOf = (name) => norm(name);
         const save = () => { api.save(); paint(); };

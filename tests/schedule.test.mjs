@@ -52,11 +52,11 @@ test('the model\'s answer is read: who (shared / name), when (daily · days · w
         '누군가 | daily | noon | 낮잠 | 집',
         '미루 | someday | noon | 없음 | 없음',
         'not a line'].join('\n'), { days: [4, 5], people: ['보리', '미루', '소담'] });
-    assert.deepEqual(rows.map((r) => [r.who, r.rep, r.wd ?? r.day ?? null, r.time ?? '', r.tod, r.what, r.how]), [
-        ['*', 'daily', null, '18:00–19:00', 'evening', '다 같이 저녁', '부엌에 모임'],
-        ['미루', 'weekly', [1, 2, 3, 4, 5], '07:00 – 09:00', 'morning', '가게 문 열기', '뒷문으로 드나듦 | 손님 적을 때 책 읽음'],
-        ['미루', 'weekly', [0, 6], '', 'evening', '산책', '강가'],
-        ['소담', 'once', 5, '', 'afternoon', '시장 구경', '시장']]);
+    assert.deepEqual(rows.map((r) => [r.who, r.rep, r.wd ?? r.day ?? null, r.time ?? '', r.tod, r.what, r.where, r.how]), [
+        ['*', 'daily', null, '18:00–19:00', 'evening', '다 같이 저녁', '부엌에 모임', ''],
+        ['미루', 'weekly', [1, 2, 3, 4, 5], '07:00 – 09:00', 'morning', '가게 문 열기', '뒷문으로 드나듦', '손님 적을 때 책 읽음'],
+        ['미루', 'weekly', [0, 6], '', 'evening', '산책', '강가', ''],
+        ['소담', 'once', 5, '', 'afternoon', '시장 구경', '시장', '']]);
     assert.ok(rows.every((r) => r.ai));
 });
 
@@ -64,7 +64,7 @@ test('older saved plans carry over', async () => {
     const { migrate } = await import(src('apps/schedule.js'));
     const st = { items: [{ day: 2, tod: 'evening', what: '저녁', who: [], where: '시장', done: true }, { day: 3, what: '산책', who: ['미루'] }] };
     migrate(st);
-    assert.deepEqual(st.items.map((x) => [x.who, x.rep, x.day, x.how, x.doneOn]), [['*', 'once', 2, '시장', { 2: true }], ['미루', 'once', 3, '', {}]]);
+    assert.deepEqual(st.items.map((x) => [x.who, x.rep, x.day, x.where, x.doneOn]), [['*', 'once', 2, '시장', { 2: true }], ['미루', 'once', 3, '', {}]]);
 });
 
 test('the screen: 👥 공동 holds everyone in time order; overlapping blocks share one group, one short line each; details open on tap', async () => {
@@ -87,12 +87,33 @@ test('the screen: 👥 공동 holds everyone in time order; overlapping blocks s
     assert.match(el.querySelector('.mb4-sch-row').textContent, /👥\s*아침\s*07:30–08:30 · 공동/);
     assert.match(el.querySelector('.mb4-sch-now').textContent, /지금 · 오후[\s\S]*가게/);
     assert.equal(el.querySelectorAll('.mb4-sch-more').length, 0, 'details stay closed');
+    assert.match([...el.querySelectorAll('.mb4-sch-row')].find((b) => b.textContent.includes('가게')).textContent, /13:00–17:00 · 미루[\s\S]*계산대[\s\S]*🔁 매일/, 'time, who, note and how it repeats on the line');
+    // tap -> the plan opens as a form (like a calendar app): change it, make it weekly, save
     [...el.querySelectorAll('[data-act="open"]')].find((b) => b.textContent.includes('가게')).click(); await tick();
-    assert.match(el.querySelector('.mb4-sch-more').textContent, /🚶 계산대[\s\S]*매일[\s\S]*✓ 끝냄/);
+    const box = el.querySelector('.mb4-sch-more [data-form="n1"]');
+    assert.equal(box.querySelector('[data-ff="what"]').value, '가게');
+    box.querySelector('[data-ff="what"]').value = '가게 보기'; box.querySelector('[data-ff="where"]').value = '서점';
+    box.querySelector('input[name="mb4-sch-rep-n1"][value="weekly"]').checked = true;
+    box.querySelectorAll('[data-fwd]').forEach((x) => { x.checked = ['2', '4'].includes(x.dataset.fwd); });
+    box.querySelector('[data-act="savei"]').click(); await tick();
+    assert.deepEqual([st.items[1].what, st.items[1].where, st.items[1].rep, st.items[1].wd, st.items[1].time], ['가게 보기', '서점', 'weekly', [2, 4], '13:00–17:00']);
+    [...el.querySelectorAll('[data-act="open"]')].find((b) => b.textContent.includes('가게 보기')).click(); await tick();
     el.querySelector('.mb4-sch-more [data-act="done"]').click(); await tick();
-    assert.deepEqual(st.items[1].doneOn, { 2: true }, 'a daily block is ticked off for this day only');
+    assert.deepEqual(st.items[1].doneOn, { 2: true }, 'a repeating block is ticked off for this day only');
+    // ＋ a new one-off plan through the same form
+    el.querySelector('[data-act="panel"][data-v="add"]').click(); await tick();
+    const nb = el.querySelector('[data-form="new"]');
+    nb.querySelector('[data-ff="what"]').value = '소풍'; nb.querySelector('[data-ff="time"]').value = '10:00–12:00';
+    nb.querySelector('input[name="mb4-sch-rep-new"][value="once"]').checked = true;
+    nb.querySelector('[data-act="savei"]').click(); await tick();
+    assert.deepEqual([st.items.at(-1).what, st.items.at(-1).who, st.items.at(-1).rep, st.items.at(-1).day, st.items.at(-1).tod], ['소풍', '*', 'once', 2, 'morning']);
+    // 🗑 two taps
+    [...el.querySelectorAll('[data-act="open"]')].find((b) => b.textContent.includes('소풍')).click(); await tick();
+    el.querySelector('.mb4-sch-more [data-act="deli"]').click(); await tick();
+    el.querySelector('.mb4-sch-more [data-act="deli"]').click(); await tick();
+    assert.ok(!st.items.some((x) => x.what === '소풍'));
     [...el.querySelectorAll('[data-act="view"]')].find((b) => b.dataset.v === '미루').click(); await tick();
-    assert.deepEqual(groups().map((g) => g[1]), [['회진'], ['가게']]);
+    assert.deepEqual(groups().map((g) => g[1]), [['회진'], ['가게 보기']]);
     assert.doesNotMatch(el.textContent, /일째/);
 });
 
@@ -117,12 +138,31 @@ test('🪄 opens a panel with everyone ticked; one press, one call: routines for
     el.querySelector('[data-act="magic"]').click(); await tick();
     assert.equal(calls, 1);
     assert.equal(st.wish, '둘은 아침마다 같이 걷는다', 'what was typed is kept for next time');
-    assert.match(prompt, /ROUTINE[\s\S]*who \| when \| time \| what \| how[\s\S]*SHORT PHRASE of about 4 to 10 words[\s\S]*\[What the user wants — follow it closely\]\n둘은 아침마다 같이 걷는다/);
+    assert.match(prompt, /ROUTINE[\s\S]*who \| when \| time \| what \| where \| how[\s\S]*SHORT PHRASE of about 4 to 10 words[\s\S]*\[What the user wants — follow it closely\]\n둘은 아침마다 같이 걷는다/);
     assert.deepEqual(st.items.map((x) => `${x.who}:${x.what}`), ['*:직접 넣은 일', '*:다 같이 저녁', '미루:가게 보기', '보리:산책', '소담:꽃시장']);
     el.querySelector('[data-act="panel"][data-v="ai"]').click(); await tick();
     el.querySelector('[data-act="magic"]').click(); await tick();
     assert.equal(calls, 2);
     assert.deepEqual(st.items.map((x) => `${x.who}:${x.what}`), ['*:직접 넣은 일', '*:차 마시기']);
+});
+
+test('other apps read the schedule: 🗺 the place card says who is there now by their plan; 📅 a one-off plan marks its day', async () => {
+    page();
+    const t = await setup({ apps: ['scene', 'people', 'calendar', 'map', 'schedule'], chat: CHAT(), user: '보리', char: '미루' });
+    t.record(0, LINES0); t.record(2, [['time', '+1d afternoon'], ['loc', '구시가 > 서점'], ['with', '=소담']]);
+    Object.assign(t.E.envOf('schedule').store, { seeded: true, sel: ['미루'], items: [
+        { who: '미루', rep: 'daily', time: '13:00–17:00', tod: 'afternoon', what: '가게 보기', where: '서점' },
+        { who: '*', rep: 'once', day: 4, tod: 'noon', what: '소풍' }] });
+    t.md.apps.calendar = { marks: [], notes: {}, start: '2026-03-02' };
+    t.E.touch();
+    const { nowBy } = await import(src('core/plan.js'));
+    assert.deepEqual(nowBy(t.E.envOf('schedule').store.items, t.state('schedule'), '2026-03-02').map((x) => x.what), ['가게 보기']);
+    const m = document.createElement('div');
+    (await import(src('apps/map.js'))).default.render(m, await apiFor(t.E, 'map'));
+    assert.match(m.textContent.replace(/\s+/g, ' '), /일정대로면 지금 \S+ 미루 가게 보기/);
+    const c = document.createElement('div');
+    (await import(src('apps/calendar.js'))).default.render(c, await apiFor(t.E, 'calendar'));
+    assert.match(c.textContent, /📆 일정에 넣은 날[\s\S]*03\/05[\s\S]*소풍/);
 });
 
 test('🗑 two taps remove the AI\'s plans (or all) of the people ticked; the first tap only asks', async () => {
