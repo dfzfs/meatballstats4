@@ -43,10 +43,19 @@ test('🧭 one tap: asks once, draws zones top to bottom, marks where the story 
     assert.match(asked, /Do NOT continue the story/);
     assert.match(asked, /Bell Tower Inn/, 'the places already visited go into the question');
     assert.equal(api.store.geo.places.length, 3);
-    const zoneTexts = [...el.querySelectorAll('.mbg-map .zn')].map((x) => x.textContent);
-    assert.match(zoneTexts[0], /Hilltop/); assert.match(zoneTexts[1], /Lower Harbor/);
+    const zones = () => [...el.querySelectorAll('.mbg-map .zn')].map((x) => x.textContent);
+    assert.deepEqual(zones().map((z) => z.split(' ·')[0]), ['Hilltop'], 'opens on the zone where the story is');
+    assert.ok(el.querySelector('[data-act="gzone"][data-v="Lower Harbor"]'));
+    el.querySelector('[data-act="gzone"][data-v=""]').dispatchEvent(new window.Event('click', { bubbles: true }));
+    assert.deepEqual(zones().map((z) => z.split(' ·')[0]), ['Hilltop', 'Lower Harbor'], '「전체」: highest on top');
+    assert.ok(el.querySelector('[data-act="gzoom"][data-v="in"]') && el.querySelector('[data-act="gzoom"][data-v="fit"]'));
+    // one zone shown: a way leading out of it is marked on the place it leaves from
+    el.querySelector('[data-act="gzone"][data-v="Hilltop"]').dispatchEvent(new window.Event('click', { bubbles: true }));
+    assert.match(el.querySelector('.mbg-map .pl[data-v="Clinic"] .out')?.textContent ?? '', /Fish Market · cliff lift/);
     assert.ok(el.querySelector('.mbg-map .pl.here[data-v="Clinic"]'), 'the clinic is where the story is');
+    el.querySelector('[data-act="gzone"][data-v="Lower Harbor"]')?.dispatchEvent(new window.Event('click', { bubbles: true }));
     assert.ok(el.querySelector('.mbg-map .pl.unseen[data-v="Fish Market"]'), 'not visited yet');
+    el.querySelector('[data-act="geosel"][data-v="Clinic"]')?.dispatchEvent(new window.Event('click', { bubbles: true }));
     assert.match(el.textContent, /3F\s*ward · office/);
     // asked again with a different answer: the first is kept for ↩
     api.ask = async () => 'ZONE: Hilltop | 0 |\nPLACE: Clinic | Hilltop | 5,5 | work | - | x';

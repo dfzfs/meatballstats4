@@ -91,57 +91,142 @@ export function matcher(G) {
 }
 
 // ── drawing ──
-// zones top to bottom by level; places on their grid; ways inside a zone as lines, ways between zones as dashed
-// risers with a label. here: geo name of where the story is now; seen: Set of geo names visited; sel: selected.
-export function geoSvg(G, { here = '', seen = new Set(), sel = '', ppl = new Map(), icons = {} } = {}) {
-    const W = 100, PAD = 3, ZH = 40, GAP = 9, zs = [...G.zones].sort((a, b) => a.level - b.level);
-    const pos = new Map(), zoneY = new Map();
-    zs.forEach((z, i) => zoneY.set(norm(z.name), PAD + i * (ZH + GAP)));
-    const taken = new Set();
-    for (const p of G.places) {
-        const top = zoneY.get(norm(p.zone)) ?? PAD;
-        let gx = p.x ?? 0, gy = p.y ?? 0;
-        if (p.x == null) { gx = [...G.places].filter((q) => q.zone === p.zone).indexOf(p) % 10; gy = 4; }
-        let key = `${p.zone}|${gx}|${gy}`, nudge = 0;
-        while (taken.has(key) && nudge < 9) { gx = (gx + 1) % 10; key = `${p.zone}|${gx}|${gy}`; nudge++; }
-        taken.add(key);
-        pos.set(norm(p.name), { x: R(8 + gx * 9.4), y: R(top + 9 + gy * ((ZH - 15) / 9)), p });
+// One zone (or all of them stacked, highest on top). Inside a zone the places keep their compass order but are
+// spread to fill the panel; labels go where they collide least; people are a face and a count.
+// here: geo name of where the story is now; seen: Set of geo names visited; sel: selected; zone: '' = all.
+const textW = (t, fs) => { let w = 0; for (const ch of String(t)) w += ch.codePointAt(0) > 0x2000 ? fs * 1.0 : fs * 0.56; return w; };
+const hit = (a, b) => a[0] < b[0] + b[2] && b[0] < a[0] + a[2] && a[1] < b[1] + b[3] && b[1] < a[1] + a[3];
+export function geoSvg(G, { here = '', seen = new Set(), sel = '', ppl = new Map(), icons = {}, zone = '' } = {}) {
+    const W = 160, GAP = 14, FS = 4.2;
+    const zs = [...G.zones].sort((a, b) => a.level - b.level).filter((z) => !zone || norm(z.name) === norm(zone));
+    const inZone = (z) => G.places.filter((p) => norm(p.zone) === norm(z.name));
+    // a zone whose places all sit on one row is drawn low; others full height
+    const zh = new Map(zs.map((z) => { const ys = inZone(z).map((p) => p.y ?? 4); return [norm(z.name), ys.length && Math.max(...ys) > Math.min(...ys) ? 100 : 56]; }));
+    const top = new Map(); let acc = 0;
+    for (const z of zs) { top.set(norm(z.name), acc); acc += zh.get(norm(z.name)) + GAP; }
+    const pos = new Map();
+    for (const z of zs) {
+        const ps = inZone(z), ZH = zh.get(norm(z.name));
+        ps.forEach((p, i) => { if (p.x == null) { p._x = i % 10; p._y = Math.floor(i / 10) * 3 + 4; } else { p._x = p.x; p._y = p.y; } });
+        const xs = ps.map((p) => p._x), ys = ps.map((p) => p._y);
+        const [x0, x1, y0, y1] = [Math.min(...xs), Math.max(...xs), Math.min(...ys), Math.max(...ys)];
+        const sx = (v) => (x1 > x0 ? 26 + ((v - x0) / (x1 - x0)) * (W - 52) : W / 2), sy = (v) => (y1 > y0 ? 22 + ((v - y0) / (y1 - y0)) * (ZH - 38) : ZH / 2 + 6);
+        const used = [];
+        for (const p of ps) {
+            let x = sx(p._x), y = top.get(norm(z.name)) + sy(p._y);
+            for (let k = 0; k < 8 && used.some((q) => Math.hypot(q[0] - x, q[1] - y) < 9); k++) { x += 9; if (x > W - 10) { x = 14; y += 9; } }
+            used.push([x, y]);
+            pos.set(norm(p.name), { x: R(x), y: R(y), p });
+        }
     }
-    const H = PAD * 2 + zs.length * ZH + Math.max(0, zs.length - 1) * GAP;
+    const H = Math.max(1, acc - GAP);
     const at = (n) => pos.get(norm(n)) ?? [...pos.values()].find((v) => norm(v.p.name).includes(norm(n)) || norm(n).includes(norm(v.p.name)));
-    let s = `<svg class="mbg-map" viewBox="0 0 ${W} ${R(H)}" preserveAspectRatio="xMidYMin meet" role="img" aria-label="지도">`;
-    s += zs.map((z) => { const y = zoneY.get(norm(z.name)); return `<g class="zone"><rect x="1.5" y="${y}" width="${W - 3}" height="${ZH}" rx="3"/><text class="zn" x="4" y="${R(y + 4.6)}"><tspan data-trc="place">${esc(z.name)}</tspan>${z.note ? `<tspan class="zno"> · ${esc(clip(z.note, 30))}</tspan>` : ''}</text></g>`; }).join('');
-    // ways
+    let s = `<svg class="mbg-map" viewBox="0 0 ${W} ${R(H)}" data-fit="0 0 ${W} ${R(H)}" preserveAspectRatio="xMidYMid meet" role="img" aria-label="지도">`;
+    s += zs.map((z) => { const y = top.get(norm(z.name)); return `<g class="zone"><rect x="1" y="${y}" width="${W - 2}" height="${zh.get(norm(z.name))}" rx="5"/><text class="zn" x="6" y="${R(y + 8)}"><tspan data-trc="place">${esc(z.name)}</tspan>${z.note ? `<tspan class="zno"> · ${esc(clip(z.note, 34))}</tspan>` : ''}</text></g>`; }).join('');
+    // ways (a way to a zone not shown: a short stub with where it goes)
+    const outs = new Map();
     for (const l of G.links) {
         const A = at(l.a), B = at(l.b);
-        if (!A || !B || A === B) continue;
-        const cross = norm(A.p.zone) !== norm(B.p.zone);
-        s += `<line class="way${cross ? ' riser' : ''}" x1="${A.x}" y1="${A.y}" x2="${B.x}" y2="${B.y}"/>`;
-        if (cross && l.how) s += `<text class="how" x="${R((A.x + B.x) / 2 + 1.5)}" y="${R((A.y + B.y) / 2)}">${esc(clip(l.how, 16))}</text>`;
+        if (A && B && A !== B) {
+            const cross = norm(A.p.zone) !== norm(B.p.zone);
+            s += `<line class="way${cross ? ' riser' : ''}" x1="${A.x}" y1="${A.y}" x2="${B.x}" y2="${B.y}"/>`;
+            if (cross && l.how) s += `<text class="how" x="${R((A.x + B.x) / 2 + 2)}" y="${R((A.y + B.y) / 2)}">${esc(clip(l.how, 18))}</text>`;
+        } else if ((A || B) && zone) { const P = A ?? B; (outs.get(P) ?? outs.set(P, []).get(P)).push(`${A ? l.b : l.a}${l.how ? ` · ${l.how}` : ''}`); }
     }
-    // places
-    for (const { x, y, p } of pos.values()) {
-        const n = norm(p.name), isHere = n === norm(here), cls = `${isHere ? ' here' : ''}${seen.has(n) ? ' seen' : ' unseen'}${norm(sel) === n ? ' sel' : ''}`;
-        const who = ppl.get(n) ?? [];
-        s += `<g class="pl${cls}" data-act="geosel" data-v="${esc(p.name)}"><circle class="hit" cx="${x}" cy="${y}" r="5"/>${isHere ? `<circle class="ring" cx="${x}" cy="${y}" r="3.9"/>` : ''}<circle class="dot" cx="${x}" cy="${y}" r="${isHere ? 2.4 : 1.9}"/>`
-            + `<text class="nm" x="${x}" y="${R(y + 5.2)}"><tspan class="mb4-notr">${icons[p.kind] ?? ''} </tspan><tspan data-trc="place">${esc(clip(p.name, 14))}</tspan></text>`
-            + (who.length ? `<text class="who mb4-notr" x="${R(x + 2.6)}" y="${R(y - 1.8)}">${who.slice(0, 3).join('')}${who.length > 3 ? '…' : ''}</text>` : '') + '</g>';
+    // places, then labels where they overlap least
+    const dots = [...pos.values()].flatMap(({ x, y, p }) => [[x - 3, y - 3, 6, 6], ...((ppl.get(norm(p.name)) ?? []).length ? [[x + 2.6, y - 7.4, 9, 5.5]] : [])]), taken = [...dots];
+    let marks = '', labels = '';
+    for (const v of pos.values()) {
+        const { x, y, p } = v, n = norm(p.name), isHere = n === norm(here);
+        const cls = `${isHere ? ' here' : ''}${seen.has(n) ? ' seen' : ' unseen'}${norm(sel) === n ? ' sel' : ''}`;
+        const who = ppl.get(n) ?? [], o = outs.get(v) ?? [];
+        marks += `<g class="pl${cls}" data-act="geosel" data-v="${esc(p.name)}"><circle class="hit" cx="${x}" cy="${y}" r="7"/>${isHere ? `<circle class="ring" cx="${x}" cy="${y}" r="5"/>` : ''}<circle class="dot" cx="${x}" cy="${y}" r="${isHere ? 3 : 2.4}"/>`
+            + (who.length ? `<text class="who mb4-notr" x="${R(x + 3.2)}" y="${R(y - 3)}">${who[0]}${who.length > 1 ? `<tspan class="cnt">+${who.length - 1}</tspan>` : ''}</text>` : '')
+            + (o.length ? `<text class="out" x="${R(x)}" y="${R(y - 5.5)}">↗ ${esc(clip(o[0], 30))}</text>` : '') + '</g>';
+        const txt = `${icons[p.kind] ?? ''} ${clip(p.name, 18)}`, w = textW(txt, FS) + 1;
+        const cands = [['m', 0, 7.2], ['m', 0, -4.6], ['s', 4.5, 1.5], ['e', -4.5, 1.5], ['m', 0, 12.4], ['m', 0, -9.8], ['s', 4, 7], ['e', -4, 7]].map(([an, dx, dy], i) => {
+            const bx = an === 'm' ? x - w / 2 : an === 's' ? x + dx : x + dx - w, box = [bx, y + dy - FS, w, FS + 1];
+            return { an, dx, dy, box, score: -taken.filter((t) => hit(box, t)).length * 4 - (bx < 1 || bx + w > W - 1 ? 3 : 0) - i * 0.1 };
+        });
+        const L = cands.reduce((m, c) => (c.score > m.score ? c : m), cands[0]);
+        taken.push(L.box);
+        labels += `<text class="nm${cls}" data-act="geosel" data-v="${esc(p.name)}" x="${R(x + L.dx)}" y="${R(y + L.dy)}" style="text-anchor:${L.an === 'm' ? 'middle' : L.an === 's' ? 'start' : 'end'}"><tspan class="mb4-notr">${icons[p.kind] ?? ''} </tspan><tspan data-trc="place">${esc(clip(p.name, 18))}</tspan></text>`;
     }
-    return `${s}</svg>`;
+    return `${s}${marks}${labels}</svg>`;
+}
+
+// ── moving the map: drag, two fingers, wheel, ＋ － ◎ ⤢ (the first generation's map, carried over) ──
+// Only the viewBox changes; the drawing is not redone. keep(vb) is told every change so a repaint can put it back.
+const box = (svg) => svg.getAttribute('viewBox').split(/\s+/).map(Number);
+const R10 = (v) => Math.round(v * 10) / 10;
+export function zoomBox(vb, f, cx = vb[0] + vb[2] / 2, cy = vb[1] + vb[3] / 2) {
+    const w = Math.min(Math.max(vb[2] * f, 20), 600), h = vb[3] * (w / vb[2]);
+    return [cx - (cx - vb[0]) * (w / vb[2]), cy - (cy - vb[1]) * (h / vb[3]), w, h].map(R10);
+}
+export function wireZoom(svg, keep = () => {}) {
+    if (!svg || svg._mbgWired) return;
+    svg._mbgWired = true;
+    const set = (vb) => { svg.setAttribute('viewBox', vb.join(' ')); keep(vb); };
+    let drag = null;
+    const pinch = () => { const [a, b] = [...drag.pts.values()]; return { d: Math.hypot(a.x - b.x, a.y - b.y) || 1, cx: (a.x + b.x) / 2, cy: (a.y + b.y) / 2 }; };
+    const restart = () => { drag.vb = box(svg); drag.start = new Map([...drag.pts].map(([k, v]) => [k, { ...v }])); drag.pin = drag.pts.size === 2 ? pinch() : null; };
+    svg.addEventListener('pointerdown', (e) => { drag ??= { pts: new Map(), moved: false }; drag.pts.set(e.pointerId, { x: e.clientX, y: e.clientY }); restart(); });
+    svg.addEventListener('pointermove', (e) => {
+        if (!drag?.pts.has(e.pointerId)) return;
+        drag.pts.set(e.pointerId, { x: e.clientX, y: e.clientY });
+        const r = svg.getBoundingClientRect(); if (!r.width) return;
+        const vb = drag.vb, k = Math.max(vb[2] / r.width, vb[3] / r.height);
+        if (drag.pin && drag.pts.size >= 2) {
+            const now = pinch(), cx = vb[0] + (drag.pin.cx - r.left) * k, cy = vb[1] + (drag.pin.cy - r.top) * k, z = zoomBox(vb, drag.pin.d / now.d, cx, cy), k2 = z[2] / r.width;
+            drag.moved = true; set([z[0] - (now.cx - drag.pin.cx) * k2, z[1] - (now.cy - drag.pin.cy) * k2, z[2], z[3]].map(R10)); return;
+        }
+        const st = drag.start.get(e.pointerId); if (!st) return;
+        if (!drag.moved && Math.hypot(e.clientX - st.x, e.clientY - st.y) < 5) return;
+        if (!drag.moved) try { svg.setPointerCapture(e.pointerId); } catch (err) { /* old browser */ }
+        drag.moved = true; set([vb[0] - (e.clientX - st.x) * k, vb[1] - (e.clientY - st.y) * k, vb[2], vb[3]].map(R10));
+    });
+    const end = (e) => {
+        if (!drag) return;
+        drag.pts.delete(e.pointerId);
+        if (drag.pts.size) { restart(); return; }
+        if (drag.moved) { svg._dragged = true; setTimeout(() => { svg._dragged = false; }, 60); }
+        drag = null;
+    };
+    svg.addEventListener('pointerup', end); svg.addEventListener('pointercancel', end);
+    svg.addEventListener('click', (e) => { if (svg._dragged) { e.stopPropagation(); e.preventDefault(); } }, true);
+    svg.addEventListener('wheel', (e) => { e.preventDefault(); const r = svg.getBoundingClientRect(), vb = box(svg), k = Math.max(vb[2] / r.width, vb[3] / r.height); set(zoomBox(vb, e.deltaY > 0 ? 1.2 : 1 / 1.2, vb[0] + (e.clientX - r.left) * k, vb[1] + (e.clientY - r.top) * k)); }, { passive: false });
+}
+// ＋ － ◎ ⤢
+export function zoomStep(svg, what, keep = () => {}) {
+    if (!svg) return;
+    const vb = box(svg), fit = String(svg.dataset.fit ?? '').split(/\s+/).map(Number);
+    let out = vb;
+    if (what === 'in') out = zoomBox(vb, 1 / 1.4);
+    else if (what === 'out') out = zoomBox(vb, 1.4);
+    else if (what === 'fit') out = fit;
+    else if (what === 'here') { const c = svg.querySelector('.pl.here .dot'); if (c) { const x = +c.getAttribute('cx'), y = +c.getAttribute('cy'), w = Math.min(fit[2], 70), h = w * (vb[3] / vb[2]); out = [x - w / 2, y - h / 2, w, h].map(R10); } }
+    svg.setAttribute('viewBox', out.join(' ')); keep(what === 'fit' ? null : out);
 }
 
 export const GEO_CSS = `
-.mbg-map { width: 100%; height: auto; display: block; font-family: inherit; }
-.mbg-map .zone rect { fill: color-mix(in srgb, var(--a) 6%, var(--card, transparent)); stroke: color-mix(in srgb, var(--a) 30%, transparent); stroke-width: .35; }
-.mbg-map .zn { font-size: 3.1px; font-weight: 700; fill: var(--fg); } .mbg-map .zno { font-weight: 400; fill: var(--sub); }
-.mbg-map .way { stroke: var(--sub); stroke-width: .5; opacity: .55; } .mbg-map .way.riser { stroke-dasharray: 1.2 1; stroke: var(--a); opacity: .8; }
-.mbg-map .how { font-size: 2.4px; fill: var(--a); }
-.mbg-map .pl { cursor: pointer; } .mbg-map .hit { fill: transparent; }
-.mbg-map .dot { fill: var(--card, #fff); stroke: var(--fg); stroke-width: .45; }
-.mbg-map .seen .dot { fill: var(--fg); } .mbg-map .unseen .dot { stroke-dasharray: .8 .6; stroke-opacity: .7; } .mbg-map .unseen .nm { opacity: .6; }
-.mbg-map .here .dot { fill: var(--a); stroke: var(--a); } .mbg-map .ring { fill: none; stroke: var(--a); stroke-width: .5; opacity: .5; }
-.mbg-map .sel .dot { stroke: var(--a); stroke-width: .9; }
-.mbg-map .nm { font-size: 2.6px; text-anchor: middle; fill: var(--fg); } .mbg-map .who { font-size: 2.6px; }
+.mbg-wrap { position: relative; border-radius: 14px; overflow: hidden; background: var(--fill, rgba(0,0,0,.03)); touch-action: none; }
+.mbg-map { width: 100%; height: auto; max-height: 62vh; display: block; font-family: inherit; touch-action: none; user-select: none; cursor: grab; }
+.mbg-map:active { cursor: grabbing; }
+.mbg-ctl { position: absolute; right: 8px; bottom: 8px; display: flex; flex-direction: column; gap: 4px; }
+.mbg-ctl button { width: 34px; height: 34px; border: 0; border-radius: 10px; background: var(--card, #fff); color: var(--fg); font-size: 16px; box-shadow: 0 1px 4px rgba(0,0,0,.15); cursor: pointer; }
+.mbg-zones { display: flex; flex-wrap: wrap; gap: 4px; margin: 6px 0; }
+.mbg-map .zone rect { fill: var(--card, #fff); fill-opacity: .55; stroke: color-mix(in srgb, var(--a) 35%, transparent); stroke-width: .5; }
+.mbg-map .zn { font-size: 5.2px; font-weight: 700; fill: var(--fg); } .mbg-map .zno { font-weight: 400; fill: var(--sub); font-size: 4px; }
+.mbg-map .way { stroke: var(--sub); stroke-width: .8; opacity: .5; stroke-linecap: round; } .mbg-map .way.riser { stroke-dasharray: 2 1.6; stroke: var(--a); opacity: .85; }
+.mbg-map .how, .mbg-map .out { font-size: 3.4px; fill: var(--a); } .mbg-map .out { text-anchor: middle; }
+.mbg-map .pl, .mbg-map .nm { cursor: pointer; } .mbg-map .hit { fill: transparent; }
+.mbg-map .dot { fill: var(--card, #fff); stroke: var(--fg); stroke-width: .7; }
+.mbg-map .seen .dot { fill: var(--fg); } .mbg-map .unseen .dot { stroke-dasharray: 1.2 .9; stroke-opacity: .65; }
+.mbg-map .here .dot { fill: var(--a); stroke: var(--a); } .mbg-map .ring { fill: none; stroke: var(--a); stroke-width: .8; opacity: .45; }
+.mbg-map .sel .dot { stroke: var(--a); stroke-width: 1.3; }
+.mbg-map .nm { font-size: 4.2px; fill: var(--fg); paint-order: stroke; stroke: var(--card, #fff); stroke-width: 1.1px; stroke-linejoin: round; }
+.mbg-map .nm.unseen { fill: var(--sub); } .mbg-map .nm.here, .mbg-map .nm.sel { font-weight: 700; }
+.mbg-map .who { font-size: 4.4px; } .mbg-map .cnt { font-size: 3.2px; fill: var(--sub); }
 .mbg-floors { display: grid; gap: 4px; margin-top: 6px; }
 .mbg-floor { display: flex; gap: 8px; align-items: baseline; font-size: 13px; } .mbg-floor b { min-width: 2.6em; color: var(--a); }
 .mbg-floor .on { font-weight: 700; } .mbg-raw { width: 100%; min-height: 160px; font: 12px/1.4 ui-monospace, monospace; }

@@ -1,6 +1,6 @@
 // Built into Meatball 4 (was a separately installed app). Fetched only when switched on.
 import { tick as clockTick, newClock } from '../core/clock.js';
-import { geoPrompt, parseGeo, geoText, matcher, geoSvg, GEO_CSS } from '../ui/mapgeo.js';
+import { geoPrompt, parseGeo, geoText, matcher, geoSvg, wireZoom, zoomStep, GEO_CSS } from '../ui/mapgeo.js';
 //
 // 🗺 Map — the second generation's map, carried over: places are stations, the ways between them are lines
 // (coloured, bent at 45°), people are pins, a tapped place shows the way there, who is there, its rooms as a
@@ -431,10 +431,13 @@ function geoView(S, env, st, ui) {
         for (const x of M.at.get(p.key) ?? []) (ppl.get(k) ?? ppl.set(k, []).get(k)).push(x.e);
     }
     const sel = G.places.find((p) => p.name === ui.gsel) ?? hereG ?? G.places[0];
-    const svg = geoSvg(G, { here: hereG?.name ?? '', seen, sel: sel?.name ?? '', ppl, icons: PLACE_KINDS });
+    // one zone at a time (where the story is, unless another was chosen); 「전체」 stacks them all
+    const zone = ui.gzone ?? hereG?.zone ?? G.zones[0]?.name ?? '';
+    const svg = geoSvg(G, { here: hereG?.name ?? '', seen, sel: sel?.name ?? '', ppl, icons: PLACE_KINDS, zone });
+    const zchips = G.zones.length > 1 ? `<div class="mbg-zones">${[['', '전체'], ...[...G.zones].sort((a, b) => a.level - b.level).map((z) => [z.name, z.name])].map(([v, t]) => `<button class="mb4-btn sm ${norm(zone) === norm(v) ? '' : 'ghost'}" data-act="gzone" data-v="${esc(v)}"><span data-trc="place">${esc(t)}</span>${v && hereG && norm(hereG.zone) === norm(v) ? ' 📍' : ''}</button>`).join('')}</div>` : '';
     const since = Math.max(0, (env.replies ?? 0) - (G.n ?? 0));
     let h = `<div class="mbx-maphead"><span>📍 지금 <b data-trc="place">${esc(hereG?.name ?? here?.name ?? '어딘가')}</b>${S.room ? ` <small data-trc="place">${esc(S.room)}</small>` : ''}${sc.tod ? ` · ${TOD_KO[sc.tod] ?? ''}` : ''}</span><span class="mb4-btnrow tight">${ask}</span></div>`;
-    h += `<div class="mbx-mapwrap">${svg}</div>`;
+    h += `${zchips}<div class="mbg-wrap">${svg}<div class="mbg-ctl"><button data-act="gzoom" data-v="in" aria-label="확대">＋</button><button data-act="gzoom" data-v="out" aria-label="축소">－</button><button data-act="gzoom" data-v="here" aria-label="지금 위치">◎</button><button data-act="gzoom" data-v="fit" aria-label="전체 보기">⤢</button></div></div><p class="mb4-hint">끌어서 옮기고, 두 손가락 · 휠 · ＋－로 확대해요.</p>`;
     if (sel) {
         const k = sel.name.toLowerCase().replace(/\s+/g, ' '), recs = recOf.get(k) ?? [], visits = recs.reduce((a, p) => a + (p.visits || 0), 0);
         const rooms = [...new Set(recs.flatMap((p) => p.rooms))], inGeo = new Set(sel.floors.flatMap((f) => f.rooms.map((r) => r.toLowerCase())));
@@ -468,7 +471,7 @@ export default {
     widgetTitle: '오늘 다닌 길',
     render(el, api) {
         const st = api.store, env = { peek: api.env.peek, kit: api.kit, face: api.kit.face };
-        if (ui.st !== st) Object.assign(ui, { st, sel: '', edit: '', pinpick: false, add: false, gsel: '', busy: false, raw: false });   // another chat: start fresh
+        if (ui.st !== st) Object.assign(ui, { st, sel: '', edit: '', pinpick: false, add: false, gsel: '', busy: false, raw: false, gzone: undefined, gvb: null });   // another chat: start fresh
         const keyOf = (name) => norm(name);
         const save = () => { api.save(); paint(); };
         const paint = () => {
@@ -506,6 +509,8 @@ export default {
                 go: (v) => { if (api.say(`${v}(으)로 간다.`)) api.toast('입력창에 적어 뒀어요. 고쳐서 보내면 돼요.'); },
                 mode: (v) => { st.mode = v === 'line' ? 'line' : 'geo'; save(); },
                 geosel: (v) => { ui.gsel = v; paint(); },
+                gzone: (v) => { ui.gzone = v; ui.gvb = null; paint(); },
+                gzoom: (v) => zoomStep(el.querySelector('svg.mbg-map'), v, (vb) => { ui.gvb = vb; }),
                 // 🧭 one model call, out of character: the setting's layout, kept until asked again
                 geo: async () => {
                     if (ui.busy) return;
@@ -528,6 +533,9 @@ export default {
                 geoundo: () => { if (!st.geoPrev) return; [st.geo, st.geoPrev] = [st.geoPrev, st.geo]; save(); },
             });
             el.querySelector('.mbx-add')?.addEventListener('toggle', (e) => { ui.add = e.target.open; });
+            // the zone map moves by hand; where it was left is kept across repaints (same zone)
+            const g = el.querySelector('svg.mbg-map');
+            if (g) { if (ui.gvb && ui.gvbZone === g.dataset.fit) g.setAttribute('viewBox', ui.gvb.join(' ')); wireZoom(g, (vb) => { ui.gvb = vb; ui.gvbZone = g.dataset.fit; }); }
         };
         paint();
     },
