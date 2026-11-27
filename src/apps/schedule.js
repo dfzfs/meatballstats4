@@ -1,9 +1,8 @@
-// 📆 Schedule: a timetable with the shared time running down a line in the middle. Plans everyone shares sit on
-// the line; each picked person's own plans sit beside it, left or right, in their colour — so you see at a glance
-// who is doing what at the same hour. 「🪄 이번 주 다 짜기」 fills the whole week for everyone in ONE model call
-// (only when pressed). Promise deadlines (📌) and marked days (📅) from the other apps show on the line too.
-// The story clock is WATCHED from 🧭 Scene's lines (nothing new is asked of the reader), so swipes and deletions
-// move «today» like every other record.
+// 📆 Schedule: one clean timeline per story day — the time on the left, a coloured dot and line per plan, and
+// what / where / who / when beside it. Each picked person has their own colour; the current time of day is marked.
+// 「🪄 이번 주 다 짜기」 fills the whole week for everyone in ONE model call (only when pressed). Promise deadlines
+// (📌) and marked days (📅) from the other apps show on the same line. The story clock is WATCHED from 🧭 Scene's
+// lines (nothing new is asked of the reader), so swipes and deletions move «today» like every other record.
 import { clip } from '../core/text.js';
 import { tick, newClock, dayDate } from '../core/clock.js';
 import { esc, card, hint, acts, val, face, TOD, TOD_KO } from '../ui/kit.js';
@@ -65,7 +64,7 @@ export default {
     icon: '📆',
     color: '#7a6ad8',
     cost: 'tap',
-    desc: '가운데 시간 선에 함께하는 일정, 왼쪽 · 오른쪽에 인물별 일정. 🪄 한 번이면 이번 주를 다 짜 줘요.',
+    desc: '하루를 한 줄 타임라인으로, 사람마다 색깔로 보여 줘요. 🪄 한 번이면 이번 주를 다 짜 줘요.',
     watch: ['time', 'date'],
     start: () => newClock(),
     reduce(S, { k, v, i, watched }) { if (watched && (k === 'time' || k === 'date')) tick(S, k, v, i); },
@@ -94,58 +93,52 @@ export default {
     },
     widgetTitle: '오늘 일정',
     css: `
-.mb4-sch-head { display: flex; align-items: center; gap: 6px; margin: 0 0 8px; }
-.mb4-sch-head b { flex: 1; font-size: 15px; font-weight: 700; }
-.mb4-sch-nav { min-width: 30px; height: 28px; padding: 0 9px; border: 1px solid var(--line); border-radius: 999px; background: transparent; color: var(--a) !important; font-size: 12.5px !important; font-weight: 700 !important; }
+.mb4-sch-top { padding: 14px 14px 12px; }
+.mb4-sch-head { display: flex; align-items: center; gap: 6px; margin: 0 0 10px; }
+.mb4-sch-head b { flex: 1; font-size: 14px; font-weight: 700; color: var(--sub); }
+.mb4-sch-month { padding: 3px 12px; border: 1.5px solid var(--a); border-radius: 999px; background: transparent; color: var(--a) !important; font-size: 13px !important; font-weight: 700 !important; }
+.mb4-sch-nav { width: 28px; height: 28px; padding: 0; border: 0; border-radius: 50%; background: transparent; color: var(--a) !important; font-size: 17px !important; font-weight: 700 !important; }
 .mb4-sch-strip { display: grid; grid-template-columns: repeat(7, 1fr); gap: 2px; text-align: center; }
-.mb4-sch-day { display: flex; flex-direction: column; align-items: center; gap: 3px; padding: 7px 0 6px; border: 0; border-radius: 999px; background: transparent; color: var(--fg) !important; min-width: 0; }
-.mb4-sch-day small { font-size: 11px; color: var(--sub); }
-.mb4-sch-day b { font-size: 15px; font-weight: 600; line-height: 1.2; }
+.mb4-sch-day { display: flex; flex-direction: column; align-items: center; gap: 6px; padding: 9px 0 8px; border: 0; border-radius: 999px; background: transparent; color: var(--fg) !important; min-width: 0; }
+.mb4-sch-day small { font-size: 12px; font-weight: 600; color: var(--sub); }
+.mb4-sch-day b { font-size: 17px; font-weight: 500; line-height: 1.1; }
 .mb4-sch-day.rel b { font-size: 12px; }
-.mb4-sch-day.today b { color: var(--a); font-weight: 800; }
-.mb4-sch-day.on { background: var(--a); box-shadow: 0 4px 12px color-mix(in srgb, var(--a) 35%, transparent); }
-.mb4-sch-day.on small, .mb4-sch-day.on b { color: #fff; }
-.mb4-sch-day.out { opacity: .3; pointer-events: none; }
-.mb4-sch-dots { display: flex; gap: 2px; height: 5px; }
-.mb4-sch-dots i { width: 5px; height: 5px; border-radius: 50%; background: var(--c, var(--a)); }
+.mb4-sch-day.today:not(.on) b { color: var(--a); font-weight: 800; }
+.mb4-sch-day.on { background: var(--a); }
+.mb4-sch-day.on small, .mb4-sch-day.on b { color: #fff; font-weight: 800; }
+.mb4-sch-day.out { opacity: .25; pointer-events: none; }
+.mb4-sch-dots { display: flex; gap: 2px; height: 4px; }
+.mb4-sch-dots i { width: 4px; height: 4px; border-radius: 50%; background: var(--c, var(--a)); }
 .mb4-sch-day.on .mb4-sch-dots i { background: #fff; }
-.mb4-sch-magic { display: block; width: 100%; margin: 12px 0 0; min-height: 44px; border: 0; border-radius: 14px; background: linear-gradient(135deg, color-mix(in srgb, var(--a) 88%, #fff), var(--a)); color: #fff !important; font-size: 15px !important; font-weight: 700 !important; box-shadow: 0 6px 16px color-mix(in srgb, var(--a) 30%, transparent); }
+.mb4-sch-magic { display: block; width: 100%; margin: 12px 0 0; min-height: 42px; border: 0; border-radius: 14px; background: var(--a); color: #fff !important; font-size: 14.5px !important; font-weight: 700 !important; }
 .mb4-sch-magic:disabled { opacity: .6; }
-.mb4-phone .mb4-sch-magic small { display: block; font-size: 11.5px; font-weight: 500; color: rgba(255, 255, 255, .88) !important; }
-.mb4-sch-who { display: flex; flex-wrap: wrap; gap: 6px; margin: 0 0 12px; }
-.mb4-sch-pk { display: inline-flex; align-items: center; gap: 4px; padding: 5px 11px 5px 6px; border: 1px solid var(--line); border-radius: 999px; background: transparent; color: var(--fg) !important; font-size: 13px !important; }
+.mb4-phone .mb4-sch-magic small { display: block; font-size: 11px; font-weight: 500; color: rgba(255, 255, 255, .85) !important; }
+.mb4-sch-who { display: flex; flex-wrap: wrap; gap: 6px; margin: 2px 0 14px; }
+.mb4-sch-pk { display: inline-flex; align-items: center; gap: 4px; padding: 4px 11px 4px 6px; border: 1px solid var(--line); border-radius: 999px; background: transparent; color: var(--sub) !important; font-size: 13px !important; }
 .mb4-sch-pk i { font-style: normal; font-size: 16px; }
-.mb4-sch-pk.on { border-color: var(--c); background: color-mix(in srgb, var(--c) 16%, transparent); font-weight: 700 !important; }
+.mb4-sch-pk.on { border-color: var(--c); color: var(--c) !important; font-weight: 700 !important; }
 .mb4-sch-pk.me { cursor: default; }
-.mb4-sch-sides { display: grid; grid-template-columns: 1fr 48px 1fr; align-items: end; margin: 0 0 4px; }
-.mb4-sch-side { display: flex; flex-wrap: wrap; gap: 4px 8px; font-size: 12px; font-weight: 700; }
-.mb4-sch-side.L { justify-content: flex-end; text-align: right; }
-.mb4-sch-side span { color: var(--c); white-space: nowrap; }
-.mb4-sch-mid { text-align: center; font-size: 11px; font-weight: 800; color: var(--a); }
-.mb4-sch-tt { position: relative; padding: 4px 0 2px; }
-.mb4-sch-tt::before { content: ''; position: absolute; left: 50%; top: 0; bottom: 0; width: 3px; margin-left: -1.5px; border-radius: 3px; background: color-mix(in srgb, var(--a) 40%, var(--line)); }
-.mb4-sch-row { position: relative; display: grid; grid-template-columns: 1fr 48px 1fr; align-items: start; min-height: 34px; padding: 5px 0; }
-.mb4-sch-row.now { margin: 0 -14px; padding: 5px 14px; background: color-mix(in srgb, var(--a) 13%, transparent); }
-.mb4-sch-row.now::after { content: '지금'; position: absolute; right: 6px; top: 2px; font-size: 10px; font-weight: 800; color: var(--a); }
-.mb4-sch-t { position: relative; z-index: 1; justify-self: center; margin-top: 3px; padding: 2px 0; width: 40px; border-radius: 999px; background: var(--card); box-shadow: 0 0 0 2px color-mix(in srgb, var(--a) 40%, var(--line)); text-align: center; font-size: 11px; font-weight: 700; color: var(--sub); }
-.mb4-sch-row.now .mb4-sch-t { background: var(--a); box-shadow: none; color: #fff; }
-.mb4-sch-lane { display: flex; flex-direction: column; gap: 5px; min-width: 0; }
-.mb4-sch-lane.L { align-items: flex-end; }
-.mb4-sch-lane.R { align-items: flex-start; }
-.mb4-sch-it { position: relative; max-width: 100%; padding: 6px 9px; border: 0; border-radius: 12px; background: color-mix(in srgb, var(--c) 13%, var(--card)); color: var(--fg) !important; text-align: left; font-size: 13px !important; line-height: 1.35; overflow-wrap: anywhere; }
-.mb4-sch-lane.L .mb4-sch-it { border-right: 3px solid var(--c); text-align: right; }
-.mb4-sch-lane.R .mb4-sch-it { border-left: 3px solid var(--c); }
-.mb4-sch-it b { display: block; font-weight: 700; color: color-mix(in srgb, var(--c) 70%, var(--fg)); }
-.mb4-sch-it small { display: block; font-size: 11px; color: var(--sub); }
-.mb4-sch-it.done { opacity: .45; } .mb4-sch-it.done b { text-decoration: line-through; }
-.mb4-sch-mids { grid-column: 1 / -1; display: flex; flex-direction: column; align-items: center; gap: 5px; margin-top: 4px; }
-.mb4-sch-row > .mb4-sch-mids { position: relative; z-index: 1; }
-.mb4-sch-both { max-width: 78%; padding: 7px 12px; border: 1.5px solid var(--c); border-radius: 14px; background: var(--card); color: var(--fg) !important; text-align: center; font-size: 13.5px !important; line-height: 1.35; overflow-wrap: anywhere; box-shadow: 0 2px 8px rgba(0, 0, 0, .06); }
-.mb4-sch-both b { font-weight: 700; color: color-mix(in srgb, var(--c) 72%, var(--fg)); }
-.mb4-sch-both small { display: block; font-size: 11px; color: var(--sub); }
-.mb4-sch-both.tag { border-style: dashed; font-size: 12.5px !important; }
-.mb4-sch-both.done { opacity: .45; } .mb4-sch-both.done b { text-decoration: line-through; }
-.mb4-sch-both.late { border-color: var(--bad); }
+.mb4-sch-tl { margin: 4px 0 8px; }
+.mb4-sch-ev { position: relative; display: grid; grid-template-columns: 54px 30px 1fr; --c: var(--a); }
+.mb4-sch-t { padding-top: 3px; font-size: 12.5px; font-weight: 700; color: var(--sub); white-space: nowrap; }
+.mb4-sch-rail { position: relative; display: flex; justify-content: center; }
+.mb4-sch-rail::after { content: ''; position: absolute; top: 26px; bottom: 2px; left: 50%; width: 2px; margin-left: -1px; border-radius: 2px; background: var(--c); }
+.mb4-sch-ev:last-child .mb4-sch-rail::after { bottom: 14px; }
+.mb4-sch-dot { position: relative; z-index: 1; display: grid; place-items: center; width: 24px; height: 24px; padding: 0; border: 2px solid var(--c); border-radius: 50%; background: var(--card); color: var(--c) !important; font-size: 12px !important; font-weight: 800 !important; line-height: 1; }
+.mb4-sch-dot::after { content: ''; width: 10px; height: 10px; border-radius: 50%; background: var(--c); }
+.mb4-sch-ev.done .mb4-sch-dot::after { content: '✓'; width: auto; height: auto; background: none; font-size: 13px; }
+.mb4-sch-ev.tag .mb4-sch-dot::after { width: 6px; height: 6px; }
+.mb4-sch-b { min-width: 0; padding: 1px 0 18px 6px; overflow-wrap: anywhere; }
+.mb4-sch-b > b { display: block; margin-bottom: 4px; font-size: 15.5px; font-weight: 750; line-height: 1.3; color: var(--c); }
+.mb4-sch-ev.done .mb4-sch-b > b { opacity: .55; text-decoration: line-through; }
+.mb4-sch-m { display: flex; align-items: baseline; gap: 7px; font-size: 12.5px; line-height: 1.55; color: var(--sub); }
+.mb4-sch-m i { flex: none; width: 14px; font-style: normal; font-size: 11px; text-align: center; }
+.mb4-sch-go { margin-left: 4px; padding: 0; border: 0; background: none; color: var(--a) !important; font-size: 12px !important; font-weight: 700 !important; }
+.mb4-sch-now { position: relative; margin: 0 -14px; padding: 12px 14px 0; background: linear-gradient(180deg, color-mix(in srgb, var(--a) 16%, transparent), transparent 85%); }
+.mb4-sch-now::before { content: ''; position: absolute; left: 0; right: 0; top: 0; height: 1.5px; background: var(--a); }
+.mb4-sch-now::after { content: ''; position: absolute; left: 10px; top: -6px; width: 13px; height: 13px; border-radius: 50%; background: var(--a); }
+.mb4-sch-now > small { position: absolute; right: 14px; top: 3px; font-size: 10.5px; font-weight: 800; color: var(--a); }
+.mb4-sch-empty { padding: 26px 0 18px; text-align: center; color: var(--sub); font-size: 13px; }
 .mb4-sch-chks { display: flex; flex-wrap: wrap; gap: 6px; margin: 6px 0 2px; }
 .mb4-sch-chk { position: relative; }
 .mb4-sch-chk input { position: absolute; opacity: 0; pointer-events: none; }
@@ -165,8 +158,6 @@ export default {
         // the first time: the people in the scene (or the newest few) are picked for you
         if (!st.seeded) { st.seeded = true; if (!st.sel.length) st.sel = known.slice(0, 3); }
         const order = [me, ...st.sel], colorOf = (n) => (order.includes(n) ? PAL[order.indexOf(n) % PAL.length] : 'var(--sub)');
-        const sideOf = (n) => (order.indexOf(n) % 2 === 0 ? 'L' : 'R');   // me on the left, the next on the right, and so on
-        const lanes = { L: order.filter((n) => sideOf(n) === 'L'), R: order.filter((n) => sideOf(n) === 'R') };
 
         // ── week strip ──
         const week = weekOf(S, pick, start), pd = dateAt(S, pick, start);
@@ -178,35 +169,31 @@ export default {
         }).join('');
         const days = week.filter((d) => d >= today).length ? week.filter((d) => d >= today) : week.filter((d) => d >= 1);
         const hasAi = st.items.some((x) => x.ai && days.includes(x.day));
-        const top = card('', `<div class="mb4-sch-head"><b>${esc(pd ? `${pd.getUTCFullYear()}년 ${pd.getUTCMonth() + 1}월` : '이야기 시간표')}</b><button class="mb4-sch-nav" data-act="pick" data-v="${Math.max(1, pick - 7)}" aria-label="앞 주">‹</button>${pick !== today ? `<button class="mb4-sch-nav" data-act="pick" data-v="${today}">오늘</button>` : ''}<button class="mb4-sch-nav" data-act="pick" data-v="${pick + 7}" aria-label="다음 주">›</button></div>
+        const top = `<section class="mb4-card mb4-sch-top"><div class="mb4-sch-head"><b>${esc(pick === today ? '오늘 일정' : dayName(S, pick, start))}</b><button class="mb4-sch-nav" data-act="pick" data-v="${Math.max(1, pick - 7)}" aria-label="앞 주">‹</button>${pick !== today ? `<button class="mb4-sch-month" data-act="pick" data-v="${today}">오늘로</button>` : `<span class="mb4-sch-month">${esc(pd ? `${pd.getUTCMonth() + 1}월` : '이번 주')}</span>`}<button class="mb4-sch-nav" data-act="pick" data-v="${pick + 7}" aria-label="다음 주">›</button></div>
             <div class="mb4-sch-strip">${strip}</div>
-            <button class="mb4-sch-magic" data-act="magic">🪄 ${hasAi ? '이번 주 다시 짜기' : '이번 주 다 짜기'}<small>${esc(order.join(' · '))}의 ${days.length}일 일정을 한 번에 · AI 1번</small></button>`);
+            <button class="mb4-sch-magic" data-act="magic">🪄 ${hasAi ? '이번 주 다시 짜기' : '이번 주 다 짜기'}<small>${esc(order.join(' · '))}의 ${days.length}일 일정을 한 번에 · AI 1번</small></button></section>`;
 
         // ── who ──
         const who = `<div class="mb4-sch-who"><span class="mb4-sch-pk on me" style="--c:${colorOf(me)}"><i>${face(me)}</i>${esc(me)} (나)</span>${known.map((n) => `<button class="mb4-sch-pk${st.sel.includes(n) ? ' on' : ''}" style="--c:${st.sel.includes(n) ? colorOf(n) : 'var(--line)'}" data-act="sel" data-v="${esc(n)}" aria-pressed="${st.sel.includes(n)}"><i>${face(n)}</i>${esc(n)}</button>`).join('')}</div>`;
 
-        // ── the timetable: a line down the middle ──
-        const L = collect(S, env, pick);
-        const sideItem = (e) => { const c = colorOf(e.who[0]); return `<button class="mb4-sch-it${e.done ? ' done' : ''}" style="--c:${c}" data-act="done" data-v="${e.n}" aria-label="${esc(e.title)} ${e.done ? '끝냄 풀기' : '끝냄'}"><b>${esc(e.title)}</b><small>${e.who.map((n) => `${face(n)} ${esc(n)}`).join(' · ')}${e.where ? ` · 📍 ${esc(e.where)}` : ''}</small></button>`; };
-        const midItem = (e) => {
-            if (e.kind !== 'own') return `<button class="mb4-sch-both tag${e.done ? ' done' : ''}${e.late ? ' late' : ''}" style="--c:var(--a)" data-act="go" data-v="${e.go}"><b>${{ due: '📌', done: '📌', mark: '📅', memo: '📝' }[e.kind]} ${esc(e.title)}</b><small>${esc(e.tag)}</small></button>`;
-            const c = e.who.length ? colorOf(e.who[0]) : 'var(--a)';
-            return `<button class="mb4-sch-both${e.done ? ' done' : ''}" style="--c:${c}" data-act="done" data-v="${e.n}"><b>${esc(e.title)}</b><small>${e.who.length ? e.who.map((n) => `${face(n)} ${esc(n)}`).join(' · ') : '👥 함께'}${e.where ? ` · 📍 ${esc(e.where)}` : ''}</small></button>`;
-        };
-        // where an item goes: one side when everyone in it sits on that side, else on the line
-        const place = (e) => { if (e.kind !== 'own' || !e.who.length || !e.who.every((n) => order.includes(n))) return 'M'; const s = new Set(e.who.map(sideOf)); return s.size === 1 ? [...s][0] : 'M'; };
+        // ── the day: one line down the left, each plan in its person's colour ──
+        const L = collect(S, env, pick).sort((a, b) => todIx(a.tod) - todIx(b.tod));
+        const ICON = { due: '📌', done: '📌', mark: '📅', memo: '📝' };
+        const evColor = (e) => (e.kind !== 'own' ? 'var(--a)' : e.who.length ? colorOf(e.who.find((n) => order.includes(n)) ?? e.who[0]) : 'var(--a)');
+        const ev = (e, first) => `<div class="mb4-sch-ev${e.done ? ' done' : ''}${e.kind !== 'own' ? ' tag' : ''}" style="--c:${evColor(e)}">
+            <span class="mb4-sch-t">${first ? (e.tod ? TOD_KO[e.tod] : '종일') : ''}</span>
+            <span class="mb4-sch-rail">${e.kind === 'own' ? `<button class="mb4-sch-dot" data-act="done" data-v="${e.n}" aria-label="${esc(e.title)} ${e.done ? '끝냄 풀기' : '끝냄'}"></button>` : '<i class="mb4-sch-dot"></i>'}</span>
+            <div class="mb4-sch-b"><b>${e.kind !== 'own' ? `${ICON[e.kind]} ` : ''}${esc(e.title)}</b>
+                ${e.where ? `<span class="mb4-sch-m"><i>📍</i>${esc(e.where)}</span>` : ''}
+                ${e.kind === 'own' ? `<span class="mb4-sch-m"><i>👤</i>${e.who.length ? e.who.map((n) => `${face(n)} ${esc(n)}`).join(', ') : '다 같이'}</span>` : `<span class="mb4-sch-m"><i>🏷</i>${esc(e.tag)}${e.go && api.isOn(e.go.slice(4)) ? `<button class="mb4-sch-go" data-act="go" data-v="${e.go}">보기 ›</button>` : ''}</span>`}
+                <span class="mb4-sch-m"><i>🕰</i>${esc(dayName(S, pick, start))}${e.tod ? ` · ${TOD_KO[e.tod]}` : ''}</span></div></div>`;
         const nowTod = pick === today ? S.tod : '';
-        const rowOf = (t) => {
-            const inRow = L.filter((e) => (e.tod ?? '') === t), M = inRow.filter((e) => place(e) === 'M'), Ls = inRow.filter((e) => place(e) === 'L'), Rs = inRow.filter((e) => place(e) === 'R');
-            const now = !!t && t === nowTod;
-            if (!t && !inRow.length) return '';
-            return `<div class="mb4-sch-row${now ? ' now' : ''}"><div class="mb4-sch-lane L">${Ls.map(sideItem).join('')}</div><span class="mb4-sch-t">${t ? TOD_KO[t] : '종일'}</span><div class="mb4-sch-lane R">${Rs.map(sideItem).join('')}</div>${M.length ? `<div class="mb4-sch-mids">${M.map(midItem).join('')}</div>` : ''}</div>`;
-        };
-        const tt = card(`${esc(dayName(S, pick, start))}${pick !== today && pd ? ` <small>${esc(rel(pick - today))}</small>` : ''}`, `
-            <div class="mb4-sch-sides"><div class="mb4-sch-side L">${lanes.L.map((n) => `<span style="--c:${colorOf(n)}">${face(n)} ${esc(n)}</span>`).join('')}</div><div class="mb4-sch-mid">함께</div><div class="mb4-sch-side R">${lanes.R.map((n) => `<span style="--c:${colorOf(n)}">${face(n)} ${esc(n)}</span>`).join('') || '<span style="--c:var(--sub)">＋ 위에서 사람 고르기</span>'}</div></div>
-            <div class="mb4-sch-tt">${['', ...TOD].map(rowOf).join('')}</div>
-            ${L.length ? hint('누르면 끝낸 일로 표시해요. 한 번 더 누르면 풀려요.') : hint('비어 있어요. 🪄를 누르거나 아래에서 직접 넣어요.')}`);
-
+        const groups = ['', ...TOD].map((t) => {
+            const inRow = L.filter((e) => (e.tod ?? '') === t), now = !!t && t === nowTod;
+            const html = inRow.map((e, n) => ev(e, n === 0)).join('');
+            return now ? `<div class="mb4-sch-now"><small>지금 · ${TOD_KO[t]}</small>${html}</div>` : html;
+        }).join('');
+        const tt = `<div class="mb4-sch-tl">${L.length ? groups : `${nowTod ? `<div class="mb4-sch-now"><small>지금 · ${TOD_KO[nowTod]}</small></div>` : ''}<div class="mb4-sch-empty">이 날은 비어 있어요<br>🪄를 누르거나 아래에서 직접 넣어요</div>`}</div>`;
         // ── add by hand ──
         const dayOpts = [...new Set([...Array.from({ length: 15 }, (_x, n) => today + n), pick])].sort((a, b) => a - b).map((day) => `<option value="${day}" ${day === pick ? 'selected' : ''}>${esc(dayName(S, day, start))}</option>`).join('');
         const add = `<details class="mb4-card" data-box="add" ${st.open === 'add' ? 'open' : ''}><summary>＋ 직접 넣기</summary>

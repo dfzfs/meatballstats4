@@ -48,23 +48,25 @@ test('the model\'s week is read: day, who (together / one / two), time, what, wh
     assert.ok(rows.every((r) => r.ai));
 });
 
-test('the screen: a line down the middle, me on the left, the next person on the right, shared plans on the line', async () => {
+test('the screen: one line, plans in time order, each in its person\'s colour; now is marked; a tap ticks it off', async () => {
     page();
     const t = await setup({ apps: ['scene', 'people', 'schedule'], chat: CHAT(), user: '보리', char: '미루' });
     t.record(0, LINES0); t.record(2, LINES2);
     Object.assign(t.E.envOf('schedule').store, { seeded: true, sel: ['미루'], items: [
-        { day: 2, tod: 'evening', what: '저녁 장보기', who: [] }, { day: 2, tod: 'afternoon', what: '가게 보기', who: ['미루'] },
-        { day: 2, tod: 'afternoon', what: '편지 쓰기', who: ['보리'] }, { day: 2, tod: 'night', what: '같이 산책', who: ['보리', '미루'] }] });
+        { day: 2, tod: 'evening', what: '저녁 장보기', who: [], where: '시장' }, { day: 2, tod: 'afternoon', what: '가게 보기', who: ['미루'], where: '서점' },
+        { day: 2, tod: 'morning', what: '편지 쓰기', who: ['보리'] }] });
     const el = document.createElement('div');
     const draw = async () => (await import(src('apps/schedule.js'))).default.render(el, await apiFor(t.E, 'schedule', { draw: () => draw() }));
     await draw();
-    const row = (tod) => [...el.querySelectorAll('.mb4-sch-row')].find((r) => r.querySelector('.mb4-sch-t')?.textContent === tod);
-    assert.equal(el.querySelectorAll('.mb4-sch-row').length, 7, 'every time of day has its row');
-    assert.match(row('오후').querySelector('.mb4-sch-lane.L').textContent, /편지 쓰기/);
-    assert.match(row('오후').querySelector('.mb4-sch-lane.R').textContent, /가게 보기/);
-    assert.ok(row('오후').classList.contains('now'));
-    assert.match(row('저녁').querySelector('.mb4-sch-mids').textContent, /저녁 장보기.*함께/);
-    assert.match(row('밤').querySelector('.mb4-sch-mids').textContent, /같이 산책/, 'a plan of people on both sides sits on the line');
+    const evs = [...el.querySelectorAll('.mb4-sch-ev')];
+    assert.deepEqual(evs.map((e) => e.querySelector('.mb4-sch-b > b').textContent), ['편지 쓰기', '가게 보기', '저녁 장보기']);
+    assert.deepEqual(evs.map((e) => e.querySelector('.mb4-sch-t').textContent), ['아침', '오후', '저녁']);
+    assert.notEqual(evs[0].style.getPropertyValue('--c'), evs[1].style.getPropertyValue('--c'), 'each person has a colour');
+    assert.match(evs[2].textContent, /📍\s*시장[\s\S]*👤\s*다 같이/);
+    assert.match(el.querySelector('.mb4-sch-now').textContent, /지금 · 오후[\s\S]*가게 보기/);
+    assert.equal(el.querySelectorAll('.mb4-sch-row, .mb4-sch-lane').length, 0, 'no left / right lanes');
+    evs[1].querySelector('[data-act="done"]').click(); await new Promise((r) => setTimeout(r, 20));
+    assert.equal(t.E.envOf('schedule').store.items[1].done, true);
     assert.doesNotMatch(el.textContent, /일째/);
 });
 
