@@ -69,3 +69,14 @@ test('🎬 OOC with the request in 「이 장면 동안」: it is sent, then emp
     t.setGen('swipe'); t.E.touch(); t.E.refresh();
     assert.match(t.note().now, /List the districts of the harbor town/, 'rerolling the OOC answer asks again');
 });
+
+test('🎬 OOC keeps the 🎨 format choice «📊 표»', async () => {
+    const { setup, chatOf } = await import('./harness.mjs');
+    const t = await setup({ apps: ['director'], chat: chatOf([{ reply: 'x' }]) });
+    const env = t.E.envOf('director');
+    env.store.ooc = 'once'; env.store.once = 'Lay out the town.'; env.cfg.boost = { table: true, sense: true };
+    t.E.touch(); t.E.refresh();
+    const now = t.note().now;
+    assert.match(now, /tables/);
+    assert.doesNotMatch(now, /sensory detail/, 'story-style choices stay out of an OOC answer');
+});
