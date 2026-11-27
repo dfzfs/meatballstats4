@@ -43,6 +43,16 @@ const host = {
     classify: (prompt) => model(prompt, ROOM, 0.2),
     // a tap call that only needs a few lines gets a smaller ceiling (still roomy for a model that thinks first)
     ask: (prompt, max) => model(prompt, cfg().tapRoom !== 'big' && Number(max) > 0 && Number(max) <= 600 ? 4096 : ROOM, 0.9),
+    // the application's own world info (lorebooks) that the recent chat would bring in: a dry run, nothing changes
+    async lore(budget = 6000) {
+        try {
+            const c = ctx();
+            if (typeof c.getWorldInfoPrompt !== 'function') return '';
+            const recent = (c.chat ?? []).filter((m) => !m.is_system).slice(-8).map((m) => String(m.mes ?? '')).reverse();
+            const r = await c.getWorldInfoPrompt(recent, budget, true);
+            return String(r?.worldInfoString ?? [r?.worldInfoBefore, r?.worldInfoAfter].filter(Boolean).join('\n') ?? '').trim();
+        } catch (e) { return ''; }
+    },
 };
 export const engine = new Engine(host);
 // our saves wait while a reply is being written and for a moment after the application saved it (see host.saveChat)

@@ -427,6 +427,8 @@ function mountApp(body, id) {
         go: (v) => go(v), isOn: (other) => R.isOn(other), here: () => view,
         // a model call the person asked for by tapping (one call; '' when paused or failed)
         ask: (prompt, max) => E.ask(prompt, max),
+        // the application's lorebook text the recent chat brings in ('' when none); for an app's own prompt
+        lore: async (budget) => (await E.host?.lore?.(budget)) ?? '',
         // what Meatball currently knows, as the English lines it would send (for an app's own prompt)
         facts: () => { const n = E.note(); return [n.state, n.now].filter(Boolean).join('\n'); },
         // put words into the chat's input box (never sends them)
