@@ -42,3 +42,15 @@ test('the contacts list opens with the group room in it', async () => {
     t.E.reg.get('contacts').render(el, await apiFor(t.E, 'contacts'));
     assert.match(el.textContent, /단체방/);
 });
+
+test('🎬 OOC with the request typed in 「다음 답 한 번」: the request itself goes to the AI, not only "this is OOC"', async () => {
+    const { setup, chatOf } = await import('./harness.mjs');
+    const t = await setup({ apps: ['director'], chat: chatOf([{ reply: 'The baker closed the shutters.' }]) });
+    const st = t.E.envOf('director').store;
+    st.ooc = 'once'; st.once = 'Sketch the layout of the harbor town as a list of districts.';
+    t.E.touch(); t.E.refresh();
+    const now = t.note().now;
+    assert.match(now, /out of character/);
+    assert.match(now, /Sketch the layout of the harbor town/);
+    assert.doesNotMatch(now, /Direction for this reply/, 'not sent a second time as a story direction');
+});
