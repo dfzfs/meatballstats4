@@ -1,8 +1,8 @@
 // Built into Meatball 4 (was a separately installed app). Fetched only when switched on.
 import { tick as clockTick, newClock } from '../core/clock.js';
-import { geoPrompt, parseGeo, geoText, matcher, wireZoom, zoomStep } from '../ui/mapgeo.js';
+import { geoPrompt, parseGeo, geoText, matcher } from '../ui/mapgeo.js';
 import { elevSVG, buildFloors, ELEV_CSS } from '../ui/elev.js';
-import { boardView, faceOf, iconOf, BOARD_CSS } from '../ui/board.js';
+import { bandsOf, zonesView, zoneView, faceOf, iconOf, BOARD_CSS } from '../ui/board.js';
 //
 // 🗺 Map — the second generation's map, carried over: places are stations, the ways between them are lines
 // (coloured, bent at 45°), people are pins, a tapped place shows the way there, who is there, its rooms as a
@@ -265,7 +265,7 @@ const floorsOf = (rooms) => rooms.map((name) => ({ name, k: lvOf(name), b: btnOf
 function model(S, env, st) {
     const hide = new Set(st.hide ?? []), cuts = new Set(st.cuts ?? []);
     const all = Object.entries(S.P).map(([key, p]) => ({ key, name: p.name, area: p.area, visits: p.n, first: p.first, last: p.last, i: p.i, rooms: Object.keys(p.rooms), ppl: p.ppl, mood: p.mood ?? '' }));
-    for (const n of st.extra ?? []) if (!S.P[norm(n)]) all.push({ key: norm(n), name: n, area: '', visits: 0, first: 0, last: 0, i: -1, rooms: [], ppl: {} });
+    for (const n of st.extra ?? []) if (!S.P[norm(n)]) all.push({ key: norm(n), name: n, area: st.extraArea?.[norm(n)] ?? '', visits: 0, first: 0, last: 0, i: -1, rooms: [], ppl: {} });
     const places = all.filter((p) => !hide.has(p.key) || p.key === S.cur);
     const byKey = new Map(places.map((p) => [p.key, p]));
     const link = (a, b) => { const A = byKey.get(a), B = byKey.get(b); if (A && B && A !== B && !cuts.has(pairKey(a, b))) { if (!(A.near ??= []).includes(B.name)) A.near.push(B.name); if (!(B.near ??= []).includes(A.name)) B.near.push(A.name); } };
@@ -290,125 +290,83 @@ const btn = (text, act, v = '', cls = 'sm ghost') => `<button class="mb4-btn ${c
 const rl = (ico, body) => `<div class="mbx-rl"><i>${ico}</i><span>${body}</span></div>`;
 const okPhoto = (u) => /^(https?:\/\/|\/|data:image\/)/i.test(String(u ?? '').trim());
 
-function placeCard(S, M, st, p, path, ui) {
+function placeCard(S, M, st, p, path, ui, env) {
     const isHere = p.key === S.cur, here = M.at.get(p.key) ?? [], L = [];
-    if (!isHere && path.length > 1) L.push(rl('🚶', `<span data-trc="place">${path.map(esc).join(' → ')}</span> <small>${path.length - 1}정거장</small>`));
-    else if (!isHere && S.cur) L.push(rl('🚶', '<small>여기서 이어진 길이 아직 없어요</small>'));
-    L.push(rl('👥', here.length ? here.map((x) => `${faceOf(x.name)} <b data-trc="name">${esc(x.name)}</b> <small>${esc(x.why)}</small>`).join(' · ') : '<small>지금은 아무도 없을 것 같아요</small>'));
-    // who you may meet if you go now: people last seen here first, then the ones seen here most often (code only)
-    if (!isHere) {
-        const shown = new Set(here.map((x) => x.name)), guess = Object.entries(p.ppl).filter(([n, c]) => c >= 2 && !shown.has(n) && !S.with.includes(n)).sort((a, b) => b[1] - a[1]).slice(0, 3);
-        if (guess.length) L.push(rl('🔮', `가면 만날지도: ${guess.map(([n, c]) => `<b data-trc="name">${esc(n)}</b> <small>${c >= 5 ? '자주' : '가끔'}</small>`).join(' · ')}`));
-    }
+    if (!isHere && path.length > 1) L.push(rl('🚶', `<span data-trc="place">${path.map(esc).join(' → ')}</span> <small>${path.length - 1}곳 거쳐</small>`));
+    if (here.length) L.push(rl('👥', here.map((x) => `${faceOf(x.name)} <b data-trc="name">${esc(x.name)}</b> <small>${esc(x.why)}</small>`).join(' · ')));
     if (p.mood) L.push(rl('🌫', `<small>여기 분위기</small> ${esc(p.mood)}`));
-    if (p.visits) L.push(rl('👣', `<b>${p.visits}번</b> 들렀어요 `));
-    else L.push(rl('👣', '<small>아직 가 보지 않은 곳이에요</small>'));
-    const often = Object.entries(p.ppl).sort((a, b) => b[1] - a[1]).slice(0, 4);
-    if (often.length) L.push(rl('🕰', `여기서 본 사람: ${often.map(([n, c]) => `<b data-trc="name">${esc(n)}</b> <small>${c}번</small>`).join(' · ')}`));
-    if (p.area) L.push(rl('🗾', `<span data-trc="place">${esc(p.area)}</span> <small>안에 있어요</small>`));
-    for (const [a, b] of Object.entries(M.near)) if (norm(a) === p.key || norm(b).includes(p.key)) L.push(rl('🧭', `<span data-trc="place">${esc(a)}</span> <small data-trc="phrase">${esc(b)}</small>`));
     if (st.note?.[p.key]) L.push(rl('📝', esc(st.note[p.key])));
     const ph = st.photo?.[p.key];
-    const photo = okPhoto(ph) ? `<div class="mbx-photo"><img src="${esc(ph)}" alt="${esc(p.name)}" loading="lazy"></div>` : `<button class="mbx-photo empty" data-act="edit" data-v="${esc(p.name)}">🖼<small>사진 넣기</small></button>`;
-    const bld = `<div class="mbx-bld nolift">${photo}</div>`;
+    const photo = okPhoto(ph) ? `<div class="mbx-photo"><img src="${esc(ph)}" alt="${esc(p.name)}" loading="lazy"></div>` : '';
+    // 🏢 the building, cut open from the front, right here under the card
+    let bld = '';
+    if (p.fls?.length) {
+        const room = isHere ? norm(S.room ?? '') : '';
+        const atF = (f) => !!room && (room.startsWith(norm(f.name)) || f.rooms.some((r) => room.includes(norm(r.name))));
+        bld = `<div class="mbx-mapwrap inside">${elevSVG(p.fls, { me: '📍', at: atF, on: (f, r) => !!room && (room.includes(norm(r.name)) || (r.whole && atF(f))), act: '', pinsAt: (f, r) => (isHere ? here.filter((x) => x.now && room && atF(f) && room.includes(norm(r.name))) : []) })}</div>`;
+    }
     const others = M.places.filter((q) => q.key !== p.key);
     const linked = new Set(p.near.map(norm));
     const edit = ui.edit !== p.key ? '' : `<div class="mbx-edit">
-        <p class="mb4-hint">어떤 곳인가요</p><div class="mb4-chips">${Object.entries(PLACE_KINDS).map(([k, e]) => `<button class="mb4-btn sm ${p.kind === k ? '' : 'ghost'}" data-act="kind" data-v="${k}">${e} ${KIND_KO[k]}</button>`).join('')}</div>
+        <p class="mb4-hint">어떤 곳인가요</p><div class="mb4-chips">${Object.keys(PLACE_KINDS).map((k) => `<button class="mb4-btn sm ${p.kind === k ? '' : 'ghost'}" data-act="kind" data-v="${k}">${iconOf(k)} ${KIND_KO[k]}</button>`).join('')}</div>
         <label class="mb4-label">메모<input class="mb4-input" data-act="note" maxlength="120" placeholder="이 장소에 대해 적어 둘 것" value="${esc(st.note?.[p.key] ?? '')}"></label>
         <label class="mb4-label">사진 주소<input class="mb4-input" data-act="photo" maxlength="400" placeholder="https://… 로 시작하는 그림 주소" value="${esc(ph ?? '')}"></label>
         ${others.length ? `<p class="mb4-hint">이어진 곳 (눌러서 잇고 끊어요)</p><div class="mb4-chips">${others.map((q) => `<button class="mb4-btn sm ${linked.has(q.key) ? '' : 'ghost'}" data-act="link" data-v="${esc(q.name)}"><span data-trc="place">${esc(clip(q.name, 16))}</span></button>`).join('')}</div>` : ''}
+        <p class="mb4-hint">＋ 이 지역에 장소 직접 넣기 (아직 안 가 본 곳은 점선 칸으로 보여요)</p><div class="mb4-btnrow"><input class="mb4-input" data-f="newplace" maxlength="60" placeholder="장소 이름">${btn('넣기', 'add', p.area ?? '', 'sm')}</div>
         <div class="mb4-btnrow">${isHere ? '' : btn('👁 지도에서 숨기기', 'hide', p.name)}${p.visits ? '' : btn('🗑 지우기', 'drop', p.name)}${btn('닫기', 'edit', '')}</div>
     </div>`;
-    return `<section class="mb4-card mbx-place"><h5 class="mb4-card-h">${iconOf(p.kind, p.name)} <span data-trc="place">${esc(p.name)}</span>${isHere ? ' <small class="mbx-here">지금 여기</small>' : ''}</h5>
-        ${L.join('')}${bld}
-        <div class="mb4-btnrow">${p.fls?.length ? btn(`🏢 건물 안 보기 <small>${p.fls.length}층</small>`, 'inside', p.name, 'sm') : ''}${isHere ? '' : btn('🚶 여기로 가기', 'go', p.name, 'sm')}${btn('✏️ 고치기', 'edit', p.name)}</div>${edit}</section>`;
+    return `<section class="mb4-card mbx-place"><h5 class="mb4-card-h">${iconOf(p.kind, p.name)} <span data-trc="place">${esc(p.name)}</span>${isHere ? ` <small class="mbx-here">지금 여기${S.room ? ` · <span data-trc="place">${esc(S.room)}</span>` : ''}</small>` : ''}</h5>
+        ${L.join('')}${photo}${bld}
+        <div class="mb4-btnrow">${isHere ? '' : btn('🚶 여기로 가기', 'go', p.name, 'sm')}${btn('✏️ 고치기', 'edit', p.name)}</div>${edit}</section>`;
 }
 
 function view(S, env, st, ui = {}) {
     const sc = env.peek?.('scene');
     if (!sc) return env.kit.empty('🧭', '「장면」 앱을 켜 주세요', '지도는 장면 앱이 적어 둔 장소를 읽어서 그려요');
     const M = model(S, env, st);
-    const add = `<details class="mb4-card mbx-add"${ui.add ? ' open' : ''}><summary>＋ 장소 직접 넣기</summary><div class="mb4-btnrow"><input class="mb4-input" data-f="newplace" maxlength="60" placeholder="아직 안 가 본 곳 이름">${btn('넣기', 'add', '', 'sm')}</div><p class="mb4-hint">넣은 곳은 흐리게 보여요. 실제로 가면 진하게 바뀌어요.</p></details>`;
-    // 🧭 a geography look (if asked for): its places join as faint stations, its ways as lines, its floors as the
-    // building's floors, and its compass spots give every station its place on the grid (zones stacked by height)
-    const G = st.geo, find = G ? matcher(G) : null, fixed = new Map();
+    // 🧭 a geography look (if asked for): its zones become the areas, its places join (dashed until visited),
+    // its ways join places, its floors become the building's floors, its compass spots order the tiles
+    const G = st.geo, find = G ? matcher(G) : null;
     if (G) {
         const recOf = new Map();
         for (const p of M.places) { const g = find(p.name); if (g && !recOf.has(g.name)) recOf.set(g.name, p); if (g && !p.area) p.area = g.zone; if (g && PLACE_KINDS[g.kind] && !st.kind?.[p.key]) p.kind = g.kind; }
         for (const g of G.places) if (!recOf.has(g.name)) { const p = { key: norm(g.name), name: g.name, area: g.zone, visits: 0, first: 0, last: 0, i: -1, rooms: [], ppl: {}, near: [], kind: PLACE_KINDS[g.kind] ? g.kind : guessKind(g.name), floors: [], mood: '', geo: true }; if (!M.byKey.has(p.key)) { M.places.push(p); M.byKey.set(p.key, p); recOf.set(g.name, p); } }
         for (const l of G.links) { const A = recOf.get(find(l.a)?.name), B = recOf.get(find(l.b)?.name); if (A && B && A !== B && !(st.cuts ?? []).includes(pairKey(A.key, B.key))) { if (!A.near.includes(B.name)) A.near.push(B.name); if (!B.near.includes(A.name)) B.near.push(A.name); } }
-        // zones stacked by height, each just below the last one (no empty bands between them)
-        const zs = [...G.zones].sort((x, y) => x.level - y.level).map((z) => norm(z.name));
-        const inZ = (z) => G.places.filter((g) => g.x != null && recOf.get(g.name) && Math.max(0, zs.indexOf(norm(g.zone))) === z);
-        let top = 0;
-        for (let z = 0; z < Math.max(1, zs.length); z++) {
-            const gs = inZ(z); if (!gs.length) continue;
-            const y0 = Math.min(...gs.map((g) => g.y)), x0 = Math.min(...gs.map((g) => g.x));
-            for (const g of gs) fixed.set(recOf.get(g.name).name, { gx: (g.x - x0) * 2, gy: top + (g.y - y0) * 2 });
-            top += (Math.max(...gs.map((g) => g.y)) - y0) * 2 + 4;
-        }
     }
-    for (const p of M.places) p.fls = buildFloors(p.rooms, G ? find(p.name)?.floors ?? [] : []);
-    if (!M.places.length) return env.kit.empty('🗺', '아직 지나온 곳이 없어요', '장소가 바뀌면 역이 하나씩 생겨요') + geoTools(st, ui) + add;
-    const cur = M.byKey.get(S.cur), sel = M.byKey.get(norm(ui.sel)) ?? cur ?? M.places.at(-1);
-    // 구역 tabs (first generation): one area at a time, or all
-    const areas = [...new Set(M.places.map((p) => p.area).filter(Boolean))];
-    // opens on the area you are in (all of them at once gets too small to read); 「전체」 shows everything
-    const area = ui.area === '*' ? '' : areas.includes(ui.area) ? ui.area : areas.length > 1 && areas.includes(cur?.area) ? cur.area : '';
-    const shown = area ? M.places.filter((p) => p.area === area) : M.places;
-    const { pos, pairs } = layout(shown, fixed);
+    for (const p of M.places) { p.fls = buildFloors(p.rooms, G ? find(p.name)?.floors ?? [] : []); const g = G ? find(p.name) : null; p.geo = g && g.x != null ? { x: g.x, y: g.y } : null; }
+    if (!M.places.length) return env.kit.empty('🗺', '아직 지나온 곳이 없어요', '장소가 바뀌면 하나씩 생겨요') + geoTools(st, ui);
+    const cur = M.byKey.get(S.cur);
     const allAdj = new Map(M.places.map((p) => [p.name, new Set()])), byNm = new Map(M.places.map((p) => [norm(p.name), p.name]));
     for (const p of M.places) for (const q of p.near) { const b = byNm.get(norm(q)); if (b && b !== p.name) { allAdj.get(p.name).add(b); allAdj.get(b).add(p.name); } }
-    const path = route(allAdj, cur?.name, sel.name), onPath = new Set(path.slice(1).map((n, i) => pairKey(path[i], n)));
-    for (const e of pairs) e.route = onPath.has(e.key);
-    const net = lineEdges(pairs, pos);
     const today = S.route.day === S.day ? S.route.list.map((k) => M.byKey.get(k)?.name).filter(Boolean) : [];
-    const nodes = lineNodes(shown, { pos, here: cur?.name, sel: sel.name, net, pins: (p) => M.at.get(p.key) ?? [], order: today.length > 1 ? (n) => today.lastIndexOf(n) + 1 : null });
-    const [x0, y0, x1, y1] = nodes.ext, pad = 4, w = Math.max(x1 - x0 + pad * 2, STEP * 6), hh = Math.max(y1 - y0 + pad * 2, STEP * 4.5);   // a few stations never blow up to fill the box
-    const fit = [R((x0 + x1) / 2 - w / 2), R((y0 + y1) / 2 - hh / 2), R(w + 10), R(hh)].join(' ');   // +10: room for the ＋－ buttons on the right
-    const svg = `<svg class="mbx-map" viewBox="${fit}" data-fit="${fit}" preserveAspectRatio="xMidYMid meet" role="img" aria-label="지도"><g class="edges">${net.svg}</g>${nodes.svg}</svg>`;
-    const line = ui.mode === 'line';
-    const tools = `${btn(line ? '🗂 안내판' : '🚇 노선도', 'mode', line ? '' : 'line')}${M.everyone.length ? btn('📍 핀 인물', 'pinpick') : ''}${M.hidden.length ? btn(`👁 숨긴 곳 ${M.hidden.length}`, 'unhide') : ''}`;
+    const people = (p) => M.at.get(p.key) ?? [];
+    const zones = G ? [...G.zones].sort((x, y) => x.level - y.level) : [...new Set(M.places.map((p) => p.area).filter(Boolean))].map((name, level) => ({ name, level, note: '' }));
+    const bands = bandsOf(M.places, zones), bandOf = new Map(bands.flatMap((b) => b.list.map((p) => [p.key, b])));
+    const tools = `${M.everyone.length ? btn('📍 핀 인물', 'pinpick') : ''}${M.hidden.length ? btn(`👁 숨긴 곳 ${M.hidden.length}`, 'unhide') : ''}`;
     let h = `<div class="mbx-maphead"><span>${iconOf(cur?.kind, cur?.name ?? '')} 지금 <b data-trc="place">${esc(cur?.name ?? '어딘가')}</b>${S.room && cur ? ` <small data-trc="place">${esc(S.room)}</small>` : ''}${sc.tod ? ` · ${TOD_KO[sc.tod] ?? ''}` : ''}</span><span class="mb4-btnrow tight">${tools}</span></div>`;
-    if (ui.pinpick) h += `<div class="mb4-card"><p class="mb4-hint">지도에 띄울 사람 (꺼 둔 사람은 핀이 안 떠요)</p><div class="mb4-chips">${M.everyone.map((n) => `<button class="mb4-btn sm ${!Array.isArray(st.pins) || st.pins.includes(n) ? '' : 'ghost'}" data-act="pin" data-v="${esc(n)}">${env.face?.(n) ?? '🙂'} <span data-trc="name">${esc(n)}</span></button>`).join('')}</div></div>`;
-    // 🏢 inside a building: the cross-section, every floor on one picture
-    if (ui.inside && sel && norm(ui.inside) === sel.key && sel.fls.length) {
-        const hereIn = sel.key === S.cur, room = hereIn ? norm(S.room ?? '') : '';
-        const atF = (f) => !!room && (room.startsWith(norm(f.name)) || f.rooms.some((r) => room.includes(norm(r.name))));
-        const pic = elevSVG(sel.fls, { me: '📍', at: atF, on: (f, r) => !!room && (room.includes(norm(r.name)) || (r.whole && atF(f))), act: '', pinsAt: (f, r) => (hereIn ? (M.at.get(sel.key) ?? []).filter((x) => x.now && room && atF(f) && room.includes(norm(r.name))) : []) });
-        return h + `<div class="mbx-mapwrap inside"><div class="mbx-inbar">${btn('← 지도로', 'outside', '', 'sm')}<b><span class="mb4-notr">${PLACE_KINDS[sel.kind]}</span> <span data-trc="place">${esc(sel.name)}</span>${hereIn && S.room ? ` · <span data-trc="place">${esc(S.room)}</span>` : ''}</b>${hereIn ? ' <small class="mbx-here">지금 여기</small>' : ''}</div>${pic}</div>`
-            + env.kit.hint('건물을 앞에서 자른 그림이에요. 위가 높은 층, 땅 밑은 지하예요. 이야기에 나온 방(「3층 사무실」처럼)과 🧭 지리 분석이 정리한 층이 들어가요.') + placeCard(S, M, st, sel, path, ui);
+    if (ui.pinpick) h += `<div class="mb4-card"><p class="mb4-hint">지도에 띄울 사람 (꺼 둔 사람은 안 떠요)</p><div class="mb4-chips">${M.everyone.map((n) => `<button class="mb4-btn sm ${!Array.isArray(st.pins) || st.pins.includes(n) ? '' : 'ghost'}" data-act="pin" data-v="${esc(n)}">${faceOf(n)} <span data-trc="name">${esc(n)}</span></button>`).join('')}</div></div>`;
+    // first screen: the big area names only; one area -> straight in
+    const band = bands.length === 1 ? bands[0] : bands.find((b) => b.key === ui.zone);
+    if (!band) return h + zonesView({ bands, hereKey: cur?.key, people }) + geoTools(st, ui);
+    const sel = band.list.find((p) => p.key === norm(ui.sel)) ?? (ui.sel === '' && cur && bandOf.get(cur.key) === band ? cur : null);
+    // the ways out of this area: a place here joined to a place in another area
+    const out = [], seenZ = new Set();
+    for (const p of band.list) for (const n of p.near) {
+        const q = M.byKey.get(norm(n)), qb = q && bandOf.get(q.key);
+        if (!qb || qb === band || seenZ.has(qb.key + p.key)) continue;
+        seenZ.add(qb.key + p.key);
+        out.push({ zone: qb.key, zoneName: qb.name, from: p.name, to: q.name, how: linkHow(G, find, p.name, q.name) });
     }
-    if (!line) {
-        // 🗂 the floor guide: areas top (highest) to bottom, places as tiles
-        const linkHow = new Map((G?.links ?? []).map((l) => [pairKey(norm(find(l.a)?.name ?? l.a), norm(find(l.b)?.name ?? l.b)), l.how]));
-        for (const p of M.places) { const g = G ? find(p.name) : null; p.geo = g && g.x != null ? { x: g.x, y: g.y } : null; }
-        const zones = G ? [...G.zones].sort((x, y) => x.level - y.level) : [...new Set(M.places.map((p) => p.area).filter(Boolean))].map((name, level) => ({ name, level, note: '' }));
-        h += boardView({
-            places: M.places, zones, hereKey: cur?.key, selKey: sel.key, kindKo: KIND_KO, path: [],
-            people: (p) => M.at.get(p.key) ?? [], order: today.length > 1 ? (n) => today.lastIndexOf(n) + 1 : null,
-            near: (p) => p.near.map((n) => M.byKey.get(norm(n))).filter(Boolean).map((q) => ({ key: q.key, name: q.name, how: linkHow.get(pairKey(norm(p.name), norm(q.name))) ?? linkHow.get(pairKey(norm(q.name), norm(p.name))) ?? '' })),
-        });
-        h += placeCard(S, M, st, sel, path, ui);
-    } else {
-    if (areas.length) h += `<div class="mbx-areas">${[['*', '전체'], ...areas.map((x) => [x, x])].map(([v, t]) => `<button class="mb4-btn sm ${(area || '*') === v ? '' : 'ghost'}" data-act="area" data-v="${esc(v)}"><span data-trc="place">${esc(t)}</span>${v !== '*' && cur?.area === v ? ' 📍' : ''}</button>`).join('')}</div>`;
-    h += `<div class="mbx-mapwrap">${svg}<div class="mbx-ctl"><button data-act="zoom" data-v="in" aria-label="확대">＋</button><button data-act="zoom" data-v="out" aria-label="축소">－</button><button data-act="zoom" data-v="here" aria-label="지금 위치">◎</button><button data-act="zoom" data-v="fit" aria-label="전체 보기">⤢</button></div></div><p class="mb4-hint">끌어서 옮기고, 두 손가락 · 휠 · 버튼으로 확대해요. 건물은 눌러서 「🏢 건물 안 보기」.</p>`;
-    const who = [...M.at.entries()].flatMap(([key, L]) => L.map((x) => ({ ...x, pl: M.byKey.get(key).name })));
-    if (who.length) h += `<div class="mbx-pinrow">${who.map((x) => `<button class="mbx-pin" data-act="mapsel" data-v="${esc(x.pl)}" title="${esc(x.why)}">${x.e} <span data-trc="name">${esc(x.name)}</span> <small data-trc="place">${esc(clip(x.pl, 14))}</small></button>`).join('')}</div>`;
-    h += placeCard(S, M, st, sel, path, ui);
-    }
-    if (today.length > 1) h += `<section class="mb4-card"><h5 class="mb4-card-h">오늘 다닌 길</h5><p class="mbx-today" data-trc="place">${today.map((n, i) => `<b class="mb4-notr">${i + 1}</b> ${esc(n)}`).join(' → ')}</p></section>`;
-    const trail = [...M.places].filter((p) => p.visits).sort((a, b) => b.i - a.i);
-    h += `<details class="mb4-card"><summary>🧾 다녀온 곳 전부 (${trail.length})</summary><ol class="mb4-trail">${trail.map((p) => `<li data-act="mapsel" data-v="${esc(p.name)}"><b><span class="mb4-notr">${PLACE_KINDS[p.kind]}</span> <span data-trc="place">${esc(p.name)}</span></b><small>${p.visits}번${p.area ? ` · <span data-trc="place">${esc(p.area)}</span>` : ''}</small></li>`).join('')}</ol></details>`;
-    h += geoTools(st, ui) + add;
-    return h + env.kit.hint(line ? '역 = 장소, 선 = 실제로 오간 길이에요. 색이 진할수록 자주 간 곳이고, 숫자는 오늘 다닌 순서예요. 흐린 역은 아직 안 가 본 곳이에요.' : '위 칸일수록 높은 곳이에요. 점선 칸은 아직 안 가 본 곳, 숫자는 오늘 다닌 순서예요. 칸을 누르면 가는 길과 🏢 건물 안이 나와요.');
+    h += zoneView({ band, hereKey: cur?.key, selKey: sel?.key, kindKo: KIND_KO, people, order: today.length > 1 ? (n) => today.lastIndexOf(n) + 1 : null, out: out.slice(0, 6), back: bands.length > 1 });
+    if (sel) h += placeCard(S, M, st, sel, route(allAdj, cur?.name, sel.name), ui, env);
+    return h + geoTools(st, ui);
 }
+const linkHow = (G, find, a, b) => (G?.links ?? []).find((l) => { const A = norm(find(l.a)?.name ?? l.a), B = norm(find(l.b)?.name ?? l.b); return (A === norm(a) && B === norm(b)) || (A === norm(b) && B === norm(a)); })?.how ?? '';
 // 🧭 the geography look: ask (one model call), edit its lines, put the last one back
 function geoTools(st, ui) {
     const G = st.geo;
-    return `<details class="mb4-card"${ui.raw ? ' open' : ''}><summary>🧭 지리 분석 ${G ? `<small>· 구역 ${G.zones.length} · 장소 ${G.places.length} · #${G.at ?? '?'}까지 보고 정리</small>` : '<small>· 역 자리를 실제 방향 · 높이대로</small>'}</summary>
-        <p class="mb4-hint">AI가 이야기 밖(OOC)에서 설정과 지금까지의 이야기를 읽고, 장소의 구역 · 방향 · 높이 · 층 · 이어진 길을 정리해요. 그걸로 역 자리를 잡고, 아직 안 가 본 곳도 흐린 역으로 넣어요. AI 1회, 이야기에는 아무것도 안 들어가요.</p>
+    return `<details class="mb4-card"${ui.raw ? ' open' : ''}><summary>🧭 지리 분석 ${G ? `<small>· 구역 ${G.zones.length} · 장소 ${G.places.length} · #${G.at ?? '?'}까지 보고 정리</small>` : '<small>· 지역을 실제 높이 · 방향대로</small>'}</summary>
+        <p class="mb4-hint">AI가 이야기 밖(OOC)에서 설정과 지금까지의 이야기를 읽고, 장소의 구역 · 방향 · 높이 · 층 · 이어진 길을 정리해요. 그걸로 지역을 높이순으로 나누고 장소 순서를 잡아요. 아직 안 가 본 곳은 점선 칸으로 넣어요. AI 1회, 이야기에는 아무것도 안 들어가요.</p>
         <div class="mb4-btnrow"><button class="mb4-btn sm" data-act="geo"${ui.busy ? ' disabled' : ''}>${ui.busy ? '정리하는 중…' : G ? '🧭 다시 분석' : '🧭 지리 분석'}</button>${st.geoPrev ? btn('↩ 이전 분석으로', 'geoundo') : ''}${G ? btn('지우기', 'geoclear') : ''}</div>
         ${G ? `<textarea class="mb4-input mbg-raw" data-f="georaw">${esc(geoText(G))}</textarea><div class="mb4-btnrow">${btn('고친 내용 적용', 'geosave', '', 'sm')}</div><p class="mb4-hint">ZONE: 이름 | 높이(0이 제일 위) | 메모 · PLACE: 이름 | 구역 | x,y (0~9, 서→동, 북→남) | 종류 | 층 | 메모 · LINK: 장소 - 장소 | 가는 법</p>` : ''}</details>`;
 }
@@ -487,7 +445,7 @@ export default {
     widgetTitle: '오늘 다닌 길',
     render(el, api) {
         const st = api.store, env = { peek: api.env.peek, kit: api.kit, face: api.kit.face };
-        if (ui.st !== st) Object.assign(ui, { st, sel: '', edit: '', pinpick: false, add: false, busy: false, raw: false, area: null, mode: '', vb: null, inside: '' });   // another chat: start fresh
+        if (ui.st !== st) Object.assign(ui, { st, sel: '', edit: '', pinpick: false, add: false, busy: false, raw: false, zone: '' });   // another chat: start fresh
         const keyOf = (name) => norm(name);
         const save = () => { api.save(); paint(); };
         const paint = () => {
@@ -511,29 +469,17 @@ export default {
                     else { st.cuts = (st.cuts ?? []).filter((x) => x !== e); if (!S.E[e]) st.links = [...new Set([...(st.links ?? []), e])]; }
                     save();
                 },
-                add: () => {
+                add: (v) => {
                     const name = api.kit.val(el, '[data-f="newplace"]').slice(0, 60);
                     if (!name) return;
                     if (api.state().P[keyOf(name)] || (st.extra ?? []).some((n) => keyOf(n) === keyOf(name))) { st.hide = (st.hide ?? []).filter((k) => k !== keyOf(name)); api.toast('이미 지도에 있는 곳이에요.'); }
                     else if ((st.extra ?? []).length >= 30) { api.toast('직접 넣는 곳은 30곳까지예요.', 'warning'); return; }
                     else st.extra = [...(st.extra ?? []), name];
-                    ui.sel = name; ui.add = false; save();
+                    if (v && v !== '그 밖') (st.extraArea ??= {})[keyOf(name)] = v;
+                    ui.sel = name; ui.edit = ''; save();
                 },
                 go: (v) => { if (api.say(`${v}(으)로 간다.`)) api.toast('입력창에 적어 뒀어요. 고쳐서 보내면 돼요.'); },
-                area: (v) => { ui.area = v; ui.vb = null; paint(); },
-                mode: (v) => { ui.mode = v; ui.vb = null; paint(); },
-                zoom: (v) => zoomStep(el.querySelector('svg.mbx-map'), v, (vb) => { ui.vb = vb; ui.vbFit = el.querySelector('svg.mbx-map')?.dataset.fit; }),
-                // 🏢 into the building: the map closes in on the station (0.3 s), then the cross-section opens
-                inside: (v) => {
-                    const svg = el.querySelector('svg.mbx-map'), node = [...(svg?.querySelectorAll('g.node') ?? [])].find((g) => g.dataset.v === v);
-                    const done = () => { ui.inside = v; ui.sel = v; paint(); };
-                    let bb = null; try { bb = node?.getBBox?.(); } catch (e) { bb = null; }
-                    if (!bb || !bb.width || typeof requestAnimationFrame !== 'function' || window.matchMedia?.('(prefers-reduced-motion: reduce)').matches) return done();
-                    const from = svg.getAttribute('viewBox').split(/\s+/).map(Number), side = Math.max(14, bb.width, bb.height) * 1.25, to = [bb.x + bb.width / 2 - side / 2, bb.y + bb.height / 2 - side / 2, side, side], t0 = performance.now();
-                    const step = (now) => { if (!svg.isConnected) return done(); const k = Math.min(1, (now - t0) / 320), e = 1 - (1 - k) ** 3; svg.setAttribute('viewBox', from.map((x, i) => Math.round((x + (to[i] - x) * e) * 100) / 100).join(' ')); if (k < 1) requestAnimationFrame(step); else done(); };
-                    requestAnimationFrame(step);
-                },
-                outside: () => { ui.inside = ''; paint(); },
+                zone: (v) => { ui.zone = v; ui.sel = ''; ui.edit = ''; paint(); el.scrollIntoView?.({ block: 'start' }); },
                 geoclear: () => { st.geoPrev = st.geo; delete st.geo; save(); },
                 // 🧭 one model call, out of character: the setting's layout, kept until asked again
                 geo: async () => {
@@ -547,7 +493,7 @@ export default {
                     if (!G.places.length) { api.toast('지도를 못 받았어요. 다시 눌러 주세요.', 'warning'); paint(); return; }
                     if (st.geo) st.geoPrev = st.geo;
                     st.geo = { ...G, at: log.at(-1)?.i ?? 0, n: log.length };
-                    ui.raw = true; ui.vb = null; api.toast(`🧭 구역 ${G.zones.length}개, 장소 ${G.places.length}곳을 정리했어요.`); save();
+                    ui.raw = true; api.toast(`🧭 구역 ${G.zones.length}개, 장소 ${G.places.length}곳을 정리했어요.`); save();
                 },
                 geosave: () => {
                     const G = parseGeo(api.kit.val(el, '[data-f="georaw"]'));
@@ -556,10 +502,6 @@ export default {
                 },
                 geoundo: () => { if (!st.geoPrev) return; [st.geo, st.geoPrev] = [st.geoPrev, st.geo]; save(); },
             });
-            el.querySelector('.mbx-add')?.addEventListener('toggle', (e) => { ui.add = e.target.open; });
-            // the map moves by hand (first generation); where it was left stays across repaints while the drawing is the same
-            const g = el.querySelector('svg.mbx-map');
-            if (g) { if (ui.vb && ui.vbFit === g.dataset.fit) g.setAttribute('viewBox', ui.vb.join(' ')); wireZoom(g, (vb) => { ui.vb = vb; ui.vbFit = g.dataset.fit; }); }
             el.querySelector('[data-f="georaw"]')?.closest('details')?.addEventListener('toggle', (e) => { ui.raw = e.target.open; });
         };
         paint();

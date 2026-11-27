@@ -27,7 +27,7 @@ test('the answer is read into zones, places, floors and ways; anything else is i
     assert.equal(find('Lighthouse'), null);
 });
 
-test('🗺 map: 🗂 floor guide by default (areas by height, drawn icons and faces), 🚇 line map with ＋－ zoom, 🏢 cross-section, ↩', async () => {
+test('🗺 map: big area cards first, into one area for its tiles, the card under it with the building cut open, ↩', async () => {
     page();
     const t = await setup({ apps: ['scene', 'map'], chat: chatOf([{ reply: 'a' }, { user: 'b' }, { reply: 'c' }]) });
     t.record(0, [['loc', 'Hilltop > Bell Tower Inn > kitchen']]);
@@ -37,42 +37,41 @@ test('🗺 map: 🗂 floor guide by default (areas by height, drawn icons and fa
     api.ask = async (p) => { asked = p; return ANSWER; };
     const el = document.createElement('div'), def = t.E.reg.get('map'), tap = (sel) => el.querySelector(sel).dispatchEvent(new window.Event('click', { bubbles: true }));
     def.render(el, api);
-    assert.ok(el.querySelector('.mbb-tile.here[data-v="Clinic"]'), 'the floor guide is the map; here is marked');
-    assert.ok(!el.querySelector('svg.mbx-map'));
+    // one area only: straight in, here is marked, its card shows under it
+    assert.ok(el.querySelector('.mbb-tile.here[data-v="Clinic"]'));
+    assert.ok(!el.querySelector('svg.mbx-map'), 'no line map');
     tap('[data-act="geo"]');
     await new Promise((r) => setTimeout(r, 20));
     assert.match(asked, /OOC/); assert.match(asked, /Do NOT continue the story/); assert.match(asked, /Bell Tower Inn/);
-    // areas top (highest) to bottom; the market nobody has been to is a dashed tile in the lower one; the lift between them is named
-    const bands = [...el.querySelectorAll('.mbb-band .mbb-zn b')].map((b) => b.textContent);
-    assert.deepEqual(bands, ['Hilltop', 'Lower Harbor']);
+    // two areas now: only the big area cards, top (highest) first, the one you are in marked
+    const zs = [...el.querySelectorAll('.mbb-zone')];
+    assert.deepEqual(zs.map((z) => z.querySelector('.mbb-zname b').textContent), ['Hilltop', 'Lower Harbor']);
+    assert.ok(zs[0].classList.contains('mine'));
+    assert.ok(!el.querySelector('.mbb-tile'), 'no tiles on the first screen');
+    // into the harbor: the market nobody has been to is dashed, the way back up is named
+    tap('.mbb-zone[data-v="lower harbor"]');
     assert.ok(el.querySelector('.mbb-tile.new[data-v="Fish Market"]'));
-    assert.match(el.querySelector('.mbb-way').textContent, /Fish Market|Clinic|Bell Tower Inn/);
+    assert.match(el.querySelector('.mbb-out').textContent, /Hilltop/);
+    assert.match(el.querySelector('.mbb-out').textContent, /cliff lift/);
     assert.ok(el.querySelector('.mbb-tile svg.mbb-ico'), 'drawn icons, not emoji');
-    // 🚇 the line map is still there
-    tap('[data-act="mode"][data-v="line"]');
-    assert.ok(el.querySelector('svg.mbx-map'), 'line map');
-    assert.ok(el.querySelector('[data-act="zoom"][data-v="in"]') && el.querySelector('[data-act="zoom"][data-v="fit"]'));
-    // the market nobody has been to yet is now a (faint) station, joined by the cliff lift
-    const st = (n) => el.querySelector(`svg.mbx-map g.node[data-v="${n}"]`);
-    assert.ok(!st('Fish Market'), 'opens on the area you are in');
-    tap('[data-act="area"][data-v="*"]');
-    assert.ok(st('Fish Market') && st('Fish Market').classList.contains('new'));
-    assert.ok(el.querySelector('[data-act="area"][data-v="Lower Harbor"]'), 'areas from the zones');
-    // ＋ narrows the view; ⤢ puts it back
-    const svg = el.querySelector('svg.mbx-map'), vb0 = svg.getAttribute('viewBox');
-    tap('[data-act="zoom"][data-v="in"]');
-    assert.notEqual(svg.getAttribute('viewBox'), vb0);
-    tap('[data-act="zoom"][data-v="fit"]');
-    assert.equal(svg.getAttribute('viewBox'), vb0);
-    // 🏢 the clinic: floors from the story (3F office) and the look (3F ward, office)
-    tap('[data-act="mapsel"][data-v="Clinic"]');
-    tap('[data-act="inside"][data-v="Clinic"]');
-    const elev = el.querySelector('svg.mbx-elev');
-    assert.ok(elev, 'cross-section open');
+    tap('.mbb-out');
+    // the clinic card: no visit counts, the building cut open right under it
+    tap('.mbb-tile[data-v="Clinic"]');
+    const card = el.querySelector('.mbx-place');
+    assert.doesNotMatch(card.textContent, /들렀어요|여기서 본 사람|안에 있어요/);
+    const elev = card.querySelector('svg.mbx-elev');
+    assert.ok(elev, 'cross-section right in the card');
     assert.match(elev.textContent, /3F/); assert.match(elev.textContent, /ward/); assert.match(elev.textContent, /office/);
     assert.ok(elev.querySelector('.rm.on'), 'the room the story is in is marked');
-    tap('[data-act="outside"]');
-    assert.ok(el.querySelector('svg.mbx-map'));
+    assert.ok(!el.textContent.includes('오늘 다닌 길') && !el.textContent.includes('다녀온 곳 전부'));
+    // ＋ a place, from ✏️: it joins this area
+    tap('[data-act="edit"][data-v="Clinic"]');
+    el.querySelector('[data-f="newplace"]').value = 'Rope Bridge';
+    tap('[data-act="add"]');
+    assert.ok(el.querySelector('.mbb-tile.new[data-v="Rope Bridge"]'));
+    // ← back to the area cards
+    tap('.mbb-back');
+    assert.ok(el.querySelector('.mbb-zone'));
     // asked again: the first look is kept for ↩
     api.ask = async () => 'ZONE: Hilltop | 0 |\nPLACE: Clinic | Hilltop | 5,5 | work | - | x';
     tap('[data-act="geo"]');

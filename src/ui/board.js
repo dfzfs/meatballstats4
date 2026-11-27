@@ -61,41 +61,68 @@ const CITY = '<path d="M0 36V22h20v-8h16v14h18V10h14v26zM90 36V18h22v-6h12v24zM1
 const artOf = (z) => `<svg class="mbb-art" viewBox="0 0 320 36" preserveAspectRatio="none" aria-hidden="true">${ART.find(([re]) => re.test(`${z.name} ${z.note ?? ''}`))?.[1] ?? CITY}</svg>`;
 
 // ── the board ──
-// o: { places:[{key,name,kind,visits,area,fls,geo:{x,y}}], zones:[{name,note,level}], hereKey, selKey,
-//      people:(p)=>[{name,now}], order:(name)=>n, kindKo, path:[names] }
-export function boardView(o) {
-    const zones = o.zones.length ? o.zones : [{ name: '', note: '', level: 0 }];
-    const inZone = new Map(zones.map((z) => [norm(z.name), []])), rest = [];
-    for (const p of o.places) (inZone.get(norm(p.area)) ?? rest).push(p);
-    const bands = zones.map((z) => ({ z, list: inZone.get(norm(z.name)) })).filter((b) => b.list.length);
-    if (rest.length) bands.push({ z: { name: bands.length ? '그 밖' : '', note: '' }, list: rest });
-    const zoneOf = new Map(); bands.forEach((b, i) => b.list.forEach((p) => zoneOf.set(p.key, i)));
-    // north before south, west before east; places with no compass spot keep the story's order
+// Areas (zones) first, top (highest) to bottom; each holds its places, north before south, west before east.
+// places: [{key,name,kind,visits,area,first,fls,geo:{x,y}}], zones: [{name,note,level}]
+export function bandsOf(places, zones) {
+    const zs = zones.length ? zones : [];
+    const inZone = new Map(zs.map((z) => [norm(z.name), []])), rest = [];
+    for (const p of places) (inZone.get(norm(p.area)) ?? rest).push(p);
+    const bands = zs.map((z) => ({ key: norm(z.name), name: z.name, note: z.note ?? '', list: inZone.get(norm(z.name)) })).filter((b) => b.list.length);
+    if (rest.length) bands.push({ key: bands.length ? '~' : '', name: bands.length ? '그 밖' : '', note: '', list: rest });
     for (const b of bands) b.list.sort((a, c) => ((a.geo?.y ?? 99) - (c.geo?.y ?? 99)) || ((a.geo?.x ?? 99) - (c.geo?.x ?? 99)) || (a.first - c.first));
+    return bands;
+}
+// the first screen: only the big area names, one big card each
+// o: { bands, hereKey, people:(p)=>[{name,now}] }
+export function zonesView(o) {
+    return `<div class="mbb-zones">${o.bands.map((b, i) => {
+        const mine = b.list.some((p) => p.key === o.hereKey), seen = b.list.filter((p) => p.visits).length;
+        const ppl = [...new Map(b.list.flatMap((p) => o.people(p)).map((x) => [x.name, x])).values()];
+        return `<button class="mbb-zone ${mine ? 'mine' : ''}" data-act="zone" data-v="${esc(b.key)}">${artOf(b)}
+            <span class="mbb-zbody"><span class="mbb-zname"><b data-trc="place">${esc(b.name || '전체')}</b>${mine ? '<span class="mbb-badge">여기</span>' : ''}</span>
+            ${b.note ? `<span class="mbb-znote" data-trc="phrase">${esc(b.note)}</span>` : ''}
+            <span class="mbb-zmeta">${i === 0 && o.bands.length > 1 ? '▲ 제일 위 · ' : ''}${b.list.length}곳${seen < b.list.length ? ` (가 본 곳 ${seen})` : ''}${ppl.length ? `<span class="mbb-zppl">${ppl.slice(0, 5).map((x) => faceOf(x.name)).join('')}${ppl.length > 5 ? `<small>+${ppl.length - 5}</small>` : ''}</span>` : ''}</span></span>
+            <svg class="mbb-chev" viewBox="0 0 24 24" aria-hidden="true"><path d="M9 6l6 6-6 6"/></svg></button>`;
+    }).join('')}</div>`;
+}
+// inside one area: its places as tiles, and the ways out to the other areas
+// o: { band, hereKey, selKey, kindKo, people, order, out:[{zone,zoneName,from,to,how}], back:boolean }
+export function zoneView(o) {
+    const b = o.band;
     const tile = (p) => {
         const here = p.key === o.hereKey, sel = p.key === o.selKey, ppl = o.people(p), ord = o.order?.(p.name) ?? 0;
         const sub = [p.kind === 'other' ? '' : o.kindKo[p.kind], p.fls?.length ? `${p.fls.length}층` : '', p.visits ? '' : '안 가 봄'].filter(Boolean).join(' · ');
         const who = ppl.length ? `<span class="mbb-who">${ppl.slice(0, 3).map((x) => `<span class="mbb-pp ${x.now ? 'now' : ''}">${faceOf(x.name)}<span data-trc="name">${esc(x.name)}</span></span>`).join('')}${ppl.length > 3 ? `<span class="mbb-more">+${ppl.length - 3}</span>` : ''}</span>` : '';
         return `<button class="mbb-tile ${here ? 'here' : ''} ${sel ? 'sel' : ''} ${p.visits ? '' : 'new'}" data-act="mapsel" data-v="${esc(p.name)}">
             <span class="mbb-top">${iconOf(p.kind, p.name)}${here ? '<span class="mbb-badge">여기</span>' : ord ? `<span class="mbb-ord">${ord}</span>` : ''}</span>
-            <span class="mbb-nm" data-trc="place">${esc(p.name)}</span><span class="mbb-sub">${esc(sub)}</span>${who}</button>`;
+            <span class="mbb-nm" data-trc="place">${esc(p.name)}</span>${sub ? `<span class="mbb-sub">${esc(sub)}</span>` : ''}${who}</button>`;
     };
-    // the ways that join one area to the next one down (lift, bridge, boat…)
-    const between = (i) => {
-        const pairs = new Set();
-        for (const p of bands[i].list) for (const q of o.near(p)) if (zoneOf.get(q.key) === i + 1) pairs.add(`${esc(p.name)} ↔ ${esc(q.name)}${q.how ? ` <small>(${esc(q.how)})</small>` : ''}`);
-        return pairs.size ? `<div class="mbb-way"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 4v16M7 15l5 5 5-5M7 9l5-5 5 5"/></svg><span data-trc="place">${[...pairs].slice(0, 3).join(' · ')}</span></div>` : '<div class="mbb-gap"></div>';
-    };
-    const route = o.path.length > 1 ? `<div class="mbb-route"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 19c4 0 4-6 7-7s3-6 7-7"/><circle cx="5" cy="19" r="2"/><circle cx="19" cy="5" r="2"/></svg><span data-trc="place">${o.path.map(esc).join(' → ')}</span><small>${o.path.length - 1}곳 거쳐</small></div>` : '';
-    return `${route}<div class="mbb">${bands.map((b, i) => `<section class="mbb-band ${b.list.some((p) => p.key === o.hereKey) ? 'mine' : ''}">
-        ${b.z.name ? `<header class="mbb-hd">${artOf(b.z)}<span class="mbb-zn"><b data-trc="place">${esc(b.z.name)}</b>${b.z.note ? ` <small data-trc="phrase">${esc(b.z.note)}</small>` : ''}</span><span class="mbb-n">${i === 0 && bands.length > 1 ? '▲ 제일 위 · ' : ''}${b.list.length}곳</span></header>` : ''}
-        <div class="mbb-grid">${b.list.map(tile).join('')}</div></section>${i < bands.length - 1 ? between(i) : ''}`).join('')}</div>`;
+    const head = b.name || o.back ? `<header class="mbb-hd big">${artOf(b)}${o.back ? '<button class="mbb-back" data-act="zone" data-v="" aria-label="전체 지역"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M15 6l-6 6 6 6"/></svg>전체 지역</button>' : ''}<span class="mbb-zn"><b data-trc="place">${esc(b.name)}</b>${b.note ? ` <small data-trc="phrase">${esc(b.note)}</small>` : ''}</span></header>` : '';
+    const outs = o.out.length ? `<div class="mbb-outs">${o.out.map((w) => `<button class="mbb-out" data-act="zone" data-v="${esc(w.zone)}"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 4v16M7 15l5 5 5-5M7 9l5-5 5 5"/></svg><span><span data-trc="place">${esc(w.from)}</span> → <b data-trc="place">${esc(w.zoneName)}</b> <small data-trc="place">${esc(w.to)}${w.how ? ` · ${esc(w.how)}` : ''}</small></span></button>`).join('')}</div>` : '';
+    return `<section class="mbb-band">${head}<div class="mbb-grid">${b.list.map(tile).join('')}</div>${outs}</section>`;
 }
 
 export const BOARD_CSS = `
-.mbb{display:flex;flex-direction:column}
+.mbb-zones{display:flex;flex-direction:column;gap:10px}
+.mbb-zone{all:unset;box-sizing:border-box;position:relative;display:flex;align-items:center;gap:8px;min-height:96px;padding:14px 12px 14px 16px;border-radius:18px;border:1px solid var(--line);background:var(--card,#fff);overflow:hidden;cursor:pointer;color:var(--fg)}
+.mbb-zone:hover{border-color:color-mix(in srgb,var(--a) 50%,var(--line))}
+.mbb-zone.mine{border:2px solid var(--a)}
+.mbb-zone .mbb-art{top:auto;height:60%}
+.mbb-zbody{position:relative;flex:1;display:flex;flex-direction:column;gap:4px;min-width:0}
+.mbb-zname{display:flex;align-items:center;gap:8px;font-size:21px;line-height:1.2}
+.mbb-znote{font-size:13px;color:var(--sub)}
+.mbb-zmeta{display:flex;align-items:center;gap:8px;font-size:12px;color:var(--sub)}
+.mbb-zppl{display:inline-flex;align-items:center}.mbb-zppl .mbb-face{margin-right:-4px}
+.mbb-chev{position:relative;width:22px;height:22px;flex:none;fill:none;stroke:var(--sub);stroke-width:2;stroke-linecap:round;stroke-linejoin:round}
+.mbb-hd.big{flex-direction:column;align-items:flex-start;justify-content:flex-end;gap:8px;min-height:92px;padding:10px 12px 8px}
+.mbb-hd.big .mbb-zn{font-size:20px}.mbb-hd.big .mbb-zn small{font-size:13px}
+.mbb-back{all:unset;position:relative;display:inline-flex;align-items:center;gap:2px;font-size:13px;font-weight:600;color:var(--a);cursor:pointer;padding:2px 8px 2px 2px;border-radius:999px;background:color-mix(in srgb,var(--card,#fff) 80%,transparent)}
+.mbb-back svg{width:18px;height:18px;fill:none;stroke:currentColor;stroke-width:2;stroke-linecap:round}
+.mbb-outs{display:flex;flex-direction:column;gap:4px;padding:0 10px 10px}
+.mbb-out{all:unset;display:flex;align-items:center;gap:8px;padding:8px 10px;border-radius:10px;background:color-mix(in srgb,var(--a) 7%,transparent);font-size:13px;cursor:pointer;color:var(--fg)}
+.mbb-out small{color:var(--sub)}
+.mbb-out svg{width:18px;height:18px;flex:none;fill:none;stroke:var(--a);stroke-width:1.8;stroke-linecap:round;stroke-linejoin:round}
 .mbb-band{border:1px solid var(--line);border-radius:16px;background:var(--card,#fff);overflow:hidden}
-.mbb-band.mine{border-color:color-mix(in srgb,var(--a) 55%,var(--line))}
 .mbb-hd{position:relative;display:flex;align-items:flex-end;justify-content:space-between;gap:8px;padding:16px 12px 6px;min-height:46px}
 .mbb-art{position:absolute;inset:0;width:100%;height:100%;pointer-events:none}
 .mbb-art .a1{fill:color-mix(in srgb,var(--a) 16%,transparent)}.mbb-art .a2{fill:color-mix(in srgb,var(--a) 9%,transparent)}
@@ -118,10 +145,5 @@ export const BOARD_CSS = `
 .mbb-pp{display:inline-flex;align-items:center;gap:3px;font-size:12px;color:var(--sub)}.mbb-pp.now{color:var(--fg);font-weight:600}
 .mbb-face{width:22px;height:22px;flex:none}
 .mbb-more{font-size:12px;color:var(--sub)}
-.mbb-way{display:flex;align-items:center;gap:6px;padding:6px 14px;font-size:12px;color:var(--sub)}
-.mbb-way svg,.mbb-route svg{width:18px;height:18px;flex:none;fill:none;stroke:var(--a);stroke-width:1.8;stroke-linecap:round;stroke-linejoin:round}
-.mbb-gap{height:8px}
-.mbb-route{display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin:0 0 8px;padding:8px 12px;border-radius:12px;background:color-mix(in srgb,var(--a) 10%,transparent);font-size:13px;font-weight:600}
-.mbb-route small{color:var(--sub);font-weight:400}
 .mbx-maphead .mbb-face{width:18px;height:18px;vertical-align:-4px}
 `;
