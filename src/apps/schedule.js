@@ -12,7 +12,7 @@ import { esc, hint, acts, val, face, inCast, TOD, TOD_KO } from '../ui/kit.js';
 export const SHARED = '*';
 const WD = ['일', '월', '화', '수', '목', '금', '토'];
 const WD_EN = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
-const PAL = ['#f08c2e', '#7a6ad8', '#22b07d', '#ef5da8', '#3a8ee6', '#16a3a8', '#c98a00'];
+const TOD_ICO = { dawn: '🌅', morning: '☀️', noon: '🌞', afternoon: '🌤️', evening: '🌇', night: '🌙', midnight: '🌌' };
 const MAX_SEL = 6, MAX_ITEMS = 400;
 // a block's time: "05:00–07:00", "19:00 – 01:00+", "7시~9시" or a time-of-day word
 export function startOf(time) { const m = String(time ?? '').match(/(\d{1,2})\s*(?::\s*(\d{2}))?\s*(?:시)?/); return m ? Math.min(23, +m[1]) + (m[2] ? +m[2] / 60 : 0) : null; }
@@ -152,7 +152,7 @@ export default {
 .mb4-sch-tabs::-webkit-scrollbar { display: none; }
 .mb4-sch-tab { flex: none; display: inline-flex; align-items: center; gap: 5px; padding: 7px 13px 7px 9px; border: 1.5px solid var(--line); border-radius: 999px; background: var(--card); color: var(--fg) !important; font-size: 13.5px !important; font-weight: 600 !important; white-space: nowrap; }
 .mb4-sch-tab i { font-style: normal; font-size: 16px; }
-.mb4-sch-tab.on { border-color: var(--c); background: var(--c); color: #fff !important; }
+.mb4-sch-tab.on { border-color: var(--a); background: color-mix(in srgb, var(--a) 16%, var(--card)); color: var(--a) !important; font-weight: 700 !important; }
 .mb4-sch-tab.add { border-style: dashed; color: var(--sub) !important; background: transparent; }
 .mb4-sch-bar { display: flex; gap: 8px; margin: 0 0 12px; }
 .mb4-sch-bar > button { flex: 1; min-height: 42px; border: 0; border-radius: 14px; font-size: 14px !important; font-weight: 700 !important; }
@@ -165,27 +165,31 @@ export default {
 .mb4-sch-chk { position: relative; }
 .mb4-sch-chk input { position: absolute; opacity: 0; pointer-events: none; }
 .mb4-sch-chk span { display: inline-block; padding: 6px 12px; border: 1.5px solid var(--line); border-radius: 999px; font-size: 13px; }
-.mb4-sch-chk input:checked + span { background: var(--c, var(--a)); border-color: var(--c, var(--a)); color: #fff; font-weight: 700; }
+.mb4-sch-chk input:checked + span { background: color-mix(in srgb, var(--a) 16%, var(--card)); border-color: var(--a); color: var(--a); font-weight: 700; }
 .mb4-sch-chk input:focus-visible + span { outline: 2px solid var(--a); outline-offset: 1px; }
 .mb4-phone .mb4-sch-go-btn { width: 100%; margin-top: 12px; min-height: 42px; border-radius: 14px; background: var(--a) !important; color: #fff !important; }
 .mb4-sch-tl { margin: 4px 0 8px; }
-.mb4-sch-ev { position: relative; display: grid; grid-template-columns: 50px 26px 1fr; --c: var(--a); }
-.mb4-sch-t { padding-top: 6px; font-size: 12px; font-weight: 700; line-height: 1.3; color: var(--sub); overflow-wrap: anywhere; }
+.mb4-sch-wipe { padding: 6px 12px; border: 1.5px solid var(--line); border-radius: 999px; background: transparent; color: var(--fg) !important; font-size: 13px !important; }
+.mb4-sch-ev { position: relative; display: grid; grid-template-columns: 52px 22px 1fr; }
+.mb4-sch-t { display: flex; flex-direction: column; align-items: center; gap: 1px; padding-top: 6px; font-size: 11.5px; font-weight: 700; color: var(--sub); text-align: center; }
+.mb4-sch-t i { font-style: normal; font-size: 22px; line-height: 1.1; }
 .mb4-sch-rail { position: relative; display: flex; justify-content: center; }
-.mb4-sch-rail::after { content: ''; position: absolute; top: 24px; bottom: 0; left: 50%; width: 2px; margin-left: -1px; background: color-mix(in srgb, var(--sub) 35%, transparent); }
+.mb4-sch-rail::after { content: ''; position: absolute; top: 22px; bottom: 0; left: 50%; width: 2px; margin-left: -1px; border-radius: 2px; background: color-mix(in srgb, var(--a) 30%, transparent); }
 .mb4-sch-ev:last-child .mb4-sch-rail::after { display: none; }
-.mb4-sch-dot { position: relative; z-index: 1; margin-top: 6px; width: 14px; height: 14px; border: 3px solid var(--c); border-radius: 50%; background: var(--card); }
-.mb4-sch-rows { display: flex; flex-direction: column; gap: 5px; min-width: 0; padding: 0 0 14px 4px; }
-.mb4-sch-row { display: flex; align-items: center; gap: 7px; width: 100%; min-height: 34px; padding: 6px 10px; border: 0; border-left: 4px solid var(--c); border-radius: 10px; background: color-mix(in srgb, var(--c) 13%, var(--card)); color: var(--fg) !important; text-align: left; font-size: 14px !important; line-height: 1.3; }
-.mb4-sch-row > i { flex: none; font-style: normal; font-size: 15px; }
-.mb4-sch-row > b { flex: 1; min-width: 0; font-weight: 700; color: color-mix(in srgb, var(--c) 75%, var(--fg)); overflow-wrap: anywhere; }
-.mb4-sch-row > small { flex: none; font-size: 11.5px; font-weight: 600; color: var(--sub); white-space: nowrap; }
-.mb4-sch-row.done { opacity: .5; } .mb4-sch-row.done > b { text-decoration: line-through; }
-.mb4-sch-row.tag { border-left-style: dashed; }
-.mb4-sch-more { margin: -2px 0 4px; padding: 8px 10px; border-radius: 10px; background: var(--card); font-size: 12.5px; line-height: 1.5; color: var(--sub); overflow-wrap: anywhere; }
+.mb4-sch-dot { position: relative; z-index: 1; margin-top: 12px; width: 10px; height: 10px; border-radius: 50%; background: var(--a); box-shadow: 0 0 0 3px color-mix(in srgb, var(--a) 22%, transparent); }
+.mb4-sch-rows { display: flex; flex-direction: column; gap: 6px; min-width: 0; padding: 0 0 16px 4px; }
+.mb4-sch-row { display: flex; align-items: center; gap: 10px; width: 100%; padding: 9px 12px; border: 1px solid color-mix(in srgb, var(--fg) 8%, transparent); border-radius: 14px; background: color-mix(in srgb, var(--card) 62%, transparent); -webkit-backdrop-filter: blur(10px); backdrop-filter: blur(10px); color: var(--fg) !important; text-align: left; }
+.mb4-sch-row.shared { background: color-mix(in srgb, var(--a) 12%, color-mix(in srgb, var(--card) 62%, transparent)); border-color: color-mix(in srgb, var(--a) 25%, transparent); }
+.mb4-sch-row > i { flex: none; width: 26px; font-style: normal; font-size: 20px; text-align: center; }
+.mb4-sch-row > span { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 1px; }
+.mb4-sch-row b { font-size: 14.5px !important; font-weight: 650; line-height: 1.35; color: var(--fg); overflow-wrap: anywhere; }
+.mb4-sch-row small { font-size: 11.5px; color: var(--sub); }
+.mb4-sch-row.done { opacity: .5; } .mb4-sch-row.done b { text-decoration: line-through; }
+.mb4-sch-row.tag { border-style: dashed; }
+.mb4-sch-more { margin: -2px 0 2px; padding: 9px 12px; border-radius: 12px; background: color-mix(in srgb, var(--card) 45%, transparent); font-size: 12.5px; line-height: 1.5; color: var(--sub); overflow-wrap: anywhere; }
 .mb4-sch-more > div { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; margin-top: 6px; }
 .mb4-sch-more button { min-height: 28px; padding: 3px 10px; border: 1px solid var(--line); border-radius: 999px; background: transparent; color: var(--fg) !important; font-size: 12px !important; }
-.mb4-sch-rep { padding: 1px 8px; border-radius: 999px; background: color-mix(in srgb, var(--c) 14%, transparent); color: var(--c); font-size: 11px; font-weight: 700; }
+.mb4-sch-rep { padding: 1px 8px; border-radius: 999px; background: color-mix(in srgb, var(--a) 14%, transparent); color: var(--a); font-size: 11px; font-weight: 700; }
 .mb4-sch-now { position: relative; margin: 0 -14px; padding: 24px 14px 0; background: linear-gradient(180deg, color-mix(in srgb, var(--a) 16%, transparent), transparent 85%); }
 .mb4-sch-now::before { content: ''; position: absolute; left: 0; right: 0; top: 0; height: 1.5px; background: var(--a); }
 .mb4-sch-now::after { content: ''; position: absolute; left: 10px; top: -6px; width: 13px; height: 13px; border-radius: 50%; background: var(--a); }
@@ -202,7 +206,7 @@ export default {
         const known = [...new Set([...st.sel, ...(scene?.with ?? []), ...Object.values(people).filter((p) => p && !p.gone).sort((a, b) => (b.i ?? 0) - (a.i ?? 0)).map((p) => p.name)])].filter((n) => n && n !== me && ok(n)).slice(0, 16);
         if (!st.seeded) { st.seeded = true; if (!st.sel.length) st.sel = known.slice(0, 3); }
         const order = [me, ...st.sel];
-        const colorOf = (n) => (n === SHARED ? 'var(--a)' : order.includes(n) ? PAL[order.indexOf(n) % PAL.length] : 'var(--sub)');
+        const colorOf = () => 'var(--a)';   // one theme colour; people are told apart by their emoji
         const view = st.view === SHARED || order.includes(st.view) ? st.view : SHARED;
         const nameOf = (n) => (n === SHARED ? '공동' : n === me ? `${n} (나)` : n);
         const icoOf = (n) => (n === SHARED ? '👥' : face(n));
@@ -229,7 +233,8 @@ export default {
                 <small>누구 일정</small><div class="mb4-sch-chks">${[SHARED, ...order].map((n) => chk(nameOf(n), n, true)).join('')}</div>
                 <small>어떻게</small><div class="mb4-sch-chks">${radio('mb4-sch-mode', 'routine', '🔁 루틴 (평소 하루 · 요일별)', true)}${radio('mb4-sch-mode', 'week', '🗓 이번 주 7일')}${radio('mb4-sch-mode', 'day', `📍 ${esc(pick === today ? '오늘' : dayName(S, pick, start))} 하루`)}</div>
                 ${hint('누를 때 AI를 1번 불러요. 다시 짜면 AI가 짠 것만 바뀌고, 직접 넣은 건 그대로예요.')}
-                <button class="mb4-btn mb4-sch-go-btn" data-act="magic">🪄 짜기</button></div>`,
+                <button class="mb4-btn mb4-sch-go-btn" data-act="magic">🪄 짜기</button>
+                <small>지우기 (위에서 고른 사람 것만)</small><div class="mb4-sch-chks"><button class="mb4-sch-wipe" data-act="wipe" data-v="ai">${st._wipe === 'ai' ? '⚠ 한 번 더 누르면 지워져요' : '🗑 AI가 짠 것 지우기'}</button><button class="mb4-sch-wipe" data-act="wipe" data-v="all">${st._wipe === 'all' ? '⚠ 한 번 더 누르면 지워져요' : '🗑 전부 지우기'}</button></div></div>`,
             add: `<div class="mb4-sch-panel"><b>＋ 일정 넣기</b>
                 <input class="mb4-input" data-f="what" maxlength="120" placeholder="일과 (무엇을 하나요)">
                 <small>누구 일정</small><div class="mb4-sch-chks">${[SHARED, ...order].map((n) => `<label class="mb4-sch-chk" style="--c:${colorOf(n)}"><input type="radio" name="mb4-sch-who" value="${esc(n)}" ${n === view ? 'checked' : ''}><span>${icoOf(n)} ${esc(nameOf(n))}</span></label>`).join('')}</div>
@@ -246,7 +251,7 @@ export default {
         const bar = `<div class="mb4-sch-bar"><button class="mb4-sch-ai" data-act="panel" data-v="ai">🪄 AI로 짜기</button><button class="mb4-sch-add" data-act="panel" data-v="add">＋ 일정 넣기</button></div>`;
 
         // ── the day ──
-        const L = collect(S, env, pick).filter(inView).sort((a, b) => a.hour - b.hour || (a.who === SHARED ? -1 : 0) - (b.who === SHARED ? -1 : 0));
+        const L = collect(S, env, pick).filter(inView).sort((a, b) => (b.who === SHARED) - (a.who === SHARED) || a.hour - b.hour);   // shared plans on top, then by the hour
         const ICON = { due: '📌', done: '📌', mark: '📅', memo: '📝' };
         // blocks are grouped by time of day (새벽 · 아침 · 낮 …), one short line each with its own hours; tapping a line opens its details
         const span = (e) => { if (e.hour < 0) return [-1, -1]; const m = String(e.time ?? '').match(/\d{1,2}\s*(?::\s*\d{2})?[^\d]+(\d{1,2})\s*(?::\s*(\d{2}))?/); let end = m ? +m[1] + (m[2] ? +m[2] / 60 : 0) : e.hour + 1; if (end < 4) end += 24; if (end <= e.hour) end += 24; return [e.hour, end]; };
@@ -254,19 +259,20 @@ export default {
         for (const e of L) { const [a, z] = span(e), key = a < 0 ? '' : e.tod || todOfHour(a % 24), c = clusters.find((x) => x.key === key); if (c) { c.list.push(e); c.z = Math.max(c.z, z); } else clusters.push({ key, a, z, list: [e] }); }
         const open = String(st.open ?? '');
         const row = (e) => {
-            const key = e.kind === 'own' ? `n${e.n}` : `t${e.kind}:${e.title}`, c = colorOf(e.who);
-            const head = `<button class="mb4-sch-row${e.done ? ' done' : ''}${e.kind !== 'own' ? ' tag' : ''}" style="--c:${c}" data-act="open" data-v="${esc(key)}"><i>${e.kind === 'own' ? icoOf(e.who) : ICON[e.kind]}</i><b>${esc(e.title)}</b><small>${e.kind === 'own' ? esc(e.label) : esc(e.tag)}</small></button>`;
+            const key = e.kind === 'own' ? `n${e.n}` : `t${e.kind}:${e.title}`;
+            const head = `<button class="mb4-sch-row${e.done ? ' done' : ''}${e.kind !== 'own' ? ' tag' : ''}${e.who === SHARED && e.kind === 'own' ? ' shared' : ''}" data-act="open" data-v="${esc(key)}"><i>${e.kind === 'own' ? icoOf(e.who) : ICON[e.kind]}</i><span><b>${esc(e.title)}</b><small>${e.kind === 'own' ? `${esc(e.label)} · ${esc(nameOf(e.who))}` : esc(e.tag)}</small></span></button>`;
             if (open !== key) return head;
             const body = e.kind === 'own'
-                ? `${e.how ? `🚶 ${esc(e.how)}` : ''}<div><span class="mb4-sch-rep" style="--c:${c}">${esc(nameOf(e.who))} · ${esc(e.rep)}</span><button data-act="done" data-v="${e.n}">${e.done ? '↩ 안 끝냄' : '✓ 끝냄'}</button></div>`
+                ? `${e.how ? `🚶 ${esc(e.how)}` : ''}<div><span class="mb4-sch-rep">${esc(e.rep)}</span><button data-act="done" data-v="${e.n}">${e.done ? '↩ 안 끝냄' : '✓ 끝냄'}</button></div>`
                 : `<div>${e.go && api.isOn(e.go.slice(4)) ? `<button data-act="go" data-v="${e.go}">${ICON[e.kind]} 보러 가기 ›</button>` : ''}</div>`;
             return head + `<div class="mb4-sch-more">${body}</div>`;
         };
         const nowTod = pick === today ? S.tod : '';
+        const ORDER = ['', ...TOD];
+        clusters.sort((x, y) => ORDER.indexOf(x.key) - ORDER.indexOf(y.key));
         const tl = L.length ? clusters.map((c) => {
-            const color = c.list.length === 1 ? colorOf(c.list[0].who) : 'var(--a)';
-            const label = c.key ? TOD_KO[c.key] : '종일';
-            const html = `<div class="mb4-sch-ev" style="--c:${color}"><span class="mb4-sch-t">${label}</span><span class="mb4-sch-rail"><i class="mb4-sch-dot"></i></span><div class="mb4-sch-rows">${c.list.map(row).join('')}</div></div>`;
+            const label = `<i>${c.key ? TOD_ICO[c.key] : '📌'}</i>${c.key ? TOD_KO[c.key] : '종일'}`;
+            const html = `<div class="mb4-sch-ev"><span class="mb4-sch-t">${label}</span><span class="mb4-sch-rail"><i class="mb4-sch-dot"></i></span><div class="mb4-sch-rows">${c.list.map(row).join('')}</div></div>`;
             const isNow = !!nowTod && c.key === nowTod;
             return isNow ? `<div class="mb4-sch-now"><small>지금 · ${TOD_KO[nowTod]}</small>${html}</div>` : html;
         }).join('') : `${nowTod ? `<div class="mb4-sch-now"><small>지금 · ${TOD_KO[nowTod]}</small></div>` : ''}<div class="mb4-sch-empty">${view === SHARED ? '공동' : esc(nameOf(view))} 일정이 비어 있어요<br>🪄 AI로 짜기를 누르거나 직접 넣어요</div>`;
@@ -285,8 +291,18 @@ export default {
         acts(el, {
             pick: (v) => { st.pick = v === 'today' ? today : Math.max(1, +v || today); api.redraw(); },
             view: (v) => { st.view = v; api.redraw(); },
-            panel: (v) => { st.panel = st.panel === v ? '' : v; api.redraw(); },
+            panel: (v) => { st.panel = st.panel === v ? '' : v; st._wipe = ''; api.redraw(); },
             open: (v) => { st.open = st.open === v ? '' : v; api.redraw(); },
+            // two taps: the first only asks; the second removes every plan (or only the AI's) of the people ticked above
+            wipe: (v) => {
+                const whoList = [...el.querySelectorAll('[data-ai]')].filter((x) => x.checked).map((x) => x.dataset.ai);
+                if (st._wipe !== v) { st._wipe = v; api.redraw(); return; }
+                const gone = (x) => whoList.includes(x.who) && (v === 'all' || x.ai);
+                const n = st.items.filter(gone).length;
+                st.items = st.items.filter((x) => !gone(x)); st._wipe = '';
+                api.toast(n ? `🗑 일정 ${n}개를 지웠어요.` : '지울 일정이 없어요.');
+                save();
+            },
             go: (v) => api.go(v),
             tell: (_v, b) => { api.cfg.tell = b.checked; api.save(); },
             done: (n) => { const x = st.items[+n]; if (!x) return; x.doneOn = x.doneOn && typeof x.doneOn === 'object' ? x.doneOn : {}; if (x.doneOn[pick]) delete x.doneOn[pick]; else x.doneOn[pick] = true; save(); },

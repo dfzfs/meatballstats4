@@ -82,12 +82,13 @@ test('the screen: 👥 공동 holds everyone in time order; overlapping blocks s
     const draw = async () => (await import(src('apps/schedule.js'))).default.render(el, await apiFor(t.E, 'schedule', { draw: () => draw() }));
     const tick = () => new Promise((r) => setTimeout(r, 20));
     await draw();
-    const groups = () => [...el.querySelectorAll('.mb4-sch-ev')].map((g) => [g.querySelector('.mb4-sch-t').textContent, [...g.querySelectorAll('.mb4-sch-row > b')].map((b) => b.textContent)]);
-    assert.deepEqual(groups(), [['아침', ['산책', '아침', '회진']], ['오후', ['가게']], ['저녁', ['저녁']]]);
+    const groups = () => [...el.querySelectorAll('.mb4-sch-ev')].map((g) => [g.querySelector('.mb4-sch-t').textContent, [...g.querySelectorAll('.mb4-sch-row b')].map((b) => b.textContent)]);
+    assert.deepEqual(groups(), [['☀️아침', ['아침', '산책', '회진']], ['🌤️오후', ['가게']], ['🌇저녁', ['저녁']]], 'shared plans on top of each time of day');
+    assert.match(el.querySelector('.mb4-sch-row').textContent, /👥\s*아침\s*07:30–08:30 · 공동/);
     assert.match(el.querySelector('.mb4-sch-now').textContent, /지금 · 오후[\s\S]*가게/);
     assert.equal(el.querySelectorAll('.mb4-sch-more').length, 0, 'details stay closed');
     [...el.querySelectorAll('[data-act="open"]')].find((b) => b.textContent.includes('가게')).click(); await tick();
-    assert.match(el.querySelector('.mb4-sch-more').textContent, /🚶 계산대[\s\S]*미루 · 매일[\s\S]*✓ 끝냄/);
+    assert.match(el.querySelector('.mb4-sch-more').textContent, /🚶 계산대[\s\S]*매일[\s\S]*✓ 끝냄/);
     el.querySelector('.mb4-sch-more [data-act="done"]').click(); await tick();
     assert.deepEqual(st.items[1].doneOn, { 2: true }, 'a daily block is ticked off for this day only');
     [...el.querySelectorAll('[data-act="view"]')].find((b) => b.dataset.v === '미루').click(); await tick();
@@ -120,6 +121,29 @@ test('🪄 opens a panel with everyone ticked; one press, one call: routines for
     el.querySelector('[data-act="magic"]').click(); await tick();
     assert.equal(calls, 2);
     assert.deepEqual(st.items.map((x) => `${x.who}:${x.what}`), ['*:직접 넣은 일', '*:차 마시기']);
+});
+
+test('🗑 two taps remove the AI\'s plans (or all) of the people ticked; the first tap only asks', async () => {
+    page();
+    const t = await setup({ apps: ['scene', 'people', 'schedule'], chat: CHAT(), user: '보리', char: '미루' });
+    t.record(0, LINES0); t.record(2, LINES2);
+    const st = t.E.envOf('schedule').store;
+    Object.assign(st, { seeded: true, sel: ['미루'], panel: 'ai', items: [
+        { who: '*', rep: 'daily', what: '저녁', ai: true }, { who: '미루', rep: 'daily', what: '가게', ai: true },
+        { who: '미루', rep: 'daily', what: '직접 넣음' }, { who: '보리', rep: 'daily', what: '산책', ai: true }] });
+    const el = document.createElement('div');
+    const draw = async () => (await import(src('apps/schedule.js'))).default.render(el, await apiFor(t.E, 'schedule', { draw: () => draw() }));
+    const tick = () => new Promise((r) => setTimeout(r, 20));
+    await draw();
+    [...el.querySelectorAll('[data-ai]')].find((x) => x.dataset.ai === '보리').checked = false;
+    el.querySelector('[data-act="wipe"][data-v="ai"]').click(); await tick();
+    assert.equal(st.items.length, 4, 'the first tap only asks');
+    [...el.querySelectorAll('[data-ai]')].find((x) => x.dataset.ai === '보리').checked = false;
+    el.querySelector('[data-act="wipe"][data-v="ai"]').click(); await tick();
+    assert.deepEqual(st.items.map((x) => x.what), ['직접 넣음', '산책']);
+    el.querySelector('[data-act="wipe"][data-v="all"]').click(); await tick();
+    el.querySelector('[data-act="wipe"][data-v="all"]').click(); await tick();
+    assert.deepEqual(st.items, []);
 });
 
 test('the phone itself cannot be scrolled away by a hidden input taking focus', () => {
