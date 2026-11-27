@@ -174,6 +174,8 @@ function build() {
     root.className = 'mb4-phone';
     root.innerHTML = '<div class="mb4-top"><button class="mb4-ico" data-back aria-label="뒤로">‹</button><span class="mb4-title"></span><span class="mb4-status" aria-hidden="true"><i class="mb4-sig"></i><i class="mb4-batt"></i></span><button class="mb4-ico" data-more aria-label="더 보기" hidden>⋯</button><button class="mb4-ico" data-close aria-label="닫기">✕</button></div><div class="mb4-body"></div><div class="mb4-menu"><div class="mb4-menu-box"></div></div>';
     document.body.append(root);
+    // the phone itself never scrolls (only .mb4-body does): if anything pushes it, put it straight back
+    root.addEventListener('scroll', () => { if (root.scrollTop || root.scrollLeft) root.scrollTo(0, 0); });
     $('[data-close]').addEventListener('click', close);
     $('[data-back]').addEventListener('click', back);
     $('[data-more]').addEventListener('click', () => openMenu());

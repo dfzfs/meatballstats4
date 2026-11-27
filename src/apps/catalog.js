@@ -11,6 +11,7 @@ export const BUILTIN = [
     { id: 'secrets', icon: '🔒', name: '비밀', tab: '비밀', color: '#6c5ce7', cost: 'low', desc: 'AI가 숨겨야 할 비밀을 먼저 말해 버리지 않게 지켜요. 비밀 내용은 본편 AI에 보내지 않아요.' },
     { id: 'heart', icon: '💗', name: '호감', tab: '호감', color: '#ff5d8f', cost: 'zero', desc: '애정 · 신뢰를 숫자로, 질투와 마음 비교, 고백 · 청혼 · 이별 카드. 관계가 적은 것을 받아 셈해서 AI에 더 묻지 않아요.' },
     { id: 'mind', icon: '💭', name: '속마음', tab: '속마음', color: '#a78bfa', cost: 'tap', desc: '누르면 지금 장면 속 인물의 속마음을 살짝 보여 줘요. 나만 보고, 본편 AI에는 안 가요.' },
+    { id: 'schedule', icon: '📆', name: '일정', color: '#7a6ad8', cost: 'tap', desc: '함께하는 일정 안에 고른 사람들의 일정이 색깔별로 들어가요. 약속 기한 · 달력에 표시한 날 · 지나온 곳도 같은 시간표에 모여요.' },
     { id: 'calendar', icon: '📅', name: '달력', color: '#3a8ee6', cost: 'zero', desc: '이야기 속 날짜를 달력으로 보여 주고, 내가 표시한 날이 다가오면 AI에 알려 줘요.' },
     { id: 'map', icon: '🗺', name: '지도', color: '#2f9e7a', cost: 'zero', desc: '다녀온 곳을 노선도로 그려요. 누가 어디 있는지, 가는 길, 건물 안까지 보여 줘요. 장면이 적어 둔 걸 읽기만 해요.' },
     { id: 'stats', icon: '❤️', name: '수치', tab: '수치', color: '#ff6b6b', cost: 'low', desc: '체력 · 기운처럼 내가 정한 수치를 막대로 보여 주고, 낮아지면 AI가 그에 맞게 쓰게 해요.' },
@@ -46,7 +47,7 @@ export const SHELVES = [
     { id: 'state', icon: '📋', name: '상태', hint: '지금 이야기가 어떤지', entries: [
         { id: 'scene', apps: ['scene'] },
         { id: 'cast', front: true, icon: '👥', name: '인물', color: '#4d908e', desc: '사람마다 소개 · 차림새 · 관계 · 호감 · 비밀 · 속마음을 한 장에', apps: ['people', 'look', 'bonds', 'heart', 'secrets', 'mind'] },
-        { id: 'calendar', apps: ['calendar'] },
+        { id: 'plan', icon: '📆', name: '일정', color: '#7a6ad8', desc: '하루 시간표에 함께 · 사람별 일정을 모으고, 달력과 약속이 그 안에 이어져요', apps: ['schedule', 'calendar', 'todo'] },
         { id: 'map', apps: ['map'] },
         { id: 'me', front: true, icon: '🙋', name: '나', color: '#ff6b6b', desc: '내 수치 · 지갑 · 생활 · 내가 만든 칸을 한 장에', apps: ['stats', 'wallet', 'life', 'custom'] },
     ] },
@@ -54,7 +55,6 @@ export const SHELVES = [
         { id: 'helper', apps: ['helper'] },
         { id: 'director', apps: ['director'] },
         { id: 'echo', apps: ['echo'] },
-        { id: 'todo', apps: ['todo'] },
         { id: 'memo', icon: '📝', name: '메모', color: '#43aa8b', desc: 'AI가 기억했으면 하는 것. 늘 보내는 메모와, 그 말이 나올 때만 꺼내는 설정집', apps: ['memo', 'lore'] },
         { id: 'record', icon: '📒', name: '기록', color: '#e9c46a', desc: '답마다 무엇이 적혔는지, 그리고 이룬 것과 남긴 장면', apps: ['record', 'album'] },
         { id: 'choices', apps: ['choices'] },
@@ -79,6 +79,6 @@ export const GROUPS = SHELVES.map((s) => ({ id: s.id, name: s.name, hint: s.hint
 export const PRESETS = [
     { id: 'story', icon: '📖', name: '이야기만 편하게', desc: '가장 가볍게. 상황 요약만 적어 두고 되풀이를 막아요.', apps: ['scene', 'people', 'echo', 'record', 'helper'] },
     { id: 'romance', icon: '💕', name: '연애 · 관계 중심', desc: '천천히 가까워지고, 비밀은 지켜요.', apps: ['scene', 'people', 'bonds', 'secrets', 'look', 'mind', 'echo', 'record', 'helper'] },
-    { id: 'sim', icon: '🎒', name: '생활 · 모험 시뮬', desc: '돈 · 수치 · 생활 · 약속을 세고, 판정은 주사위로.', apps: ['scene', 'people', 'wallet', 'stats', 'life', 'todo', 'calendar', 'map', 'dice', 'record', 'helper'] },
+    { id: 'sim', icon: '🎒', name: '생활 · 모험 시뮬', desc: '돈 · 수치 · 생활 · 약속을 세고, 판정은 주사위로.', apps: ['scene', 'people', 'wallet', 'stats', 'life', 'todo', 'calendar', 'schedule', 'map', 'dice', 'record', 'helper'] },
     { id: 'direct', icon: '🎬', name: '내가 감독', desc: '몰래 지시를 넣고, 선택지 · 장치로 이야기를 굴려요.', apps: ['director', 'memo', 'secrets', 'echo', 'scene', 'choices', 'twist', 'record', 'helper'] },
 ];
