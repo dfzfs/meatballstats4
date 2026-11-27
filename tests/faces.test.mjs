@@ -43,3 +43,22 @@ test('🗺 the user is pinned where they are now, with whoever is there', async 
     assert.match(txt, new RegExp(`서점${kit.face('미루')}미루`), 'the person left behind keeps theirs');
     assert.match(txt, /보리 나 · 지금 여기/);
 });
+
+test('👥 인물: someone removed, or left out by 📌 고정, is gone from the other apps\' lists too', async () => {
+    page();
+    const t = await setup({ apps: ['scene', 'people', 'schedule', 'group'], chat: chatOf([{ reply: '서점.' }, { user: '응.' }, { reply: '강가.' }], '미루'), user: '보리', char: '미루' });
+    t.record(0, [['npc', '미루=서점 주인'], ['npc', '소담=꽃집'], ['npc', '한결=우체부']]);
+    const env = t.E.envOf('people'), kit = await import(src('ui/kit.js'));
+    env.store.hide = { 한결: 99 }; t.E.touch();
+    assert.deepEqual(Object.keys(t.state('people').list).sort(), ['미루', '소담']);
+    const ok = kit.inCast(t.E.envOf('schedule'));
+    assert.deepEqual(['미루', '소담', '한결'].map(ok), [true, true, false]);
+    // 📌 고정: a new person in a later reply does not join
+    env.store.lock = { on: true, names: ['미루'] };
+    t.record(2, [['npc', '새벽=새로 온 사람']]); t.E.touch();
+    assert.deepEqual(Object.keys(t.state('people').list), ['미루']);
+    const el = document.createElement('div');
+    (await import(src('apps/schedule.js'))).default.render(el, await apiFor(t.E, 'schedule'));
+    assert.deepEqual(t.E.envOf('schedule').store.sel, ['미루'], 'the schedule offers only the cast');
+    assert.doesNotMatch(el.textContent, /소담|한결|새벽=/);
+});

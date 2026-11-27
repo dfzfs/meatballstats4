@@ -1,56 +1,95 @@
-// 📆 Schedule: one clean timeline per story day — the time on the left, a coloured dot and line per plan, and
-// what / where / who / when beside it. Each picked person has their own colour; the current time of day is marked.
-// 「🪄 이번 주 다 짜기」 fills the whole week for everyone in ONE model call (only when pressed). Promise deadlines
-// (📌) and marked days (📅) from the other apps show on the same line. The story clock is WATCHED from 🧭 Scene's
-// lines (nothing new is asked of the reader), so swipes and deletions move «today» like every other record.
+// 📆 Schedule: each person's ROUTINE — time blocks of their usual day (05:00–07:00 …), what they do, and how they
+// move (which ways and places they use or avoid, habits) — on one clean timeline per story day, inside a shared
+// timetable («👥 공동»: what the group does together, where their routines meet or keep apart). A block runs every
+// day, on some weekdays, or once. 「🪄 AI로 짜기」 asks ONE model call (only when pressed) for everyone ticked:
+// their routines, this week's seven days, or the picked day. Promise deadlines (📌) and marked days (📅) from the other
+// apps show on the shared timeline. The story clock is WATCHED from 🧭 Scene's lines (nothing new is asked of the
+// reader), so swipes and deletions move «today» like every other record.
 import { clip } from '../core/text.js';
 import { tick, newClock, dayDate } from '../core/clock.js';
-import { esc, card, hint, acts, val, face, TOD, TOD_KO } from '../ui/kit.js';
+import { esc, hint, acts, val, face, inCast, TOD, TOD_KO } from '../ui/kit.js';
 
+export const SHARED = '*';
 const WD = ['일', '월', '화', '수', '목', '금', '토'];
+const WD_EN = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
 const PAL = ['#f08c2e', '#7a6ad8', '#22b07d', '#ef5da8', '#3a8ee6', '#16a3a8', '#c98a00'];
-const MAX_SEL = 6, MAX_ITEMS = 300;
+const MAX_SEL = 6, MAX_ITEMS = 400;
+// a block's time: "05:00–07:00", "19:00 – 01:00+", "7시~9시" or a time-of-day word
+export function startOf(time) { const m = String(time ?? '').match(/(\d{1,2})\s*(?::\s*(\d{2}))?\s*(?:시)?/); return m ? Math.min(23, +m[1]) + (m[2] ? +m[2] / 60 : 0) : null; }
+export const todOfHour = (h) => (h < 5 ? 'midnight' : h < 7 ? 'dawn' : h < 11 ? 'morning' : h < 13 ? 'noon' : h < 17 ? 'afternoon' : h < 20 ? 'evening' : 'night');
+const TOD_H = { dawn: 5, morning: 8, noon: 12, afternoon: 14, evening: 18, night: 21, midnight: 23.9 };
+const hourOf = (x) => { const h = startOf(x.time); return h != null ? (h < 4 ? h + 24 : h) : x.tod ? TOD_H[x.tod] : -1; };   // after-midnight blocks sort last
+const timeLabel = (x) => (x.time ? String(x.time).replace(/\s*[–~-]\s*/, '–') : x.tod ? TOD_KO[x.tod] : '종일');
 const todIx = (t) => TOD.indexOf(t);
 
 // ───── days ─────
 const dateAt = (S, day, start) => { const t = dayDate(S, day, start); return t == null ? null : new Date(t); };
+// weekday of a story day: from its date, else counted from day 1 as a Monday
+export const wdOf = (S, day, start) => { const d = dateAt(S, day, start); return d ? d.getUTCDay() : (day % 7); };
 const rel = (n) => (n === 0 ? '오늘' : n === 1 ? '내일' : n === -1 ? '어제' : n > 0 ? `${n}일 뒤` : `${-n}일 전`);
-const dayName = (S, day, start) => { const d = dateAt(S, day, start); return d ? `${d.getUTCMonth() + 1}월 ${d.getUTCDate()}일 ${WD[d.getUTCDay()]}요일` : rel(day - S.day); };
-// The seven story days shown together: Sunday to Saturday when the dates are known, else today and the next six.
-export function weekOf(S, day, start) { const d = dateAt(S, day, start), first = d ? day - d.getUTCDay() : day; return Array.from({ length: 7 }, (_x, n) => first + n); }
+const dayName = (S, day, start) => { const d = dateAt(S, day, start); return d ? `${d.getUTCMonth() + 1}월 ${d.getUTCDate()}일 ${WD[d.getUTCDay()]}요일` : `${rel(day - S.day)} (${WD[wdOf(S, day, start)]})`; };
+export function weekOf(S, day, start) { const first = day - wdOf(S, day, start); return Array.from({ length: 7 }, (_x, n) => first + n); }
+const repText = (x) => (x.rep === 'daily' ? '매일' : x.rep === 'weekly' ? (x.wd?.length === 5 && [1, 2, 3, 4, 5].every((n) => x.wd.includes(n)) ? '평일마다' : x.wd?.length === 2 && x.wd.includes(0) && x.wd.includes(6) ? '주말마다' : `매주 ${(x.wd ?? []).slice().sort((a, b) => ((a + 6) % 7) - ((b + 6) % 7)).map((n) => WD[n]).join('·')}`) : '이날만');
+const onDay = (x, day, wd) => (x.rep === 'daily' ? (x.from ?? 1) <= day : x.rep === 'weekly' ? (x.from ?? 1) <= day && (x.wd ?? []).includes(wd) : x.day === day);
 
-// ───── the model's week: "D3 | who | time | what | where" ─────
-const TOGETHER = /^(?:together|everyone|all|both|함께|다 ?같이|같이|모두)$/i;
-export function parsePlan(text, days, people) {
+// older saved plans ({ day, who: [names] }) -> { rep: 'once', day, who: '*' | name }
+export function migrate(st) {
+    st.items = (Array.isArray(st.items) ? st.items : []).filter((x) => x && x.what).map((x) => {
+        if (typeof x.who === 'string' && x.rep) return x.how == null && x.where ? { ...x, how: x.where } : x;
+        const who = Array.isArray(x.who) && x.who.length === 1 ? x.who[0] : SHARED;
+        return { what: x.what, how: x.where ?? '', tod: x.tod ?? '', who, rep: 'once', day: x.day, ...(x.ai ? { ai: true } : {}), doneOn: x.done ? { [x.day]: true } : {} };
+    });
+}
+
+// ───── the model's answer: "who | when | time | what | how" ─────
+// when: daily · Mon,Wed · weekdays · weekend · D<n> (one of `days`)
+const SHARED_RE = /^(?:shared|together|everyone|all|group|공동|함께|다 ?같이|모두)$/i;
+export function parsePlan(text, { days = [], people = [] } = {}) {
     const out = [], low = new Map(people.map((n) => [n.toLowerCase(), n]));
     for (const raw of String(text ?? '').split(/\r?\n/)) {
         const p = raw.replace(/^[\s\-*•]+/, '').split('|').map((x) => x.trim());
         if (p.length < 4 || !p[3]) continue;
-        const dn = p[0].match(/^D?\s*(\d)/i), day = dn ? days[+dn[1] - 1] : undefined;
-        if (day == null) continue;
-        let who = [];
-        if (!TOGETHER.test(p[1])) { who = p[1].split(/\s*(?:&|,|，|\+| and |·)\s*/).map((n) => low.get(n.toLowerCase())).filter(Boolean); if (!who.length) continue; }
-        const tl = p[2].toLowerCase(), tod = TOD.find((t) => new RegExp(`\\b${t}\\b`).test(tl)) ?? Object.entries(TOD_KO).find(([, ko]) => p[2].includes(ko))?.[0] ?? '';
-        out.push({ day, tod, who: [...new Set(who)], what: clip(p[3], 60), where: clip(p[4] ?? '', 60), ai: true });
-        if (out.length >= 70) break;
+        const who = SHARED_RE.test(p[0]) ? SHARED : low.get(p[0].toLowerCase());
+        if (!who) continue;
+        const w = p[1].toLowerCase(), it = { who, what: clip(p[3], 120), how: clip(p.slice(4).join(' | '), 300), ai: true, doneOn: {} };
+        const dn = w.match(/^d\s*(\d)/);
+        if (dn) { if (days[+dn[1] - 1] == null) continue; Object.assign(it, { rep: 'once', day: days[+dn[1] - 1] }); }
+        else if (/daily|every ?day|매일/.test(w)) it.rep = 'daily';
+        else {
+            const wd = new Set();
+            if (/weekday|평일/.test(w)) [1, 2, 3, 4, 5].forEach((n) => wd.add(n));
+            if (/weekend|주말/.test(w)) [0, 6].forEach((n) => wd.add(n));
+            WD_EN.forEach((d, n) => { if (new RegExp(`\\b${d.toLowerCase()}`).test(w)) wd.add(n); });
+            WD.forEach((d, n) => { if (new RegExp(`(^|[\\s,·])${d}(요일)?(?=$|[\\s,·])`).test(p[1])) wd.add(n); });
+            if (!wd.size) continue;
+            Object.assign(it, { rep: 'weekly', wd: [...wd].sort() });
+        }
+        const tl = p[2].toLowerCase(), h = startOf(p[2]);
+        if (h != null) { it.time = clip(p[2], 30); it.tod = todOfHour(h); }
+        else it.tod = TOD.find((t) => new RegExp(`\\b${t}\\b`).test(tl)) ?? Object.entries(TOD_KO).find(([, ko]) => p[2].includes(ko))?.[0] ?? '';
+        out.push(it);
+        if (out.length >= 90) break;
     }
     return out;
 }
 
 // ───── everything on one story day ─────
-// -> [{ kind: 'own'|'due'|'done'|'mark'|'memo', tod, title, who: [], where, tag, go?, n?, done?, late? }]
+// -> [{ kind: 'own'|'due'|'done'|'mark'|'memo', n?, who ('*' | name), tod, time, hour, label, title, how, rep, done, tag?, go? }]
 export function collect(S, env, day) {
     const st = env.store ?? {}, out = [];
-    const start = env.peekStore?.('calendar')?.start ?? '', d = dateAt(S, day, start);
-    (st.items ?? []).forEach((x, n) => { if (x?.day === day && x.what) out.push({ kind: 'own', n, tod: x.tod ?? '', title: x.what, who: x.who ?? [], where: x.where ?? '', done: !!x.done, ai: !!x.ai, tag: '' }); });
+    const start = env.peekStore?.('calendar')?.start ?? '', d = dateAt(S, day, start), wd = wdOf(S, day, start);
+    (Array.isArray(st.items) ? st.items : []).forEach((x, n) => {
+        if (!x?.what || typeof x.who !== 'string' || !onDay(x, day, wd)) return;
+        out.push({ kind: 'own', n, who: x.who, tod: x.tod ?? '', time: x.time ?? '', hour: hourOf(x), label: timeLabel(x), title: x.what, how: x.how ?? '', rep: repText(x), done: !!x.doneOn?.[day] });
+    });
     const todo = env.peek?.('todo');
     const cut = (w) => { const t = String(w), i = t.indexOf('='); return i < 0 ? t : t.slice(i + 1).trim().replace(WHEN_TAIL, ''); };
-    for (const p of todo?.open ?? []) if (p.due === day) out.push({ kind: 'due', tod: '', title: cut(p.what), who: [], where: '', tag: day < S.day ? '약속 기한 지남' : '약속 기한', go: 'app:todo', late: day < S.day });
-    for (const p of todo?.closed ?? []) if (p.end === day) out.push({ kind: 'done', tod: '', title: cut(p.what), who: [], where: '', tag: p.st === 'broken' ? '약속 어김' : p.st === 'cancelled' ? '약속 취소' : '약속 지킴', go: 'app:todo', done: true });
+    for (const p of todo?.open ?? []) if (p.due === day) out.push({ kind: 'due', who: SHARED, tod: '', title: cut(p.what), how: '', hour: -1, label: '종일', tag: day < S.day ? '약속 기한 지남' : '약속 기한', go: 'app:todo' });
+    for (const p of todo?.closed ?? []) if (p.end === day) out.push({ kind: 'done', who: SHARED, tod: '', title: cut(p.what), how: '', hour: -1, label: '종일', tag: p.st === 'broken' ? '약속 어김' : p.st === 'cancelled' ? '약속 취소' : '약속 지킴', go: 'app:todo', done: true });
     const cal = env.peekStore?.('calendar'), iso = d ? d.toISOString().slice(0, 10) : '';
     if (cal && iso) {
-        for (const m of Array.isArray(cal.marks) ? cal.marks : []) if (m?.label && typeof m.date === 'string' && (m.date === iso || (m.yearly && m.date.slice(5) === iso.slice(5)))) out.push({ kind: 'mark', tod: '', title: m.label, who: [], where: '', tag: m.yearly ? '기념일' : '달력', go: 'app:calendar' });
-        const memo = cal.notes?.[iso]?.text; if (memo) out.push({ kind: 'memo', tod: '', title: memo, who: [], where: '', tag: '달력 메모', go: 'app:calendar' });
+        for (const m of Array.isArray(cal.marks) ? cal.marks : []) if (m?.label && typeof m.date === 'string' && (m.date === iso || (m.yearly && m.date.slice(5) === iso.slice(5)))) out.push({ kind: 'mark', who: SHARED, tod: '', title: m.label, how: '', hour: -1, label: '종일', tag: m.yearly ? '기념일' : '달력', go: 'app:calendar' });
+        const memo = cal.notes?.[iso]?.text; if (memo) out.push({ kind: 'memo', who: SHARED, tod: '', title: memo, how: '', hour: -1, label: '종일', tag: '달력 메모', go: 'app:calendar' });
     }
     return out;
 }
@@ -64,7 +103,7 @@ export default {
     icon: '📆',
     color: '#7a6ad8',
     cost: 'tap',
-    desc: '하루를 한 줄 타임라인으로, 사람마다 색깔로 보여 줘요. 🪄 한 번이면 이번 주를 다 짜 줘요.',
+    desc: '👥 공동 일정 안에 사람마다 루틴(시간대 · 일과 · 동선)이 색깔별로 들어가요. 🪄 한 번이면 다 짜 줘요.',
     watch: ['time', 'date'],
     start: () => newClock(),
     reduce(S, { k, v, i, watched }) { if (watched && (k === 'time' || k === 'date')) tick(S, k, v, i); },
@@ -72,24 +111,23 @@ export default {
     note(S, env) {
         if (env?.cfg?.tell === false) return null;
         const me = env.user || 'the user', here = new Set([me, ...(env.peek?.('scene')?.with ?? [])]), cur = todIx(S.tod);
-        const L = collect(S, env, S.day).filter((e) => e.kind === 'own' && !e.done).sort((a, b) => todIx(a.tod) - todIx(b.tod));
+        const L = collect(S, env, S.day).filter((e) => e.kind === 'own' && !e.done).sort((a, b) => a.hour - b.hour);
         if (!L.length) return null;
-        const say = (e) => `${e.tod || 'any time'} — ${e.who.length ? e.who.join(' & ') : 'everyone together'}: ${e.title}${e.where ? ` (at ${e.where})` : ''}`;
-        // what is still ahead for the people in this scene; for people elsewhere, only where they are right now
-        const plans = L.filter((e) => (cur < 0 || todIx(e.tod) < 0 || todIx(e.tod) >= cur) && (!e.who.length || e.who.some((n) => here.has(n)))).slice(0, 5);
-        const away = cur < 0 ? [] : L.filter((e) => e.tod === S.tod && e.who.length && e.who.every((n) => !here.has(n))).slice(0, 3);
+        const say = (e) => `${e.time || e.tod || 'any time'} — ${e.who === SHARED ? 'everyone together' : e.who}: ${e.title}`;
+        const plans = L.filter((e) => (cur < 0 || todIx(e.tod) < 0 || todIx(e.tod) >= cur) && (e.who === SHARED || here.has(e.who))).slice(0, 5);
+        const away = cur < 0 ? [] : L.filter((e) => e.tod === S.tod && e.who !== SHARED && !here.has(e.who)).slice(0, 3);   // by their routine, where the absent are now
         const state = [];
         if (plans.length) state.push(`On today's schedule (plans people remember; they can run late or change, but are not forgotten): ${plans.map(say).join(' ; ')}.`);
-        if (away.length) state.push(`Right now (${S.tod}), elsewhere by their schedule: ${away.map((e) => `${e.who.join(' & ')} — ${e.title}${e.where ? ` at ${e.where}` : ''}`).join(' ; ')}. Unless the story says otherwise.`);
+        if (away.length) state.push(`Right now (${S.tod}), by their usual routine: ${away.map((e) => `${e.who} — ${e.title}${e.how ? ` (${clip(e.how, 140)})` : ''}`).join(' ; ')}. Unless the story says otherwise.`);
         return state.length ? { state } : null;
     },
     hud(S, env) {
-        const cur = todIx(S.tod), e = collect(S, env, S.day).filter((x) => x.kind === 'own' && !x.done && (todIx(x.tod) < 0 || cur < 0 || todIx(x.tod) >= cur)).sort((a, b) => todIx(a.tod) - todIx(b.tod))[0];
-        return e ? [`📆 ${e.tod ? `${TOD_KO[e.tod]} · ` : ''}${clip(e.title, 14)}`] : [];
+        const cur = todIx(S.tod), e = collect(S, env, S.day).filter((x) => x.kind === 'own' && !x.done && (todIx(x.tod) < 0 || cur < 0 || todIx(x.tod) >= cur)).sort((a, b) => a.hour - b.hour)[0];
+        return e ? [`📆 ${e.label} · ${clip(e.title, 14)}`] : [];
     },
     widget(S, env) {
-        const L = collect(S, env, S.day).filter((e) => !e.done && e.kind !== 'memo').sort((a, b) => todIx(a.tod) - todIx(b.tod)).slice(0, 4);
-        return L.map((e) => `<div class="mb4-row"><span class="mb4-row-k">${e.tod ? TOD_KO[e.tod] : '오늘'}</span><span class="mb4-row-v">${esc(e.title)} <small>${e.who.length ? e.who.map(esc).join(' · ') : e.tag ? esc(e.tag) : '함께'}</small></span></div>`).join('');
+        const L = collect(S, env, S.day).filter((e) => !e.done && e.kind !== 'memo').sort((a, b) => a.hour - b.hour).slice(0, 4);
+        return L.map((e) => `<div class="mb4-row"><span class="mb4-row-k">${esc(e.label)}</span><span class="mb4-row-v">${esc(e.title)} <small>${e.who === SHARED ? (e.tag ? esc(e.tag) : '👥 공동') : `${face(e.who)} ${esc(e.who)}`}</small></span></div>`).join('');
     },
     widgetTitle: '오늘 일정',
     css: `
@@ -110,17 +148,29 @@ export default {
 .mb4-sch-dots { display: flex; gap: 2px; height: 4px; }
 .mb4-sch-dots i { width: 4px; height: 4px; border-radius: 50%; background: var(--c, var(--a)); }
 .mb4-sch-day.on .mb4-sch-dots i { background: #fff; }
-.mb4-sch-magic { display: block; width: 100%; margin: 12px 0 0; min-height: 42px; border: 0; border-radius: 14px; background: var(--a); color: #fff !important; font-size: 14.5px !important; font-weight: 700 !important; }
-.mb4-sch-magic:disabled { opacity: .6; }
-.mb4-phone .mb4-sch-magic small { display: block; font-size: 11px; font-weight: 500; color: rgba(255, 255, 255, .85) !important; }
-.mb4-sch-who { display: flex; flex-wrap: wrap; gap: 6px; margin: 2px 0 14px; }
-.mb4-sch-pk { display: inline-flex; align-items: center; gap: 4px; padding: 4px 11px 4px 6px; border: 1px solid var(--line); border-radius: 999px; background: transparent; color: var(--sub) !important; font-size: 13px !important; }
-.mb4-sch-pk i { font-style: normal; font-size: 16px; }
-.mb4-sch-pk.on { border-color: var(--c); color: var(--c) !important; font-weight: 700 !important; }
-.mb4-sch-pk.me { cursor: default; }
+.mb4-sch-tabs { display: flex; gap: 6px; overflow-x: auto; margin: 2px -14px 12px; padding: 2px 14px 4px; scrollbar-width: none; }
+.mb4-sch-tabs::-webkit-scrollbar { display: none; }
+.mb4-sch-tab { flex: none; display: inline-flex; align-items: center; gap: 5px; padding: 7px 13px 7px 9px; border: 1.5px solid var(--line); border-radius: 999px; background: var(--card); color: var(--fg) !important; font-size: 13.5px !important; font-weight: 600 !important; white-space: nowrap; }
+.mb4-sch-tab i { font-style: normal; font-size: 16px; }
+.mb4-sch-tab.on { border-color: var(--c); background: var(--c); color: #fff !important; }
+.mb4-sch-tab.add { border-style: dashed; color: var(--sub) !important; background: transparent; }
+.mb4-sch-bar { display: flex; gap: 8px; margin: 0 0 12px; }
+.mb4-sch-bar > button { flex: 1; min-height: 42px; border: 0; border-radius: 14px; font-size: 14px !important; font-weight: 700 !important; }
+.mb4-sch-ai { background: var(--a); color: #fff !important; }
+.mb4-sch-add { background: color-mix(in srgb, var(--a) 14%, var(--card)); color: var(--a) !important; }
+.mb4-sch-panel { margin: 0 0 14px; padding: 14px; border-radius: 18px; background: var(--card); box-shadow: 0 4px 14px rgba(0, 0, 0, .06); }
+.mb4-sch-panel > b { display: block; margin: 0 0 8px; font-size: 14.5px; }
+.mb4-sch-panel > small { display: block; margin: 10px 0 5px; color: var(--sub); font-size: 12px; font-weight: 700; }
+.mb4-sch-chks { display: flex; flex-wrap: wrap; gap: 6px; }
+.mb4-sch-chk { position: relative; }
+.mb4-sch-chk input { position: absolute; opacity: 0; pointer-events: none; }
+.mb4-sch-chk span { display: inline-block; padding: 6px 12px; border: 1.5px solid var(--line); border-radius: 999px; font-size: 13px; }
+.mb4-sch-chk input:checked + span { background: var(--c, var(--a)); border-color: var(--c, var(--a)); color: #fff; font-weight: 700; }
+.mb4-sch-chk input:focus-visible + span { outline: 2px solid var(--a); outline-offset: 1px; }
+.mb4-phone .mb4-sch-go-btn { width: 100%; margin-top: 12px; min-height: 42px; border-radius: 14px; background: var(--a) !important; color: #fff !important; }
 .mb4-sch-tl { margin: 4px 0 8px; }
-.mb4-sch-ev { position: relative; display: grid; grid-template-columns: 54px 30px 1fr; --c: var(--a); }
-.mb4-sch-t { padding-top: 3px; font-size: 12.5px; font-weight: 700; color: var(--sub); white-space: nowrap; }
+.mb4-sch-ev { position: relative; display: grid; grid-template-columns: 50px 30px 1fr; --c: var(--a); }
+.mb4-sch-t { padding-top: 3px; font-size: 12px; font-weight: 700; line-height: 1.3; color: var(--sub); overflow-wrap: anywhere; }
 .mb4-sch-rail { position: relative; display: flex; justify-content: center; }
 .mb4-sch-rail::after { content: ''; position: absolute; top: 26px; bottom: 2px; left: 50%; width: 2px; margin-left: -1px; border-radius: 2px; background: var(--c); }
 .mb4-sch-ev:last-child .mb4-sch-rail::after { bottom: 14px; }
@@ -133,128 +183,152 @@ export default {
 .mb4-sch-ev.done .mb4-sch-b > b { opacity: .55; text-decoration: line-through; }
 .mb4-sch-m { display: flex; align-items: baseline; gap: 7px; font-size: 12.5px; line-height: 1.55; color: var(--sub); }
 .mb4-sch-m i { flex: none; width: 14px; font-style: normal; font-size: 11px; text-align: center; }
+.mb4-sch-who { color: var(--c); font-weight: 700; }
+.mb4-sch-rep { margin-left: 2px; padding: 0 7px; border-radius: 999px; background: color-mix(in srgb, var(--c) 14%, transparent); color: var(--c); font-size: 11px; font-weight: 700; }
 .mb4-sch-go { margin-left: 4px; padding: 0; border: 0; background: none; color: var(--a) !important; font-size: 12px !important; font-weight: 700 !important; }
 .mb4-sch-now { position: relative; margin: 0 -14px; padding: 12px 14px 0; background: linear-gradient(180deg, color-mix(in srgb, var(--a) 16%, transparent), transparent 85%); }
 .mb4-sch-now::before { content: ''; position: absolute; left: 0; right: 0; top: 0; height: 1.5px; background: var(--a); }
 .mb4-sch-now::after { content: ''; position: absolute; left: 10px; top: -6px; width: 13px; height: 13px; border-radius: 50%; background: var(--a); }
 .mb4-sch-now > small { position: absolute; right: 14px; top: 3px; font-size: 10.5px; font-weight: 800; color: var(--a); }
-.mb4-sch-empty { padding: 26px 0 18px; text-align: center; color: var(--sub); font-size: 13px; }
-.mb4-sch-chks { display: flex; flex-wrap: wrap; gap: 6px; margin: 6px 0 2px; }
-.mb4-sch-chk { position: relative; }
-.mb4-sch-chk input { position: absolute; opacity: 0; pointer-events: none; }
-.mb4-sch-chk span { display: inline-block; padding: 5px 11px; border: 1px solid var(--line); border-radius: 999px; font-size: 13px; }
-.mb4-sch-chk input:checked + span { background: var(--c, var(--a)); border-color: var(--c, var(--a)); color: #fff; font-weight: 700; }
-.mb4-sch-chk input:focus-visible + span { outline: 2px solid var(--a); outline-offset: 1px; }
+.mb4-sch-empty { padding: 26px 0 18px; text-align: center; color: var(--sub); font-size: 13px; line-height: 1.6; }
 `,
     render(el, api) {
-        const env = api.env, st = api.store, S = api.state(), k = api.kit, me = env.user || '나';
-        st.items = Array.isArray(st.items) ? st.items.filter((x) => x && x.what) : [];
-        st.sel = Array.isArray(st.sel) ? st.sel.filter((n) => n && n !== me).slice(0, MAX_SEL) : [];
-        const scene = env.peek('scene'), start = env.peekStore?.('calendar')?.start ?? '';
-        const people = env.peek('people')?.list ?? {};
+        const env = api.env, st = api.store, S = api.state(), me = env.user || '나';
+        migrate(st);
+        const ok = inCast(env);   // someone removed in 👥 인물 is gone from here too
+        st.sel = Array.isArray(st.sel) ? st.sel.filter((n) => n && n !== me && ok(n)).slice(0, MAX_SEL) : [];
+        const scene = env.peek('scene'), start = env.peekStore?.('calendar')?.start ?? '', people = env.peek('people')?.list ?? {};
         const today = S.day, pick = Number.isFinite(st.pick) && st.pick >= 1 ? st.pick : today;
-        // candidates: who is here now, then everyone the story has met (picked ones first)
-        const known = [...new Set([...st.sel, ...(scene?.with ?? []), ...Object.values(people).filter((p) => p && !p.gone).sort((a, b) => (b.i ?? 0) - (a.i ?? 0)).map((p) => p.name)])].filter((n) => n && n !== me).slice(0, 16);
-        // the first time: the people in the scene (or the newest few) are picked for you
+        const known = [...new Set([...st.sel, ...(scene?.with ?? []), ...Object.values(people).filter((p) => p && !p.gone).sort((a, b) => (b.i ?? 0) - (a.i ?? 0)).map((p) => p.name)])].filter((n) => n && n !== me && ok(n)).slice(0, 16);
         if (!st.seeded) { st.seeded = true; if (!st.sel.length) st.sel = known.slice(0, 3); }
-        const order = [me, ...st.sel], colorOf = (n) => (order.includes(n) ? PAL[order.indexOf(n) % PAL.length] : 'var(--sub)');
+        const order = [me, ...st.sel];
+        const colorOf = (n) => (n === SHARED ? 'var(--a)' : order.includes(n) ? PAL[order.indexOf(n) % PAL.length] : 'var(--sub)');
+        const view = st.view === SHARED || order.includes(st.view) ? st.view : SHARED;
+        const nameOf = (n) => (n === SHARED ? '공동' : n === me ? `${n} (나)` : n);
+        const icoOf = (n) => (n === SHARED ? '👥' : face(n));
+        // the shared view holds the shared plans and, inside them, everyone's own; a person's view holds only theirs
+        const inView = (e) => (view === SHARED ? e.who === SHARED || order.includes(e.who) : e.who === view);
 
         // ── week strip ──
         const week = weekOf(S, pick, start), pd = dateAt(S, pick, start);
         const strip = week.map((day) => {
             if (day < 1) return '<span class="mb4-sch-day out"><small>&nbsp;</small><b>·</b><span class="mb4-sch-dots"></span></span>';
-            const d = dateAt(S, day, start), L = collect(S, env, day);
-            const cs = [...new Set(L.map((e) => (e.kind !== 'own' || !e.who.length ? 'var(--a)' : colorOf(e.who[0]))))].slice(0, 3);
-            return `<button class="mb4-sch-day${day === pick ? ' on' : ''}${day === today ? ' today' : ''}${d ? '' : ' rel'}" data-act="pick" data-v="${day}" aria-label="${esc(dayName(S, day, start))}"><small>${d ? WD[d.getUTCDay()] : '&nbsp;'}</small><b>${d ? d.getUTCDate() : esc(rel(day - today))}</b><span class="mb4-sch-dots">${cs.map((c) => `<i style="--c:${c}"></i>`).join('')}</span></button>`;
+            const d = dateAt(S, day, start), cs = [...new Set(collect(S, env, day).filter(inView).map((e) => colorOf(e.who)))].slice(0, 3);
+            return `<button class="mb4-sch-day${day === pick ? ' on' : ''}${day === today ? ' today' : ''}${d ? '' : ' rel'}" data-act="pick" data-v="${day}" aria-label="${esc(dayName(S, day, start))}"><small>${WD[wdOf(S, day, start)]}</small><b>${d ? d.getUTCDate() : esc(rel(day - today))}</b><span class="mb4-sch-dots">${cs.map((c) => `<i style="--c:${c}"></i>`).join('')}</span></button>`;
         }).join('');
-        const days = week.filter((d) => d >= today).length ? week.filter((d) => d >= today) : week.filter((d) => d >= 1);
-        const hasAi = st.items.some((x) => x.ai && days.includes(x.day));
-        const top = `<section class="mb4-card mb4-sch-top"><div class="mb4-sch-head"><b>${esc(pick === today ? '오늘 일정' : dayName(S, pick, start))}</b><button class="mb4-sch-nav" data-act="pick" data-v="${Math.max(1, pick - 7)}" aria-label="앞 주">‹</button>${pick !== today ? `<button class="mb4-sch-month" data-act="pick" data-v="${today}">오늘로</button>` : `<span class="mb4-sch-month">${esc(pd ? `${pd.getUTCMonth() + 1}월` : '이번 주')}</span>`}<button class="mb4-sch-nav" data-act="pick" data-v="${pick + 7}" aria-label="다음 주">›</button></div>
-            <div class="mb4-sch-strip">${strip}</div>
-            <button class="mb4-sch-magic" data-act="magic">🪄 ${hasAi ? '이번 주 다시 짜기' : '이번 주 다 짜기'}<small>${esc(order.join(' · '))}의 ${days.length}일 일정을 한 번에 · AI 1번</small></button></section>`;
+        const top = `<section class="mb4-card mb4-sch-top"><div class="mb4-sch-head"><b>${esc(pick === today ? '오늘 일정' : dayName(S, pick, start))}</b><button class="mb4-sch-nav" data-act="pick" data-v="${Math.max(1, pick - 7)}" aria-label="앞 주">‹</button>${pick !== today ? '<button class="mb4-sch-month" data-act="pick" data-v="today">오늘로</button>' : `<span class="mb4-sch-month">${esc(pd ? `${pd.getUTCMonth() + 1}월` : '이번 주')}</span>`}<button class="mb4-sch-nav" data-act="pick" data-v="${pick + 7}" aria-label="다음 주">›</button></div><div class="mb4-sch-strip">${strip}</div></section>`;
 
-        // ── who ──
-        const who = `<div class="mb4-sch-who"><span class="mb4-sch-pk on me" style="--c:${colorOf(me)}"><i>${face(me)}</i>${esc(me)} (나)</span>${known.map((n) => `<button class="mb4-sch-pk${st.sel.includes(n) ? ' on' : ''}" style="--c:${st.sel.includes(n) ? colorOf(n) : 'var(--line)'}" data-act="sel" data-v="${esc(n)}" aria-pressed="${st.sel.includes(n)}"><i>${face(n)}</i>${esc(n)}</button>`).join('')}</div>`;
+        // ── whose timetable ──
+        const tabs = `<div class="mb4-sch-tabs" role="tablist">${[SHARED, ...order].map((n) => `<button class="mb4-sch-tab${view === n ? ' on' : ''}" style="--c:${colorOf(n)}" role="tab" aria-selected="${view === n}" data-act="view" data-v="${esc(n)}"><i>${icoOf(n)}</i>${esc(nameOf(n))}</button>`).join('')}<button class="mb4-sch-tab add" data-act="panel" data-v="ppl">＋ 사람</button></div>`;
 
-        // ── the day: one line down the left, each plan in its person's colour ──
-        const L = collect(S, env, pick).sort((a, b) => todIx(a.tod) - todIx(b.tod));
+        // ── panels: AI · add · people ──
+        const chk = (name, n, on, attr = 'data-ai') => `<label class="mb4-sch-chk" style="--c:${colorOf(n)}"><input type="checkbox" ${attr}="${esc(n)}" ${on ? 'checked' : ''}><span>${icoOf(n)} ${esc(name)}</span></label>`;
+        const radio = (group, v, label, on) => `<label class="mb4-sch-chk"><input type="radio" name="${group}" value="${v}" ${on ? 'checked' : ''}><span>${label}</span></label>`;
+        const panels = {
+            ai: `<div class="mb4-sch-panel"><b>🪄 AI로 일정 짜기</b>
+                <small>누구 일정</small><div class="mb4-sch-chks">${[SHARED, ...order].map((n) => chk(nameOf(n), n, true)).join('')}</div>
+                <small>어떻게</small><div class="mb4-sch-chks">${radio('mb4-sch-mode', 'routine', '🔁 루틴 (평소 하루 · 요일별)', true)}${radio('mb4-sch-mode', 'week', '🗓 이번 주 7일')}${radio('mb4-sch-mode', 'day', `📍 ${esc(pick === today ? '오늘' : dayName(S, pick, start))} 하루`)}</div>
+                ${hint('누를 때 AI를 1번 불러요. 다시 짜면 AI가 짠 것만 바뀌고, 직접 넣은 건 그대로예요.')}
+                <button class="mb4-btn mb4-sch-go-btn" data-act="magic">🪄 짜기</button></div>`,
+            add: `<div class="mb4-sch-panel"><b>＋ 일정 넣기</b>
+                <input class="mb4-input" data-f="what" maxlength="120" placeholder="일과 (무엇을 하나요)">
+                <small>누구 일정</small><div class="mb4-sch-chks">${[SHARED, ...order].map((n) => `<label class="mb4-sch-chk" style="--c:${colorOf(n)}"><input type="radio" name="mb4-sch-who" value="${esc(n)}" ${n === view ? 'checked' : ''}><span>${icoOf(n)} ${esc(nameOf(n))}</span></label>`).join('')}</div>
+                <small>시간</small><input class="mb4-input" data-f="time" maxlength="30" placeholder="예: 07:00–09:00 (비우면 하루 종일)">
+                <small>반복</small><div class="mb4-sch-chks">${radio('mb4-sch-rep', 'daily', '매일 (루틴)', true)}${radio('mb4-sch-rep', 'weekly', '매주 요일')}${radio('mb4-sch-rep', 'once', `${esc(pick === today ? '오늘' : dayName(S, pick, start))}만`)}</div>
+                <div class="mb4-sch-chks" style="margin-top:6px">${[1, 2, 3, 4, 5, 6, 0].map((n) => `<label class="mb4-sch-chk"><input type="checkbox" data-wd="${n}" ${n === wdOf(S, pick, start) ? 'checked' : ''}><span>${WD[n]}</span></label>`).join('')}</div>
+                ${hint('요일은 「매주」일 때만 써요.')}
+                <small>동선 · 행동</small><textarea class="mb4-input" data-f="how" rows="2" maxlength="300" placeholder="어디로 다니고 무엇을 피하는지, 버릇 (비워도 돼요)"></textarea>
+                <button class="mb4-btn mb4-sch-go-btn" data-act="add">넣기</button></div>`,
+            ppl: `<div class="mb4-sch-panel"><b>👥 일정을 볼 사람</b>
+                ${known.length ? `<div class="mb4-sch-chks">${known.map((n) => `<label class="mb4-sch-chk" style="--c:${st.sel.includes(n) ? colorOf(n) : 'var(--a)'}"><input type="checkbox" data-act="sel" data-v="${esc(n)}" ${st.sel.includes(n) ? 'checked' : ''}><span>${face(n)} ${esc(n)}</span></label>`).join('')}</div>` : hint('이야기에 사람이 나오면 여기서 고를 수 있어요.')}
+                ${hint(`${MAX_SEL}명까지. 고른 사람마다 탭이 생기고, 그 사람 일정이 공동 일정 안에 자기 색으로 들어가요.`)}</div>`,
+        };
+        const bar = `<div class="mb4-sch-bar"><button class="mb4-sch-ai" data-act="panel" data-v="ai">🪄 AI로 짜기</button><button class="mb4-sch-add" data-act="panel" data-v="add">＋ 일정 넣기</button></div>`;
+
+        // ── the day ──
+        const L = collect(S, env, pick).filter(inView).sort((a, b) => a.hour - b.hour || (a.who === SHARED ? -1 : 0) - (b.who === SHARED ? -1 : 0));
         const ICON = { due: '📌', done: '📌', mark: '📅', memo: '📝' };
-        const evColor = (e) => (e.kind !== 'own' ? 'var(--a)' : e.who.length ? colorOf(e.who.find((n) => order.includes(n)) ?? e.who[0]) : 'var(--a)');
-        const ev = (e, first) => `<div class="mb4-sch-ev${e.done ? ' done' : ''}${e.kind !== 'own' ? ' tag' : ''}" style="--c:${evColor(e)}">
-            <span class="mb4-sch-t">${first ? (e.tod ? TOD_KO[e.tod] : '종일') : ''}</span>
+        const ev = (e, first) => `<div class="mb4-sch-ev${e.done ? ' done' : ''}${e.kind !== 'own' ? ' tag' : ''}" style="--c:${colorOf(e.who)}">
+            <span class="mb4-sch-t">${first ? esc(e.label).replace('–', '<br>–') : ''}</span>
             <span class="mb4-sch-rail">${e.kind === 'own' ? `<button class="mb4-sch-dot" data-act="done" data-v="${e.n}" aria-label="${esc(e.title)} ${e.done ? '끝냄 풀기' : '끝냄'}"></button>` : '<i class="mb4-sch-dot"></i>'}</span>
             <div class="mb4-sch-b"><b>${e.kind !== 'own' ? `${ICON[e.kind]} ` : ''}${esc(e.title)}</b>
-                ${e.where ? `<span class="mb4-sch-m"><i>📍</i>${esc(e.where)}</span>` : ''}
-                ${e.kind === 'own' ? `<span class="mb4-sch-m"><i>👤</i>${e.who.length ? e.who.map((n) => `${face(n)} ${esc(n)}`).join(', ') : '다 같이'}</span>` : `<span class="mb4-sch-m"><i>🏷</i>${esc(e.tag)}${e.go && api.isOn(e.go.slice(4)) ? `<button class="mb4-sch-go" data-act="go" data-v="${e.go}">보기 ›</button>` : ''}</span>`}
-                <span class="mb4-sch-m"><i>🕰</i>${esc(dayName(S, pick, start))}${e.tod ? ` · ${TOD_KO[e.tod]}` : ''}</span></div></div>`;
+                ${e.how ? `<span class="mb4-sch-m"><i>🚶</i>${esc(e.how)}</span>` : ''}
+                ${e.kind === 'own' ? `<span class="mb4-sch-m"><i>${icoOf(e.who)}</i><span class="mb4-sch-who">${esc(nameOf(e.who))}</span><span class="mb4-sch-rep">${esc(e.rep)}</span></span>` : `<span class="mb4-sch-m"><i>🏷</i>${esc(e.tag)}${e.go && api.isOn(e.go.slice(4)) ? `<button class="mb4-sch-go" data-act="go" data-v="${e.go}">보기 ›</button>` : ''}</span>`}</div></div>`;
         const nowTod = pick === today ? S.tod : '';
-        const groups = ['', ...TOD].map((t) => {
-            const inRow = L.filter((e) => (e.tod ?? '') === t), now = !!t && t === nowTod;
-            const html = inRow.map((e, n) => ev(e, n === 0)).join('');
-            return now ? `<div class="mb4-sch-now"><small>지금 · ${TOD_KO[t]}</small>${html}</div>` : html;
-        }).join('');
-        const tt = `<div class="mb4-sch-tl">${L.length ? groups : `${nowTod ? `<div class="mb4-sch-now"><small>지금 · ${TOD_KO[nowTod]}</small></div>` : ''}<div class="mb4-sch-empty">이 날은 비어 있어요<br>🪄를 누르거나 아래에서 직접 넣어요</div>`}</div>`;
-        // ── add by hand ──
-        const dayOpts = [...new Set([...Array.from({ length: 15 }, (_x, n) => today + n), pick])].sort((a, b) => a - b).map((day) => `<option value="${day}" ${day === pick ? 'selected' : ''}>${esc(dayName(S, day, start))}</option>`).join('');
-        const add = `<details class="mb4-card" data-box="add" ${st.open === 'add' ? 'open' : ''}><summary>＋ 직접 넣기</summary>
-            <input class="mb4-input" data-f="what" maxlength="60" placeholder="무엇을 하나요">
-            <div class="mb4-sch-chks" role="group" aria-label="누구 일정인가요">${order.map((n) => `<label class="mb4-sch-chk" style="--c:${colorOf(n)}"><input type="checkbox" data-w="${esc(n)}"><span>${face(n)} ${esc(n)}</span></label>`).join('')}</div>
-            ${hint('아무도 안 고르면 가운데 「함께」 일정이에요.')}
-            <div class="mb4-btnrow"><select class="mb4-input" data-f="day" aria-label="날">${dayOpts}</select><select class="mb4-input" data-f="tod" aria-label="때"><option value="">하루 종일</option>${TOD.map((t) => `<option value="${t}" ${t === (pick === today && S.tod ? S.tod : 'morning') ? 'selected' : ''}>${TOD_KO[t]}</option>`).join('')}</select></div>
-            <input class="mb4-input" data-f="where" maxlength="60" placeholder="어디서 (비워도 돼요)">
-            <div class="mb4-btnrow"><button class="mb4-btn" data-act="add">넣기</button></div></details>`;
+        // blocks in time order; the same time label is written once; the block the story is in now is marked
+        const tl = L.length ? (() => {
+            let out = '', nowOpen = false, last = null;
+            for (const e of L) {
+                const isNow = !!nowTod && e.kind === 'own' && e.tod === nowTod;
+                if (isNow && !nowOpen) { out += `<div class="mb4-sch-now"><small>지금 · ${TOD_KO[nowTod]}</small>`; nowOpen = true; }
+                if (!isNow && nowOpen) { out += '</div>'; nowOpen = false; }
+                out += ev(e, e.label !== last); last = e.label;
+            }
+            return out + (nowOpen ? '</div>' : '');
+        })() : `${nowTod ? `<div class="mb4-sch-now"><small>지금 · ${TOD_KO[nowTod]}</small></div>` : ''}<div class="mb4-sch-empty">${view === SHARED ? '공동' : esc(nameOf(view))} 일정이 비어 있어요<br>🪄 AI로 짜기를 누르거나 직접 넣어요</div>`;
 
-        el.innerHTML = `${scene ? '' : card('', '🧭 장면 앱을 켜야 이야기 속 날과 때가 흘러요. 지금은 넣은 일정만 보여 줘요.', 'warn')}
-        ${top}${who}${tt}${add}
+        el.innerHTML = `${scene ? '' : `<section class="mb4-card warn">${esc('🧭 장면 앱을 켜야 이야기 속 날과 때가 흘러요. 지금은 넣은 일정만 보여 줘요.')}</section>`}
+        ${top}${tabs}${bar}${panels[st.panel] ?? ''}<div class="mb4-sch-tl">${tl}</div>
         <label class="mb4-sw"><span><b>오늘 일정을 AI에게도 알려 주기</b><small>오늘 남은 일정과, 다른 곳에 있는 사람이 지금 뭘 하는지 한두 줄로 보내요.</small></span><input type="checkbox" data-act="tell" ${api.cfg.tell !== false ? 'checked' : ''}><i></i></label>`;
 
         const save = () => { api.save(); api.redraw(); };
-        k.editMore(el, api, [
-            { name: 'item', list: st.items, max: 40, label: (x) => `${dayName(S, x.day, start)}${x.tod ? ` ${TOD_KO[x.tod]}` : ''} · ${x.who?.length ? x.who.join(' · ') : '함께'}`, get: (x) => x.what, set: (x, t) => { x.what = t.slice(0, 60); } },
-            { name: 'where', list: st.items.filter((x) => x.where), max: 40, del: false, label: (x) => `${x.what}: 어디서`, get: (x) => x.where, set: (x, t) => { x.where = t.slice(0, 60); } },
+        api.kit.editMore(el, api, [
+            { name: 'item', list: st.items, max: 60, label: (x) => `${x.who === SHARED ? '👥 공동' : x.who} · ${repText(x)}${x.rep === 'once' ? ` ${dayName(S, x.day, start)}` : ''} · ${timeLabel(x)}`, get: (x) => x.what, set: (x, t) => { x.what = t.slice(0, 120); } },
+            { name: 'time', list: st.items, max: 60, del: false, label: (x) => `${x.what}: 시간 (예: 07:00–09:00)`, get: (x) => x.time ?? '', set: (x, t) => { const h = startOf(t); if (h != null) { x.time = t.slice(0, 30); x.tod = todOfHour(h); } } },
+            { name: 'how', list: st.items, max: 60, del: false, rows: 2, label: (x) => `${x.what}: 동선 · 행동`, get: (x) => x.how ?? '', set: (x, t) => { x.how = t.slice(0, 300); } },
         ]);
-        el.querySelectorAll('details[data-box]').forEach((d) => d.addEventListener('toggle', () => { st.open = d.open ? d.dataset.box : ''; }));
+        const radioVal = (name) => el.querySelector(`input[name="${name}"]:checked`)?.value ?? '';
         acts(el, {
-            pick: (v) => { st.pick = Math.max(1, +v || today); api.redraw(); },
+            pick: (v) => { st.pick = v === 'today' ? today : Math.max(1, +v || today); api.redraw(); },
+            view: (v) => { st.view = v; api.redraw(); },
+            panel: (v) => { st.panel = st.panel === v ? '' : v; api.redraw(); },
             go: (v) => api.go(v),
             tell: (_v, b) => { api.cfg.tell = b.checked; api.save(); },
-            done: (n) => { const x = st.items[+n]; if (x) { x.done = !x.done; save(); } },
-            sel: (n) => {
-                if (st.sel.includes(n)) st.sel = st.sel.filter((x) => x !== n);
-                else if (st.sel.length >= MAX_SEL) { api.toast(`${MAX_SEL}명까지 고를 수 있어요.`); return; }
-                else st.sel.push(n);
+            done: (n) => { const x = st.items[+n]; if (!x) return; x.doneOn = x.doneOn && typeof x.doneOn === 'object' ? x.doneOn : {}; if (x.doneOn[pick]) delete x.doneOn[pick]; else x.doneOn[pick] = true; save(); },
+            sel: (n, b) => {
+                if (b.checked && !st.sel.includes(n)) { if (st.sel.length >= MAX_SEL) { api.toast(`${MAX_SEL}명까지 고를 수 있어요.`); b.checked = false; return; } st.sel.push(n); }
+                else if (!b.checked) { st.sel = st.sel.filter((x) => x !== n); if (st.view === n) st.view = SHARED; }
                 save();
             },
             add: () => {
-                const what = val(el, '[data-f="what"]'), day = +val(el, '[data-f="day"]') || pick, tod = val(el, '[data-f="tod"]'), where = val(el, '[data-f="where"]');
+                const what = val(el, '[data-f="what"]'), who = radioVal('mb4-sch-who') || SHARED, rep = radioVal('mb4-sch-rep') || 'daily', time = val(el, '[data-f="time"]'), h = startOf(time);
+                const wd = [...el.querySelectorAll('[data-wd]')].filter((x) => x.checked).map((x) => +x.dataset.wd).sort();
                 if (!what) { api.toast('무엇을 하는지 적어 주세요.'); return; }
-                st.items.push({ day, tod, what: what.slice(0, 60), who: [...el.querySelectorAll('[data-w]')].filter((x) => x.checked).map((x) => x.dataset.w), where: where.slice(0, 60) });
+                if (rep === 'weekly' && !wd.length) { api.toast('매주 무슨 요일인지 골라 주세요.'); return; }
+                st.items.push({ who, what: what.slice(0, 120), how: val(el, '[data-f="how"]').slice(0, 300), ...(h != null ? { time: time.slice(0, 30), tod: todOfHour(h) } : { tod: '' }), rep, doneOn: {}, ...(rep === 'once' ? { day: pick } : { from: Math.min(pick, today) }), ...(rep === 'weekly' ? { wd } : {}) });
                 if (st.items.length > MAX_ITEMS) st.items.splice(0, st.items.length - MAX_ITEMS);
-                st.pick = day; st.open = ''; save();
+                st.panel = ''; st.view = who; save();
             },
-            // ONE model call, only because this button was pressed: the whole week for everyone on the timetable
+            // ONE model call, only because 「짜기」 was pressed: every ticked timetable at once
             magic: async (_v, b) => {
-                b.disabled = true; b.firstChild.textContent = '🪄 짜는 중… ';
-                const label = (day, n) => { const d = dateAt(S, day, start); return `D${n + 1} = ${d ? `${['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'][d.getUTCDay()]} ${d.toISOString().slice(0, 10)}` : `story day ${day}`}${day === today ? ' (today)' : ''}`; };
-                const fixed = days.flatMap((day) => collect(S, env, day).filter((e) => !(e.kind === 'own' && e.ai)).map((e) => `D${days.indexOf(day) + 1} | ${e.who.length ? e.who.join(' & ') : 'together'} | ${e.tod || 'any'} | ${e.title}${e.where ? ` | ${e.where}` : ''}`));
-                const about = order.map((n) => (n === me ? `- ${me}: the user's own character` : `- ${n}${people[n]?.about ? `: ${people[n].about}` : ''}`)).join('\n');
-                const answer = await api.ask(`Make a believable timetable for these story days, for the people below: what they do together and what each does on their own.
-Days:\n${days.map(label).join('\n')}
-People:\n${about}
-Write 4 to 8 lines per day, one plan per line, exactly in this shape:
-D<n> | who | time | what | where
-who: "together" for everyone, or one or more of the names above joined with " & ". time: one of dawn, morning, noon, afternoon, evening, night, midnight. what: a few words. where: a short place name, one the story already has when it fits.
-Mix shared plans with each person's own (work, study, errands, habits, meeting someone). Keep to what is known about them and to the plans already fixed below (do not repeat those). ${days.includes(today) && S.tod ? `For today, plan only from ${S.tod} on.` : ''}
-Write "what" and "where" in the language the story is written in. No other text.
+                const whoList = [...el.querySelectorAll('[data-ai]')].filter((x) => x.checked).map((x) => x.dataset.ai), mode = radioVal('mb4-sch-mode') || 'routine';
+                if (!whoList.length) { api.toast('누구 일정을 짤지 골라 주세요.'); return; }
+                b.disabled = true; b.textContent = '🪄 짜는 중…';
+                const days = mode === 'week' ? week.filter((d) => d >= 1) : mode === 'day' ? [pick] : [];
+                const dayLine = (day, n) => { const d = dateAt(S, day, start); return `D${n + 1} = ${['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'][wdOf(S, day, start)]}${d ? ` ${d.toISOString().slice(0, 10)}` : ''}${day === today ? ' (today)' : ''}`; };
+                const who = whoList.map((n) => (n === SHARED ? '- shared: what the group does together, and where and when these people\'s routines cross or deliberately keep apart' : n === me ? `- ${me}: the user's own character` : `- ${n}${people[n]?.about ? `: ${people[n].about}` : ''}`)).join('\n');
+                const fixed = st.items.filter((x) => !x.ai && whoList.includes(x.who)).slice(-30).map((x) => `${x.who === SHARED ? 'shared' : x.who} | ${x.rep === 'once' ? `once on ${dayName(S, x.day, start)}` : repText(x)} | ${x.time || x.tod || 'any'} | ${x.what}`);
+                const shape = mode === 'routine'
+                    ? 'Each person\'s ROUTINE: their usual day as time blocks from waking to sleeping (and the night, if they are up). Not one particular day\'s events. when: "daily", or the days a block applies among Mon Tue Wed Thu Fri Sat Sun joined with ",", or "weekdays" / "weekend" (use these only where their week really differs). 5 to 8 blocks per person, 3 to 6 for shared.'
+                    : `Plans for ${days.length === 1 ? 'this one day' : 'these days'} only:\n${days.map(dayLine).join('\n')}\nwhen: the day's code (D1${days.length > 1 ? `…D${days.length}` : ''}). ${days.length === 1 ? '3 to 6' : '2 to 5'} lines per timetable${days.length > 1 ? ' per day' : ''}.`;
+                const answer = await api.ask(`Make believable schedules for the timetables below, for an ongoing story.
+Timetables:\n${who}
+${shape}
+One block per line, exactly in this shape:
+who | when | time | what | how
+who: "shared" or one of the names above. time: a 24-hour range like 07:00–09:00 (or a time of day: dawn, morning, noon, afternoon, evening, night, midnight). what: their activity, one short sentence. how: their movement and behaviour in that block — which places and ways they use or avoid, who they see or dodge, habits — one or two short sentences.
+Build it from what is known about these people, their situation and their relationships; keep to the plans already fixed below (do not repeat those). Write "what" and "where" in the language the story is written in. No other text.
 ${fixed.length ? `\n[Already fixed — keep, do not repeat]\n${fixed.join('\n')}\n` : ''}
 [What is known]\n${api.facts() || '(nothing recorded)'}
 
-[Latest part of the story]\n${clip(env.recent(1)[0] ?? '', 1500)}`, 1500);
-                const rows = parsePlan(answer, days, order);
+[Latest part of the story]\n${clip(env.recent(1)[0] ?? '', 1500)}`, 2000);
+                const rows = parsePlan(answer, { days, people: order }).filter((x) => whoList.includes(x.who)).map((x) => (x.rep === 'once' ? x : { ...x, from: Math.min(pick, today) }));
                 if (!rows.length) { api.toast('받지 못했어요. 멈춤 중이 아닌지 보고 다시 눌러 주세요.'); api.redraw(); return; }
-                // a new plan for these days replaces the last one the AI made; what you put in or ticked off stays
-                st.items = [...st.items.filter((x) => !(x.ai && !x.done && days.includes(x.day))), ...rows];
+                // what the AI made before for the same people and the same kind of plan goes; your own stays
+                const old = (x) => x.ai && whoList.includes(x.who) && (mode === 'routine' ? x.rep !== 'once' : x.rep === 'once' && days.includes(x.day));
+                st.items = [...st.items.filter((x) => !old(x)), ...rows];
                 if (st.items.length > MAX_ITEMS) st.items.splice(0, st.items.length - MAX_ITEMS);
+                st.panel = '';
                 api.toast(`📆 일정 ${rows.length}개를 짰어요.`);
                 save();
             },

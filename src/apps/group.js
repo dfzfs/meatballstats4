@@ -3,7 +3,7 @@
 // main model only if the person asks («이야기에 알리기»), once.
 import { clip } from '../core/text.js';
 import { plain, spendPlain, stamped, spendStamped } from '../core/once.js';
-import { esc, card, hint, acts, val, empty, face } from '../ui/kit.js';
+import { esc, card, hint, acts, val, empty, face, inCast } from '../ui/kit.js';
 
 const MOODS_BASE = [['', '평소처럼'], ['gossip', '뒷이야기'], ['plan', '작당 모의'], ['fight', '티격태격'], ['night', '새벽 감성']];
 const MOOD_EN_BASE = { gossip: 'They gossip about what just happened.', plan: 'They are planning something together.', fight: 'They bicker — petty, in character, no real harm.', night: 'It is late; they are sleepy, honest and a little sentimental.' };
@@ -11,7 +11,7 @@ import { optList as _opt } from '../ui/kit.js';
 const D_MOODS = MOODS_BASE.map(([id, name]) => ({ id: id || 'usual', icon: '', name, ai: MOOD_EN_BASE[id] ?? 'They talk as they normally would, about what is on their minds.' }));
 let MOODS = MOODS_BASE, MOOD_EN = MOOD_EN_BASE;
 const moodsOf = (cfg) => { const L = _opt(cfg, 'moods', D_MOODS); return [L.map((m) => [m.id === 'usual' ? '' : m.id, m.name]), Object.fromEntries(L.map((m) => [m.id === 'usual' ? '' : m.id, m.ai]))]; };
-const everyone = (env) => [...new Set([...(env.peek?.('scene')?.with ?? []), ...Object.values(env.peek?.('people')?.list ?? {}).filter((p) => !p.gone).map((p) => p.name), env.char])].filter((n) => n && n !== env.user);
+const everyone = (env) => { const ok = inCast(env); return [...new Set([...(env.peek?.('scene')?.with ?? []), ...Object.values(env.peek?.('people')?.list ?? {}).filter((p) => !p.gone).map((p) => p.name), env.char])].filter((n) => n && n !== env.user && ok(n)); };
 function parse(raw, members) {
     const out = [];
     for (const l of String(raw ?? '').split(/\r?\n/)) {

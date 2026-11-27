@@ -11,7 +11,7 @@ export const BUILTIN = [
     { id: 'secrets', icon: '🔒', name: '비밀', tab: '비밀', color: '#6c5ce7', cost: 'low', desc: 'AI가 숨겨야 할 비밀을 먼저 말해 버리지 않게 지켜요. 비밀 내용은 본편 AI에 보내지 않아요.' },
     { id: 'heart', icon: '💗', name: '호감', tab: '호감', color: '#ff5d8f', cost: 'zero', desc: '애정 · 신뢰를 숫자로, 질투와 마음 비교, 고백 · 청혼 · 이별 카드. 관계가 적은 것을 받아 셈해서 AI에 더 묻지 않아요.' },
     { id: 'mind', icon: '💭', name: '속마음', tab: '속마음', color: '#a78bfa', cost: 'tap', desc: '누르면 지금 장면 속 인물의 속마음을 살짝 보여 줘요. 나만 보고, 본편 AI에는 안 가요.' },
-    { id: 'schedule', icon: '📆', name: '일정', color: '#7a6ad8', cost: 'tap', desc: '하루를 한 줄 타임라인으로, 사람마다 색깔로 보여 줘요. 🪄 한 번이면 이번 주를 다 짜 줘요.' },
+    { id: 'schedule', icon: '📆', name: '일정', color: '#7a6ad8', cost: 'tap', desc: '👥 공동 일정 안에 사람마다 루틴(시간대 · 일과 · 동선)이 색깔별로 들어가요. 🪄 한 번이면 다 짜 줘요.' },
     { id: 'calendar', icon: '📅', name: '달력', color: '#3a8ee6', cost: 'zero', desc: '이야기 속 날짜를 달력으로 보여 주고, 내가 표시한 날이 다가오면 AI에 알려 줘요.' },
     { id: 'map', icon: '🗺', name: '지도', color: '#2f9e7a', cost: 'zero', desc: '다녀온 곳을 노선도로 그려요. 누가 어디 있는지, 가는 길, 건물 안까지 보여 줘요. 장면이 적어 둔 걸 읽기만 해요.' },
     { id: 'stats', icon: '❤️', name: '수치', tab: '수치', color: '#ff6b6b', cost: 'low', desc: '체력 · 기운처럼 내가 정한 수치를 막대로 보여 주고, 낮아지면 AI가 그에 맞게 쓰게 해요.' },
@@ -47,7 +47,7 @@ export const SHELVES = [
     { id: 'state', icon: '📋', name: '상태', hint: '지금 이야기가 어떤지', entries: [
         { id: 'scene', apps: ['scene'] },
         { id: 'cast', front: true, icon: '👥', name: '인물', color: '#4d908e', desc: '사람마다 소개 · 차림새 · 관계 · 호감 · 비밀 · 속마음을 한 장에', apps: ['people', 'look', 'bonds', 'heart', 'secrets', 'mind'] },
-        { id: 'plan', icon: '📆', name: '일정', color: '#7a6ad8', desc: '하루 타임라인에 사람별 일정. 달력과 약속도 같이 떠요', apps: ['schedule', 'calendar', 'todo'] },
+        { id: 'plan', icon: '📆', name: '일정', color: '#7a6ad8', desc: '공동 일정 안에 사람별 루틴. 달력과 약속도 같이 떠요', apps: ['schedule', 'calendar', 'todo'] },
         { id: 'map', apps: ['map'] },
         { id: 'me', front: true, icon: '🙋', name: '나', color: '#ff6b6b', desc: '내 수치 · 지갑 · 생활 · 내가 만든 칸을 한 장에', apps: ['stats', 'wallet', 'life', 'custom'] },
     ] },

@@ -8,6 +8,14 @@ const FACES = ['🙂', '😊', '😌', '🧐', '😎', '🤔', '😶', '🥰', '
 const CHOSEN = new Map();
 export const setFaces = (map) => { CHOSEN.clear(); for (const [n, e] of Object.entries(map && typeof map === 'object' ? map : {})) if (n && typeof e === 'string' && e.trim()) CHOSEN.set(n, e.trim().slice(0, 8)); };
 export const face = (name) => CHOSEN.get(String(name ?? '')) ?? FACES[parseInt(hash(String(name ?? '')), 36) % FACES.length];
+// Who counts as the story's cast. With 👥 인물 on, only the people on its list: someone removed there (or left out
+// by 📌 고정) is gone from every other app's pick lists too. Without 👥 인물, anyone.
+export function inCast(env) {
+    let P = null; try { P = env?.peek?.('people'); } catch (e) { P = null; }
+    if (!P?.list) return () => true;
+    const ok = new Set(Object.values(P.list).filter((p) => p && !p.gone).map((p) => p.name));
+    return (n) => ok.has(n);
+}
 // emoji offered when picking a face (any other can be typed)
 export const FACE_PICKS = ['🙂', '😊', '😎', '🤓', '😏', '🥰', '😇', '🤔', '😶', '😤', '🥺', '😴', '🤠', '👻', '🐱', '🐶', '🦊', '🐻', '🐰', '🐼', '🐯', '🦁', '🐸', '🐧', '🌸', '⭐', '🔥', '🍀'];
 

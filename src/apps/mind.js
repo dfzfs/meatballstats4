@@ -36,7 +36,7 @@ export default {
         st.list = Array.isArray(st.list) ? st.list : [];
         const W = k.optList(cfg, 'watch', D_WATCH), C = k.optList(cfg, 'cells', D_CELLS), T = k.optList(cfg, 'tones', D_TONES), F = k.optList(cfg, 'fmt', D_FMT);
         cfg.cells = cfg.cells && typeof cfg.cells === 'object' ? cfg.cells : { jjogae: true, sul: true, bul: true };
-        const cast = [...new Set([...(env.peek('scene')?.with ?? []), env.char].filter((n) => n && n !== env.user))];
+        const inC = k.inCast(env), cast = [...new Set([...(env.peek('scene')?.with ?? []), env.char].filter((n) => n && n !== env.user && inC(n)))];
         const mode = st.mode === 'watch' ? 'watch' : 'cast';
         st.who = mode === 'cast' ? (cast.includes(st.who) ? st.who : cast[0] ?? '') : (W.some((w) => w.id === st.who) || st.who === 'cells' ? st.who : W[0]?.id ?? 'cells');
         const tone = T.find((t) => t.id === cfg.tone) ?? T[0] ?? { id: '', ai: '' }, fmt = F.find((f) => f.id === cfg.fmt) ?? F[0] ?? { id: '', ai: '' };

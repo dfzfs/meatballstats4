@@ -1,6 +1,6 @@
 // Everything that touches the chat application lives in src/st/. This file: saved settings and per-chat data.
 export const KEY = 'meatball4';          // settings key, chat-metadata key, prompt-slot prefix: all our own
-export const VERSION = '4.3.2';
+export const VERSION = '4.4.0';
 
 export const ctx = () => globalThis.SillyTavern.getContext();
 

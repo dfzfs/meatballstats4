@@ -80,7 +80,7 @@ export default {
         const st = api.store, cfg = api.cfg, k = api.kit, T = threads(st), env = api.env, user = env.user || 'me';
         const day = env.peek('scene')?.day;
         const near = k.closeness(env.peek('bonds'), env.peek('heart'), env.user);
-        const known0 = [...new Set([...(st.recent ?? []), ...(env.peek('scene')?.with ?? []), ...Object.keys(env.peek('people')?.list ?? {}), ...Object.keys(T)])].filter((n) => n && n !== env.user);
+        const known0 = [...new Set([...(st.recent ?? []), ...(env.peek('scene')?.with ?? []), ...Object.keys(env.peek('people')?.list ?? {}), ...Object.keys(T)])].filter((n) => n && n !== env.user && k.inCast(env)(n));
         // the closest people first (💞 관계 · 💗 호감); equally close ones keep the most recent first
         const known = known0.map((n, j) => [n, j]).sort((a, b) => (near(b[0]) - near(a[0])) || a[1] - b[1]).map(([n]) => n);
         if (st.who && !known.includes(st.who)) st.who = '';

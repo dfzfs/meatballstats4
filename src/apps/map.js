@@ -277,14 +277,15 @@ function model(S, env, st) {
     for (const p of places) { p.near ??= []; p.kind = PLACE_KINDS[st.kind?.[p.key]] ? st.kind[p.key] : guessKind(p.name); p.floors = floorsOf(p.rooms); }
     // people: here now = whoever 🧭 Scene says is present; elsewhere = where each was last seen
     const gone = env.peek?.('people')?.list ?? {}, face = env.face ?? (() => '🙂');
-    const pinOK = (n) => !Array.isArray(st.pins) || st.pins.includes(n);
+    const inC = env.kit?.inCast ? env.kit.inCast(env) : () => true, me0 = String(env.user ?? '').trim();
+    const pinOK = (n) => (n === me0 || inC(n)) && (!Array.isArray(st.pins) || st.pins.includes(n));
     const me = String(env.user ?? '').trim();
     const at = new Map(), everyone = new Set([...(me ? [me] : []), ...S.with, ...Object.keys(S.seen)]);
     const push = (key, x) => { if (byKey.has(key)) (at.get(key) ?? at.set(key, []).get(key)).push(x); };
     if (me && S.cur && pinOK(me)) push(S.cur, { e: face(me), name: me, why: '나 · 지금 여기', now: true, me: true });
     for (const n of S.with) if (n !== me && pinOK(n)) push(S.cur, { e: face(n), name: n, why: '지금 같이 있어요', now: true });
     for (const [n, s] of Object.entries(S.seen)) if (n !== me && !S.with.includes(n) && !gone[n]?.gone && pinOK(n)) push(s.at, { e: face(n), name: n, why: '마지막으로 본 곳', now: false });
-    return { places, byKey, at, everyone: [...everyone].filter((n) => !gone[n]?.gone), hidden: all.filter((p) => hide.has(p.key) && p.key !== S.cur), near };
+    return { places, byKey, at, everyone: [...everyone].filter((n) => !gone[n]?.gone && (n === me0 || inC(n))), hidden: all.filter((p) => hide.has(p.key) && p.key !== S.cur), near };
 }
 
 const TOD_KO = { dawn: '새벽', morning: '아침', noon: '낮', afternoon: '오후', evening: '저녁', night: '밤', midnight: '한밤' };

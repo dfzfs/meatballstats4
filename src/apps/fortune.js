@@ -68,7 +68,7 @@ export default {
         st.seed ??= String(Math.random()).slice(2, 10);
         st.readings = Array.isArray(st.readings) ? st.readings : [];
         const m = TELLERS[st.method] && !TELLERS[st.method].hidden ? st.method : (Object.keys(TELLERS).find((x) => !TELLERS[x].hidden) ?? 'tarot'), n = [1, 3, 5].includes(st.n) ? st.n : 3;
-        const cast = [...new Set([env.user, ...(env.peek('scene')?.with ?? []), ...Object.keys(env.peek('people')?.list ?? {})])].filter(Boolean);
+        const inC = k.inCast(env), cast = [...new Set([env.user, ...(env.peek('scene')?.with ?? []), ...Object.keys(env.peek('people')?.list ?? {})])].filter((n) => n && (n === env.user || inC(n)));
         const who = cast.includes(st.who) ? st.who : cast[0] ?? '';
         const last = st.readings.at(-1);
         el.innerHTML = `<div class="mb4-hero mb4-center">${c ? `<div class="mb4-hero-n">${c[0]}</div><div class="mb4-big">${c[1]}</div><p>${esc(c[2])}</p><small>오늘의 운세</small>` : `<div class="mb4-hero-n">🔮</div><div class="mb4-big">오늘의 운세</div><small>이야기 속 하루에 한 번 뽑아요</small>`}</div>

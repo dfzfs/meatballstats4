@@ -2,14 +2,14 @@
 // Code keeps the count and the strength; the main model gets one line while it lasts. No reader key, no model call.
 // A character present who trusts nobody, or a suggestion against who they are, wears off sooner (code: strength).
 import { clip } from '../core/text.js';
-import { esc, card, hint, acts, val, empty, bar, face, pill, optList, optCard, optWire } from '../ui/kit.js';
+import { esc, card, hint, acts, val, empty, bar, face, pill, optList, optCard, optWire, inCast } from '../ui/kit.js';
 
 const STR_BASE = [['light', '가볍게', 'a faint nudge the character could shake off if someone pointed it out'], ['mid', '보통', 'a firm suggestion the character follows without noticing why'], ['deep', '깊게', 'a deep suggestion the character acts on as if it were their own idea']];
 const D_STR = STR_BASE.map(([id, name, ai]) => ({ id, icon: '', name, ai }));
 let STR = STR_BASE;
 const strOf = (cfg) => { const hide = cfg?.opts?.str?.hide ?? {}; return [...optList(cfg, 'str', D_STR), ...D_STR.filter((d) => hide[d.id]).map((d) => ({ ...d, hidden: true }))].map((x) => [x.id, x.name, x.ai, !!x.hidden]); };
 const LEN = [3, 5, 10];
-const cast = (env) => [...new Set([...(env.peek?.('scene')?.with ?? []), ...Object.values(env.peek?.('people')?.list ?? {}).filter((p) => !p.gone).map((p) => p.name), env.char])].filter((n) => n && n !== env.user);
+const cast = (env) => { const ok = inCast(env); return [...new Set([...(env.peek?.('scene')?.with ?? []), ...Object.values(env.peek?.('people')?.list ?? {}).filter((p) => !p.gone).map((p) => p.name), env.char])].filter((n) => n && n !== env.user && ok(n)); };
 
 export default {
     api: 1, id: 'hypno', name: '최면', icon: '🌀', color: '#7b2cbf', cost: 'zero',

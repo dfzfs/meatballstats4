@@ -50,7 +50,7 @@ export default {
                 b.disabled = true; b.textContent = '받는 중…';
                 const kinds = KINDS.filter((x) => K[x.id]);
                 if (!kinds.length) { api.toast('받을 종류를 하나 이상 골라 주세요.'); api.redraw(); return; }
-                const cast = [...new Set([...(api.env.peek('scene')?.with ?? []), ...Object.keys(api.env.peek('people')?.list ?? {})])].filter((n) => n !== api.env.user).slice(0, 8);
+                const cast = [...new Set([...(api.env.peek('scene')?.with ?? []), ...Object.keys(api.env.peek('people')?.list ?? {})])].filter((n) => n !== api.env.user && k.inCast(api.env)(n)).slice(0, 8);
                 const answer = await api.ask(`Write four short items from the world of an ongoing story, one per line, each starting with its kind:\n${kinds.map((x) => `${x.id}: ${x.ai}`).join('\n')}\n\n[What is known]\n${api.facts() || '(nothing recorded)'}\n\n[Latest part of the story]\n${clip(api.env.recent(1)[0] ?? '', 1500)}\n\n[Characters]\n${cast.join(', ') || '(any)'}\n\nUnder 25 words each, fitting the setting and its tone, in the same language as the story. Format: kind | text   or, for feed and life: kind | Name | text. Four lines only.`, 360);
                 const got = answer.split(/\r?\n/).map((l) => l.replace(/^\s*(?:[-*•]|\d+[.)])\s*/, '').split('|').map((x) => x.trim())).filter((p) => p.length >= 2).map((p) => {
                     const kd = KINDS.find((x) => x.id === p[0].toLowerCase())?.id ?? 'world';

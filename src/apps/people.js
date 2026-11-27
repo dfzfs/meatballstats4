@@ -93,14 +93,16 @@ export default {
     },
     // 🗑 people the person removed by hand stay away until a newer reply names them again
     adjust(S, env) {
-        for (const [n, at] of Object.entries(env.store?.hide ?? {})) {
-            const P = S.list[n];
-            if (!P || (P.i ?? -1) > at) continue;
+        const drop = (n) => {
             delete S.list[n];
             const has = (d) => d.split('>').includes(n);
             for (const f of ['calls', 'lies', 'owes']) for (const d of Object.keys(S[f] ?? {})) if (has(d)) delete S[f][d];
             for (const f of ['knows', 'seeds', 'roles']) if (S[f]) delete S[f][n];
-        }
+        };
+        for (const [n, at] of Object.entries(env.store?.hide ?? {})) { const P = S.list[n]; if (P && (P.i ?? -1) <= at) drop(n); }
+        // 📌 고정: only the people on the list when it was locked (and those added by hand since) — nobody new joins
+        const lock = env.store?.lock;
+        if (lock?.on && Array.isArray(lock.names)) { const keep = new Set(lock.names); for (const n of Object.keys(S.list)) if (!keep.has(n)) drop(n); }
     },
     stateLines: (S) => { const L = Object.values(S.list).filter((p) => !p.gone); return [`known people: ${L.length ? L.map((p) => p.name).join(', ') : '(none recorded)'}`]; },
     note(S, env) {
@@ -147,7 +149,8 @@ export default {
         const calls = (n) => Object.entries(S.calls ?? {}).filter(([d]) => d.startsWith(`${n}>`) || d.endsWith(`>${n}`)).map(([d, c]) => `<span class="mb4-chip">${esc(d.replace('>', ' → '))} 「${esc(c.v)}」</span>`).join('');
         const merge = lookalikes(L.map((p) => p.name)).filter(([a, b]) => !st.alias[b.toLowerCase()] && !st.alias[a.toLowerCase()]);
         const mine = me ? `<details class="mb4-card" ${st._myface ? 'open' : ''} data-myface><summary><span class="mb4-face">${esc(face(me))}</span> 내 이모티콘 <small>${esc(me)}</small></summary>${facePick(me)}</details>` : '';
-        el.innerHTML = mine + (Object.keys(S.list).length > 6 || q ? `<input class="mb4-input" data-act="q" placeholder="🔍 이름 · 소개로 찾기" value="${esc(st._q ?? '')}" style="margin-bottom:8px">` : '') + (merge.length ? card('🔀 같은 사람인가요?', merge.slice(0, 4).map(([a, b]) => `<div class="mb4-row"><span class="mb4-row-v">${esc(a)} · ${esc(b)}</span><button class="mb4-btn ghost sm" data-act="merge" data-v="${esc(`${b}|${a}`)}">하나로</button></div>`).join(''), 'warn') : '')
+        const lockRow = `<label class="mb4-sw"><span><b>📌 인물 고정</b><small>${st.lock?.on ? `지금 목록 ${Object.keys(S.list).length}명만 써요. 이야기에 새 사람이 나와도 늘지 않고, 다른 앱에도 안 떠요. 「＋ 사람 더하기」로는 넣을 수 있어요.` : '켜면 지금 목록의 사람만 남고, 더는 저절로 늘지 않아요.'}</small></span><input type="checkbox" data-act="lock" ${st.lock?.on ? 'checked' : ''}><i></i></label>`;
+        el.innerHTML = lockRow + mine + (Object.keys(S.list).length > 6 || q ? `<input class="mb4-input" data-act="q" placeholder="🔍 이름 · 소개로 찾기" value="${esc(st._q ?? '')}" style="margin-bottom:8px">` : '') + (merge.length ? card('🔀 같은 사람인가요?', merge.slice(0, 4).map(([a, b]) => `<div class="mb4-row"><span class="mb4-row-v">${esc(a)} · ${esc(b)}</span><button class="mb4-btn ghost sm" data-act="merge" data-v="${esc(`${b}|${a}`)}">하나로</button></div>`).join(''), 'warn') : '')
             + (L.length ? listOf(L.map((p) => [p.name, card('', `
             ${person(p.name, p.about || '아직 소개가 없어요', `${here.includes(p.name) ? pill('지금 여기', 'good') : ''}${p.gone ? pill('떠남', 'bad') : ''}`)}
             ${p.seen?.length ? `<p class="mb4-hint">다르게 적힌 이름: ${esc(p.seen.join(', '))}</p>` : ''}
@@ -198,7 +201,8 @@ export default {
                 if (did) api.toast('고쳤어요.');
             },
             gone: (n) => { if (S.list[n]?.gone) api.fix('npc', `${n}=${S.list[n].about || 'back in the story'}`); else api.fix('gone', `${n}=left the story for good`); },
-            padd: () => { const n = String(el.querySelector('[data-f="nname"]')?.value ?? '').trim(), a = String(el.querySelector('[data-f="nabout"]')?.value ?? '').trim(); if (n && a) api.fix('npc', `${n}=${a}`); else api.toast('이름과 어떤 사람인지 적어 주세요.'); },
+            padd: () => { const n = String(el.querySelector('[data-f="nname"]')?.value ?? '').trim(), a = String(el.querySelector('[data-f="nabout"]')?.value ?? '').trim(); if (n && a) { if (st.lock?.on && !st.lock.names.includes(n)) st.lock.names.push(n); api.fix('npc', `${n}=${a}`); } else api.toast('이름과 어떤 사람인지 적어 주세요.'); },
+            lock: (_v, b) => { st.lock = b.checked ? { on: true, names: Object.keys(S.list) } : { on: false, names: [] }; api.toast(b.checked ? `지금 ${Object.keys(S.list).length}명으로 고정했어요. 새 사람이 나와도 늘지 않아요.` : '고정을 풀었어요. 이야기에 나온 사람이 다시 저절로 늘어요.'); save(); },
         });
     },
 };
