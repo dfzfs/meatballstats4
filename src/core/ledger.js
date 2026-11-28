@@ -1,6 +1,6 @@
 // The shared ledger: every app's state, rebuilt from the chat in order. Nothing is stored as a running total,
 // so swipes, deletions, edits and branches are always right — the state is whatever the chat on screen adds up to.
-import { fingerprint, isReply } from './text.js';
+import { fingerprint, isReply, isStory } from './text.js';
 import { meToUser } from './parse.js';
 
 // chat: messages · records: { fingerprint: { L: [[key, value, quote?], ...] } } · fixes: { fingerprint: [[key, value], ...] } · reg: active apps
@@ -11,7 +11,7 @@ export function fold({ chat = [], records = {}, fixes = {}, reg, envOf = () => (
     const n = Math.min(chat.length, upto);
     for (let i = 0; i < n; i++) {
         const m = chat[i];
-        if (!isReply(m)) continue;
+        if (!isStory(m)) continue;   // hidden replies still count: hiding only takes them out of the prompt
         const fp = fingerprint(m);
         // what the reader recorded for this reply, then what the person corrected by hand on it
         const lines = [...(records[fp]?.L ?? []), ...(fixes[fp] ?? [])];

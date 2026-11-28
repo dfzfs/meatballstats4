@@ -25,6 +25,11 @@ export const fingerprint = (m) => `${fnv(String(m?.name ?? ''))}.${fnv(String(m?
 // Messages that are part of the story. System notices and hidden messages are skipped.
 export const isReply = (m) => !!m && !m.is_user && !m.is_system && !!String(m.mes ?? '').trim();
 export const isUserTurn = (m) => !!m && !!m.is_user && !m.is_system;
+// A message the person hid (eye button, /hide): SillyTavern only sets is_system on it. Its own notices
+// (narrator, comment, help…) carry extra.type or the system name, so those stay out.
+export const isHidden = (m) => !!m && !!m.is_system && !m.extra?.type && m.name !== 'SillyTavern System';
+// A reply that is part of the story, shown or hidden: what the ledger adds up (hiding never resets a state).
+export const isStory = (m) => !!m && !m.is_user && (!m.is_system || isHidden(m)) && !!String(m.mes ?? '').trim();
 
 const norm = (x) => String(x ?? '').toLowerCase().replace(/[“”"'‘’「」『』*_.,!?;:…]/g, '').replace(/\s+/g, ' ').trim();
 // Is the quote really in the text? Exact, or any 20-letter window of it (models trim and re-space quotes).
